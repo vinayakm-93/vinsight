@@ -89,3 +89,7 @@ yfinance==0.2.66
 # Sentiment Analysis - VinSight v2
 transformers>=4.30.0
 torch>=2.0.0
+# Google Cloud
+google-cloud-storage==2.14.0
+google-cloud-logging==3.9.0
+gunicorn==21.2.0

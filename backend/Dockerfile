@@ -21,4 +21,7 @@ EXPOSE 8080
 
 # Run uvicorn server
 # Cloud Run expects the app to listen on PORT environment variable (default 8080)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run gunicorn server (Production)
+# Workers: 1 per core is a good start, but for Cloud Run with 1 vCPU, 1-2 workers is standard.
+# Timeout: 0 to disable timeouts (Cloud Run handles this)
+CMD ["gunicorn", "main:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8080", "--timeout", "0"]
