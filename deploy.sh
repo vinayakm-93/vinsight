@@ -13,7 +13,12 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Starting Deployment to Google Cloud Project: $PROJECT_ID${NC}"
 
-# Check gcloud
+# Add local gcloud to PATH if it exists
+if [ -d "./google-cloud-sdk/bin" ]; then
+    export PATH="$(pwd)/google-cloud-sdk/bin:$PATH"
+fi
+
+# Check for gcloud
 if ! command -v gcloud &> /dev/null; then
     echo "Error: gcloud CLI is not installed."
     echo "Install it: https://cloud.google.com/sdk/docs/install"

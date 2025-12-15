@@ -35,3 +35,5 @@ build/
 
 # Scripts (Optional - if you want to hide them, but usually they are committed)
 # scripts/
+google-cloud-sdk/
+google-cloud-cli-darwin-arm.tar.gz

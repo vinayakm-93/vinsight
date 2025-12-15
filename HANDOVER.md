@@ -68,3 +68,27 @@ Currently, the app uses **SQLite** stored inside the container.
 1.  **Cloud SQL**: Move `finance.db` to a managed PostgreSQL instance for permanent storage.
 2.  **Secret Manager**: Move `.env` secrets (like API keys) to Google Secret Manager instead of hardcoding or checking them in.
 3.  **CI/CD**: Connect GitHub Actions to run `deploy.sh` automatically when you push to `main`.
+
+---
+
+## 🛡️ Security Hardening (Dec 15 Update)
+A comprehensive security audit was conducted and 11 critical vulnerabilities were patched.
+
+### Critical Fixes Implemented
+*   **Debug Endpoint Removed**: Cleaned up `/api/auth/debug-code` which exposed verification codes.
+*   **Production Authentication**:
+    *   **Rate Limiting**: Added `slowapi` to prevent brute force (Login: 5/min, Email: 3/min).
+    *   **Secure Cookies**: Enabled `HttpOnly`, `Secure` (in prod), and `SameSite` flags.
+    *   **Fail-Safe JWT**: Server now refuses to start in production if `JWT_SECRET_KEY` is missing.
+    *   **Cryptographic RNG**: Replaced `random` with `secrets` module for generating codes.
+*   **API Security**:
+    *   **Strict CORS**: Production configuration now enforces origin whitelist.
+    *   **Input Validation**: File uploads (watchlists) now check extensions (`.csv`, `.txt`) and enforce 1MB size limits.
+    *   **Alerts**: Added authentication requirement to `/api/alerts/check`.
+*   **Cleanup**: Removed verbose error messages that leaked internal stack traces and cleaned up debug print statements.
+
+### New Environment Variables
+*   `ENV`: Set to `production` for Cloud Run.
+*   `ALLOWED_ORIGINS`: Comma-separated list of allowed frontend domains (required in production).
+*   `JWT_SECRET_KEY`: **Mandatory** for production.
+
