@@ -1,0 +1,35 @@
+{
+  "summary": {
+    "bullish": [
+      "double-digit growth across every major part of the business",
+      "delivered our first ever $100 billion quarter",
+      "strong momentum in Search, YouTube ads, subscription, platforms and devices in Cloud",
+      "Cloud backlog grew 46% quarter-over-quarter to $155 billion",
+      "crossed $300 million paid subscriptions led by growth in Google One and YouTube Premium",
+      "AI is driving an expansionary moment for Search",
+      "AI Mode is resonating well with users",
+      "YouTube has remained #1 in streaming watch time in the U.S. for more than 2 years"
+    ],
+    "bearish": [
+      "year-on-year decline in network revenues",
+      "increase in depreciation expense and other data center operations costs",
+      "European Commission fine of $3.5 billion",
+      "volatility in exchange rates could affect the impact of FX on Q4 revenues",
+      "year-over-year comparisons in advertising will be negatively impacted by the strong spend on U.S. elections in the fourth quarter of 2024"
+    ],
+    "risks": [
+      "risks and uncertainties that could cause actual results to differ materially from current expectations and assumptions",
+      "increasing competition in the technology industry",
+      "regulatory risks, including the European Commission fine",
+      "foreign exchange risks",
+      "dependence on advertising revenue",
+      "rapidly changing technology landscape"
+    ]
+  },
+  "metadata": {
+    "quarter": "3",
+    "year": "2025",
+    "date": "2025-10-29",
+    "last_api_check": "2025-12-14T23:13:06.495062"
+  }
+}

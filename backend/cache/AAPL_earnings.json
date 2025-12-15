@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "bullish": [
+      "record revenue of $102.5 billion",
+      "Services achieved an all-time revenue record of $28.8 billion",
+      "EPS came in at $1.85 setting a September quarter record",
+      "strong demand for iPhone 17",
+      "expect December quarter's revenue to be the best ever",
+      "double-digit growth in the vast majority of markets",
+      "all-time revenue records in dozens of markets",
+      "Apple Watch lineup is more capable than ever",
+      "AirPods Pro 3 have been a huge hit",
+      "Services revenue reached an all-time high of $28.8 billion",
+      "double-digit growth year-over-year on Apple Pay Active Users"
+    ],
+    "bearish": [
+      "faced supply constraints on several iPhone 16 and iPhone 17 models",
+      "macroeconomic conditions, tariffs and other measures and legal and regulatory proceedings may cause actual results to differ materially",
+      "risks related to the potential impact to the company's business and results of operations",
+      "difficult compare for Mac revenue in the December quarter",
+      "iPad revenue was flat year-over-year",
+      "Wearables, Home and Accessories revenue was flat year-over-year"
+    ],
+    "risks": [
+      "macroeconomic conditions",
+      "tariffs and other measures",
+      "legal and regulatory proceedings",
+      "supply constraints",
+      "global tariff rates, policies and application",
+      "global macroeconomic outlook"
+    ]
+  },
+  "metadata": {
+    "quarter": "4",
+    "year": "2025",
+    "date": "2025-10-30",
+    "last_api_check": "2025-12-14T23:09:33.480718"
+  }
+}

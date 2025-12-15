@@ -1,0 +1,41 @@
+{
+  "summary": {
+    "bullish": [
+      "Total cloud revenue was up 33% at $8 billion",
+      "Cloud infrastructure revenue was $4.1 billion, up 66%",
+      "GPU-related revenue growing 177%",
+      "Oracle's cloud infrastructure businesses continue to grow much faster than competitors",
+      "Total revenues for the quarter were $16.1 billion, up 13%",
+      "Operating income grew 8% to $6.7 billion",
+      "Non-GAAP EPS was $2.26 up 51%",
+      "GAAP EPS was $2.10, up 86%",
+      "Cloud applications revenue was up 11%",
+      "Fusion ERP up 17%, Fusion SCM up 18%, Fusion HCM up 14%, NetSuite grew by 13%",
+      "Industry cloud was up 21%",
+      "Health care business has 274 customers live in production on clinical AI agent",
+      "AI-based ambulatory EHR is generally available and received US regulatory approval",
+      "Expect bookings and revenue in Q3 to accelerate materially"
+    ],
+    "bearish": [
+      "Free cash flow was a negative $10 billion",
+      "CapEx was $12 billion",
+      "Currency had a 1% positive impact on revenue, and 3\u00a2 positive impact on earnings in Q2",
+      "Currency is expected to have a 2-3% positive effect on revenue and 6\u00a2 positive effect on EPS in Q3"
+    ],
+    "risks": [
+      "Risks and uncertainties that may cause actual results to differ materially from statements being made today",
+      "Currency fluctuations",
+      "Competition in the cloud infrastructure market",
+      "Ability to maintain investment-grade debt rating",
+      "Ability to deliver capacity to customers quickly and efficiently",
+      "Dependence on vendors for hardware and other components",
+      "Risk of customer defaults or non-payment"
+    ]
+  },
+  "metadata": {
+    "quarter": "2",
+    "year": "2026",
+    "date": "2025-12-10",
+    "last_api_check": "2025-12-14T23:48:05.257916"
+  }
+}

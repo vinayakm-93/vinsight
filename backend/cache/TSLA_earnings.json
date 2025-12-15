@@ -1,0 +1,31 @@
+{
+  "summary": {
+    "bullish": [
+      "expanding production as quickly as possible",
+      "full self-driving and robotaxi will fundamentally change the nature of transport",
+      "Optimus has the potential to be the biggest product of all time",
+      "record deliveries and deployments",
+      "record energy gross profit and margins",
+      "record free cash flow of approximately $4 billion",
+      "total cash and investments at the end of the quarter were over $41 billion"
+    ],
+    "bearish": [
+      "tariff impacts for Q3 were in excess of $400 million",
+      "headwinds in the energy storage business due to increased competition and tariffs",
+      "other income decreased sequentially primarily due to mark-to-market adjustments on BTC holdings",
+      "operating expenses increased sequentially"
+    ],
+    "risks": [
+      "risks and uncertainties, including those mentioned in our most recent filings with the SEC",
+      "regulatory risks, including obtaining approvals for FSD in certain regions",
+      "supply chain risks, including the potential for disruptions or shortages",
+      "competition risks, including the potential for increased competition in the energy storage business"
+    ]
+  },
+  "metadata": {
+    "quarter": "3",
+    "year": "2025",
+    "date": "2025-10-22",
+    "last_api_check": "2025-12-14T22:49:56.639722"
+  }
+}
