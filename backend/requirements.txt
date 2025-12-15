@@ -49,7 +49,11 @@ peewee==3.18.3
 platformdirs==4.5.1
 pluggy==1.6.0
 proto-plus==1.26.1
-protobuf==5.29.5
+protobuf>=3.20.0
+# Google Cloud
+google-cloud-storage>=2.14.0
+google-cloud-logging>=3.11.0
+gunicorn>=21.2.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
@@ -90,6 +94,4 @@ yfinance==0.2.66
 transformers>=4.30.0
 torch>=2.0.0
 # Google Cloud
-google-cloud-storage==2.14.0
-google-cloud-logging==3.9.0
-gunicorn==21.2.0
+
