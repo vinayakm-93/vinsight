@@ -1,24 +1,41 @@
-# Contributing to VinSight
+# How to Contribute (Fork & Pull Request Workflow)
 
-Thank you for your interest in VinSight!
+This guide explains how others can contribute to your project.
 
-## Important: Source Available License
-This project is released under a **Source Available License**.
-- You **MAY** download and run the code.
-- You **MAY** report bugs and suggest features via Issues.
-- You **MAY NOT** distribute modified versions of this software.
+## 1. Fork the Repository
+Contributors should click the **"Fork"** button in the top-right corner of your GitHub repository page (`vinayakm-93/vinsight`). This creates a copy in their own account.
 
-## How to Contribute
-Since modification/redistribution is restricted, we do not accept standard Pull Requests for major code changes that change the nature of the application.
+## 2. Clone their Fork
+They run this in their terminal (replacing `their-username`):
 
-However, if you find a bug:
-1.  Open an Issue describing the bug.
-2.  If you have a fix, you may share the code snippet in the Issue for the Maintainer to review and implement.
+```bash
+git clone https://github.com/their-username/vinsight.git
+cd vinsight
+```
 
-## Code Style
-- **Python**: Follow PEP 8.
-- **TypeScript**: Follow standard React/Next.js conventions.
+## 3. Create a Branch
+Best practice is to create a new branch for each feature:
 
-## Attribution
-If you reuse parts of this code in your own project (as permitted by the License), you typically must include:
-> "Portions of this code are based on VinSight by Vinayak."
+```bash
+git checkout -b feature/my-new-feature
+```
+
+## 4. Make Changes & Push
+They edit files, then verify, commit, and push:
+
+```bash
+git add .
+git commit -m "Add cool new feature"
+git push origin feature/my-new-feature
+```
+
+## 5. Create Pull Request (PR)
+1. They go to **your** repository on GitHub.
+2. They will see a banner saying "Compare & pull request".
+3. They click it, describe their changes, and submit.
+
+## 6. You Review & Merge
+1. You go to the **"Pull requests"** tab in your repo.
+2. Click the new request.
+3. Review the code changes.
+4. Click **"Merge pull request"** to add their code to your main branch.
