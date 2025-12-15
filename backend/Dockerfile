@@ -7,6 +7,9 @@ WORKDIR /app
 # Copy the file from your host to your current location.
 COPY requirements.txt .
 
+# Install CPU-only torch to save space (must be before requirements.txt)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
