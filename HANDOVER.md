@@ -41,14 +41,8 @@ We have automated the deployment process.
 
 ---
 
-## ⚠️ Critical Limitations
-### 1. Database Persistence (SQLite)
-Currently, the app uses **SQLite** stored inside the container.
-*   **The Issue:** Google Cloud Run file systems are *ephemeral*. When the container stops (scales to zero) or you deploy a new version, **the file system is wiped**.
-*   **Effect:** User accounts, watchlists, and cached data will disappear on every redeploy.
-*   **Future Fix:** Migrate to **Cloud SQL (PostgreSQL)**.
-
-### 2. Cold Starts
+## ⚠️ Known Limitations
+### 1. Cold Starts
 *   Since we are on the "Free Tier" (scaling to 0), the first request after a while might take 10-20 seconds to wake up the server.
 
 ---
@@ -56,39 +50,27 @@ Currently, the app uses **SQLite** stored inside the container.
 ## 📂 Key Files Guide
 | File | Purpose |
 |------|---------|
-| `deploy.sh` | **Master deployment script.** Run this to ship changes. |
+| `deploy.sh` | **Master deployment script.** Handles Secrets, Cloud SQL, Jobs, and Cloud Run. |
 | `backend/Dockerfile` | Defines backend environment. Optimized for CPU Torch. |
 | `frontend/Dockerfile` | Defines frontend build. Accepts build-args for API URL. |
-| `CONTRIBUTING.md` | Guide for other developers (Fork & Pull Request model). |
-| `.dockerignore` | Prevents huge local files (venv, node_modules) from uploading. |
+| `backend/jobs/` | Contains background job scripts (e.g. `market_watcher_job.py`). |
+| `scripts/` | Database and Secret migration utilities. |
 
 ---
 
 ## 🔮 Future Roadmap
-1.  **Cloud SQL**: Move `finance.db` to a managed PostgreSQL instance for permanent storage.
-2.  **Secret Manager**: Move `.env` secrets (like API keys) to Google Secret Manager instead of hardcoding or checking them in.
-3.  **CI/CD**: Connect GitHub Actions to run `deploy.sh` automatically when you push to `main`.
+1.  **Redis Caching**: Use Redis for even faster alerts and user session management.
+2.  **AI Agents**: Upgrade `vinsight-watcher` to use Vertex AI for qualitative analysis (News/Sentiment) instead of just price thresholds.
+3.  **CI/CD**: Connect GitHub Actions to run `deploy.sh` automatically on push.
 
 ---
 
-## 🛡️ Security Hardening (Dec 15 Update)
-A comprehensive security audit was conducted and 11 critical vulnerabilities were patched.
-
-### Critical Fixes Implemented
-*   **Debug Endpoint Removed**: Cleaned up `/api/auth/debug-code` which exposed verification codes.
-*   **Production Authentication**:
-    *   **Rate Limiting**: Added `slowapi` to prevent brute force (Login: 5/min, Email: 3/min).
-    *   **Secure Cookies**: Enabled `HttpOnly`, `Secure` (in prod), and `SameSite` flags.
-    *   **Fail-Safe JWT**: Server now refuses to start in production if `JWT_SECRET_KEY` is missing.
-    *   **Cryptographic RNG**: Replaced `random` with `secrets` module for generating codes.
-*   **API Security**:
-    *   **Strict CORS**: Production configuration now enforces origin whitelist.
-    *   **Input Validation**: File uploads (watchlists) now check extensions (`.csv`, `.txt`) and enforce 1MB size limits.
-    *   **Alerts**: Added authentication requirement to `/api/alerts/check`.
-*   **Cleanup**: Removed verbose error messages that leaked internal stack traces and cleaned up debug print statements.
-
-### New Environment Variables
-*   `ENV`: Set to `production` for Cloud Run.
-*   `ALLOWED_ORIGINS`: Comma-separated list of allowed frontend domains (required in production).
-*   `JWT_SECRET_KEY`: **Mandatory** for production.
+## 🛡️ Security & Infrastructure (Dec 16 Update)
+### ✅ Completed Upgrades
+*   **Database**: Migrated to **Google Cloud SQL (PostgreSQL)**. Data is now persistent.
+*   **Secrets**: All sensitive keys (`DB_PASS`, `API_KEYS`) are stored in **Google Secret Manager**.
+*   **Background Jobs**: `MarketWatcher` moved to **Cloud Run Jobs** + **Cloud Scheduler**.
+*   **Hardening**:
+    *   `/test` route disabled in production.
+    *   Strict CORS and Rate Limiting enabled.
 

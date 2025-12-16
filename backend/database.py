@@ -3,8 +3,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
 
-# Use DATABASE_URL if set (Cloud), otherwise local SQLite
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finance.db")
+# Use DATABASE_URL if set, or construct from components (Secrets), otherwise local SQLite
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not SQLALCHEMY_DATABASE_URL:
+    # Check if we have Cloud SQL credentials (e.g. from Secrets)
+    db_user = os.getenv("DB_USER")
+    db_pass = os.getenv("DB_PASS")
+    db_name = os.getenv("DB_NAME", "finance")
+    cloud_sql_instance = os.getenv("CLOUDSQL_INSTANCE")
+
+    if db_user and db_pass and cloud_sql_instance:
+         SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{db_user}:{db_pass}@/{db_name}?host=/cloudsql/{cloud_sql_instance}"
+    else:
+        # Fallback to local SQLite
+        SQLALCHEMY_DATABASE_URL = "sqlite:///./finance.db"
 
 check_same_thread = False
 if "sqlite" in SQLALCHEMY_DATABASE_URL:

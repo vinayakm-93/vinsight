@@ -4,6 +4,15 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
 export default function TestPage() {
+    // Disable in production to prevent information disclosure
+    if (process.env.NODE_ENV === 'production') {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-black text-white">
+                <h1 className="text-2xl font-mono text-red-500">404 - Not Found</h1>
+            </div>
+        );
+    }
+
     const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 

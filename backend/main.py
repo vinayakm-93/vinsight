@@ -36,12 +36,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
-from scheduler import MarketWatcher
-
 @app.on_event("startup")
 def on_startup():
     init_db()
-    MarketWatcher.start()
+    # MarketWatcher moved to Cloud Run Job
     logger.info(f"Server started in {ENV} mode with rate limiting enabled")
 
 @app.get("/")

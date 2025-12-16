@@ -84,11 +84,24 @@ gcloud run deploy $BACKEND_SERVICE \
     --platform managed \
     --region $REGION \
     --allow-unauthenticated \
-    --set-env-vars ENV=production,DATABASE_URL="$DB_URL_VAL",MAIL_USERNAME="$MAIL_USERNAME",MAIL_PASSWORD="$MAIL_PASSWORD",MAIL_FROM="$MAIL_FROM",JWT_SECRET_KEY="$JWT_SECRET_KEY",GROQ_API_KEY="$GROQ_API_KEY",API_NINJAS_KEY="$API_NINJAS_KEY" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER" \
+    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
     $CLOUD_SQL_FLAG
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --platform managed --region $REGION --format 'value(status.url)')
 echo -e "${GREEN}Backend is live at: $BACKEND_URL${NC}"
+
+# 2.1 Deploy Market Watcher Job
+echo -e "${GREEN}Deploying Market Watcher Job...${NC}"
+gcloud run jobs deploy vinsight-watcher \
+    --image gcr.io/$PROJECT_ID/$BACKEND_SERVICE \
+    --region $REGION \
+    --command "python" \
+    --args "jobs/market_watcher_job.py" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER" \
+    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
+    --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
+
 cd ..
 
 # 3. Deploy Frontend (with Backend URL)
