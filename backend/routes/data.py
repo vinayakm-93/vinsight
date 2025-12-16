@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
-from ..services import finance, analysis, simulation, search, earnings
-from ..services.search import search_ticker
-from ..services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import get_db
+from services import finance, analysis, simulation, search, earnings
+from services.search import search_ticker
+from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections
 import yfinance as yf
 import logging
 
@@ -41,8 +43,8 @@ def get_quick_quote(ticker: str):
         raise HTTPException(status_code=500, detail=f"Error fetching quote: {str(e)}")
 
 @router.get("/earnings/{ticker}")
-def get_earnings_analysis(ticker: str):
-    return earnings.analyze_earnings(ticker)
+def get_earnings_analysis(ticker: str, db: Session = Depends(get_db)):
+    return earnings.analyze_earnings(ticker, db)
 
 @router.get("/search")
 def search_stocks(q: str):

@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from ..database import get_db
-from ..models import Feedback, User
-from ..services import auth
+from database import get_db
+from models import Feedback, User
+from services import auth
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 

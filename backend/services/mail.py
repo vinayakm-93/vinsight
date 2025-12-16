@@ -172,7 +172,7 @@ async def send_alert_email(email: EmailStr, symbol: str, price: float, condition
         print(f"[MOCK ALERT] {symbol} {condition} {target}")
         return
 
-    app_link = "http://localhost:3000"
+    app_link = os.getenv("FRONTEND_URL", "http://localhost:3000")
     reset_link = f"{app_link}/dashboard?ticker={symbol}&action=reset_alert"
     
     color = "#10b981" if condition == 'above' else "#ef4444"

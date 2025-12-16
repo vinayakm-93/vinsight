@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from ..models import Alert
-from .finance import get_stock_info
-from .mail import send_alert_email
+from models import Alert
+from services.finance import get_stock_info
+from services.mail import send_alert_email
 
 async def check_alerts(db: Session):
     """

@@ -335,7 +335,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8000/api/auth/forgot-password", {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/forgot-password`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email })
@@ -359,7 +359,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8000/api/auth/verify-reset-code", {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/verify-reset-code`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: resetCode })
@@ -385,7 +385,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8000/api/auth/reset-password", {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/reset-password`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: resetCode, new_password: newPassword })

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, UniqueConstraint, Text
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -82,3 +82,26 @@ class PasswordReset(Base):
     is_used = Column(Boolean, default=False)
 
     user = relationship("User")
+
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    email = Column(String, primary_key=True, index=True)
+    code = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+class EarningsAnalysis(Base):
+    __tablename__ = "earnings_analysis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    quarter = Column(String, nullable=False)
+    year = Column(String, nullable=False)
+    content = Column(Text, nullable=False) # JSON string
+    last_api_check = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('ticker', 'quarter', 'year', name='uq_ticker_quarter_year'),
+    )

@@ -3,6 +3,8 @@ import requests
 import json
 from groq import Groq
 from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+from models import EarningsAnalysis
 
 # Env vars should be loaded by main app or environment
 API_NINJAS_KEY = os.getenv("API_NINJAS_KEY")
@@ -20,121 +22,124 @@ def get_transcript(ticker: str):
         return None
 
     api_url = f'https://api.api-ninjas.com/v1/earningstranscript?ticker={ticker}'
-    # print(f"DEBUG: Fetching transcript for {ticker} from {api_url}")
     
     try:
         response = requests.get(api_url, headers={'X-Api-Key': API_NINJAS_KEY})
-        # print(f"DEBUG: API Response Status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
             if not data:
-                # print("DEBUG: API returned 200 but empty list (no transcript found).")
                 return None 
-            
-            # print(f"DEBUG: Data type: {type(data)}")
             
             if isinstance(data, list) and len(data) > 0:
                 item = data[0]
                 return {
                     "transcript": item.get('transcript'),
-                    "quarter": item.get('quarter'),
-                    "year": item.get('year'),
+                    "quarter": str(item.get('quarter')),
+                    "year": str(item.get('year')),
                     "date": item.get('date')
                 }
             elif isinstance(data, dict):
                 return {
                     "transcript": data.get('transcript'),
-                    "quarter": data.get('quarter'),
-                    "year": data.get('year'),
+                    "quarter": str(data.get('quarter')),
+                    "year": str(data.get('year')),
                     "date": data.get('date')
                 }
             else:
                  return None
         else:
-            # print(f"DEBUG: Error fetching transcript: {response.status_code}")
             return None
     except Exception as e:
         print(f"DEBUG: Exception fetching transcript: {e}")
         return None
 
-def analyze_earnings(ticker: str):
+def analyze_earnings(ticker: str, db: Session):
     """
     Fetches transcript and returns structured summary.
-    Checks local cache first.
+    Checks DB cache first.
     Refreshes cache IF:
     1. Cache doesn't exist.
     2. Cache exists but 'last_api_check' was > 24 hours ago (Staleness Check).
-       - In this case, we call the Data API to see if there is a NEW transcript.
-       - If Data API shows same quarter/year, we just update 'last_api_check' (Cheap).
-       - If Data API shows NEW quarter/year, we run the AI Analysis (Expensive).
     """
-    # 1. Check Cache
-    cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    cache_file = os.path.join(cache_dir, f"{ticker}_earnings.json")
     
-    cached_data = None
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r") as f:
-                cached_data = json.load(f)
-        except Exception as e:
-            print(f"Error reading cache: {e}")
-
-    # Check if we need to verify with API (Staleness Check)
+    # 1. Check DB Cache (Get latest for ticker)
+    # Ideally should get by specific quarter/year if known, but here we just want "latest available" 
+    # effectively matching previous logic.
+    # Actually, the API returns the "latest" transcript usually. 
+    # So we should check if we already have the analysis for the "latest" transcript.
+    # But we don't know what is "latest" until we ask the API, or we rely on our stored data.
+    
+    # Strategy:
+    # 1. Check if we have ANY analysis for this ticker.
+    # 2. If we do, check 'last_api_check'.
+    # 3. If fresh (<24h), return it.
+    
+    cached_analysis = db.query(EarningsAnalysis).filter(EarningsAnalysis.ticker == ticker).order_by(EarningsAnalysis.year.desc(), EarningsAnalysis.quarter.desc()).first()
+    
     should_check_api = True
-    if cached_data:
-        last_check = cached_data.get("metadata", {}).get("last_api_check")
-        if last_check:
-            last_check_dt = datetime.fromisoformat(last_check)
-            if datetime.now() - last_check_dt < timedelta(hours=24):
-                should_check_api = False
-    
-    if not should_check_api and cached_data:
-        # print(f"DEBUG: returning cached data (checked < 24h ago)")
-        return cached_data
+    if cached_analysis:
+        if datetime.utcnow() - cached_analysis.last_api_check < timedelta(hours=24):
+            should_check_api = False
+            
+    if not should_check_api and cached_analysis:
+        return {
+            "summary": json.loads(cached_analysis.content),
+            "metadata": {
+                "quarter": cached_analysis.quarter,
+                "year": cached_analysis.year,
+                "last_api_check": cached_analysis.last_api_check.isoformat()
+            }
+        }
 
     # --- Proceed to API Check ---
-    if not groq_client: # If we can't process, fallback to cache if exists
-        if cached_data: return cached_data
+    if not groq_client: 
+        if cached_analysis: 
+             return {
+                "summary": json.loads(cached_analysis.content),
+                "metadata": {
+                    "quarter": cached_analysis.quarter,
+                    "year": cached_analysis.year,
+                    "last_api_check": cached_analysis.last_api_check.isoformat()
+                }
+            }
         return {"error": "Missing GROQ_API_KEY on server."}
 
     # Fetch latest transcript metadata from Data API
     data_pkg = get_transcript(ticker)
     
     if not data_pkg or not data_pkg.get('transcript'):
-        # API fail or no data. Return cache if we have it.
-        if cached_data: return cached_data
+        if cached_analysis:
+             return {
+                "summary": json.loads(cached_analysis.content),
+                "metadata": {
+                    "quarter": cached_analysis.quarter,
+                    "year": cached_analysis.year,
+                    "last_api_check": cached_analysis.last_api_check.isoformat()
+                }
+            }
         return {"error": "Could not retrieve transcript (or ticker not supported)"}
 
     # Compare with Cache
     transcript = data_pkg['transcript']
-    new_quarter = str(data_pkg.get('quarter', 'N/A'))
-    new_year = str(data_pkg.get('year', 'N/A'))
-    call_date = data_pkg.get('date', 'N/A')
+    new_quarter = data_pkg.get('quarter', 'N/A')
+    new_year = data_pkg.get('year', 'N/A')
     
-    # print(f"DEBUG: New Q: {new_quarter} Y: {new_year}")
-
-    if cached_data:
-        old_quarter = str(cached_data.get("metadata", {}).get("quarter", ""))
-        old_year = str(cached_data.get("metadata", {}).get("year", ""))
-        # print(f"DEBUG: Old Q: {old_quarter} Y: {old_year}")
-        
-        # If same report, just update the timestamp and return old AI summary
-        if new_quarter == old_quarter and new_year == old_year:
-            # print("DEBUG: Data API shows same report. Updating timestamp only.")
-            cached_data["metadata"]["last_api_check"] = datetime.now().isoformat()
-            try:
-                with open(cache_file, "w") as f:
-                    json.dump(cached_data, f, indent=2)
-            except: pass
-            return cached_data
+    if cached_analysis:
+        if new_quarter == cached_analysis.quarter and new_year == cached_analysis.year:
+            # Same report, update timestamp
+            cached_analysis.last_api_check = datetime.utcnow()
+            db.commit()
+            return {
+                "summary": json.loads(cached_analysis.content),
+                "metadata": {
+                    "quarter": cached_analysis.quarter,
+                    "year": cached_analysis.year,
+                    "last_api_check": cached_analysis.last_api_check.isoformat()
+                }
+            }
 
     # --- If New Report: Run AI Analysis ---
-    # print("DEBUG: New report found! Running AI Analysis...")
-
-    # Truncate for Groq context window
     if len(transcript) > 50000:
         transcript = transcript[:50000] + "...(truncated)"
     
@@ -164,24 +169,39 @@ def analyze_earnings(ticker: str):
         
         text = completion.choices[0].message.content
         data = json.loads(text)
-        result = {
+        
+        # Save to DB
+        # Check if we already have this specific quarter/year to avoid unique constraint error
+        # (Though logic above suggests we typically wouldn't, unless partial race condition or manual DB insert)
+        existing_exact = db.query(EarningsAnalysis).filter(
+            EarningsAnalysis.ticker == ticker,
+            EarningsAnalysis.quarter == new_quarter,
+            EarningsAnalysis.year == new_year
+        ).first()
+        
+        if existing_exact:
+            existing_exact.content = json.dumps(data)
+            existing_exact.last_api_check = datetime.utcnow()
+        else:
+            new_analysis = EarningsAnalysis(
+                ticker=ticker,
+                quarter=new_quarter,
+                year=new_year,
+                content=json.dumps(data),
+                last_api_check=datetime.utcnow()
+            )
+            db.add(new_analysis)
+            
+        db.commit()
+            
+        return {
             "summary": data,
             "metadata": {
                 "quarter": new_quarter,
                 "year": new_year,
-                "date": call_date,
-                "last_api_check": datetime.now().isoformat() # Timestamp of verification
+                "last_api_check": datetime.utcnow().isoformat()
             }
         }
-        
-        # Save to Cache
-        try:
-            with open(cache_file, "w") as f:
-                json.dump(result, f, indent=2)
-        except Exception as e:
-            print(f"Error saving cache: {e}")
-            
-        return result
         
     except Exception as e:
         return {"error": f"AI Processing Failed (Groq): {str(e)}"}

@@ -11,6 +11,7 @@ import {
     deleteWatchlist,
     searchStocks,
     importWatchlistFile,
+    getStockDetails,
     Watchlist
 } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -168,10 +169,10 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     const fetchStockPrice = async (ticker: string) => {
         setLoadingData(prev => ({ ...prev, [ticker]: true }));
         try {
-            const res = await axios.get(`http://localhost:8000/api/data/stock/${ticker}`);
-            setStockData(prev => ({ ...prev, [ticker]: res.data }));
+            const data = await getStockDetails(ticker);
+            setStockData(prev => ({ ...prev, [ticker]: data }));
         } catch (e) {
-            console.error(`Failed to load data for ${ticker}`);
+            // console.error(`Failed to load data for ${ticker}`);
         } finally {
             setLoadingData(prev => ({ ...prev, [ticker]: false }));
         }

@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from datetime import datetime
 import logging
 
-from ..database import get_db
-from ..models import Alert, User
-from ..services import auth
-from ..services import finance
-from ..services import alert_checker
+from database import get_db
+from models import Alert, User
+from services import auth
+from services import finance
+from services import alert_checker
 
 logger = logging.getLogger(__name__)
 

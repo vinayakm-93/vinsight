@@ -108,7 +108,7 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
     
     try:
         # Import Groq analyzer only
-        from .groq_sentiment import get_groq_analyzer
+        from services.groq_sentiment import get_groq_analyzer
         from datetime import datetime, timezone
         
         groq = get_groq_analyzer()

@@ -9,8 +9,8 @@ import logging
 
 load_dotenv() # Load environment variables from .env file
 
-from .database import init_db
-from .rate_limiter import limiter
+from database import init_db
+from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
-from .scheduler import MarketWatcher
+from scheduler import MarketWatcher
 
 @app.on_event("startup")
 def on_startup():
@@ -49,7 +49,7 @@ def read_root():
     return {"status": "ok", "message": "Finance Research Backend Running"}
 
 # Import and include routers
-from .routes import watchlist, data, feedback, auth, alerts
+from routes import watchlist, data, feedback, auth, alerts
 app.include_router(watchlist.router)
 app.include_router(data.router)
 # app.include_router(feedback.router)

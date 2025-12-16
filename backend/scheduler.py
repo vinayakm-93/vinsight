@@ -1,8 +1,8 @@
 import asyncio
 import datetime
 from sqlalchemy.orm import Session
-from .database import SessionLocal
-from .services import alert_checker
+from database import SessionLocal
+from services import alert_checker
 
 class MarketWatcher:
     _instance = None

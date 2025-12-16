@@ -6,9 +6,9 @@ import shutil
 import os
 import uuid
 import logging
-from ..database import get_db
-from ..models import Watchlist, Stock
-from ..services import importer
+from database import get_db
+from models import Watchlist, Stock
+from services import importer
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,8 @@ class WatchlistOut(BaseModel):
         from_attributes = True
 
 # ... imports
-from ..services import importer, auth
-from ..models import Watchlist, Stock, User
+from services import importer, auth
+from models import Watchlist, Stock, User
 
 # ...
 
