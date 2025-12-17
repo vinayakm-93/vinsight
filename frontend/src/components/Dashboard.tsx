@@ -10,6 +10,7 @@ import { useRealtimePrice } from '../lib/useRealtimePrice';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText } from 'lucide-react'; // Renamed icon
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
+import { useAuth } from '../context/AuthContext';
 
 const InfoTooltip = ({ text }: { text: string }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
@@ -25,6 +26,7 @@ interface DashboardProps {
     ticker: string | null;
     watchlistStocks?: string[];
     onClearSelection?: () => void;
+    onRequireAuth?: () => void;
 }
 
 const TIME_RANGES = [
@@ -39,7 +41,7 @@ const TIME_RANGES = [
     { label: 'Max', value: 'max', interval: '1wk' },
 ];
 
-export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection }: DashboardProps) {
+export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection, onRequireAuth }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
     const [simulation, setSimulation] = useState<any>(null);
@@ -63,8 +65,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [showIndicators, setShowIndicators] = useState(false);
     const [showVolume, setShowVolume] = useState(false);
     const [showAlertModal, setShowAlertModal] = useState(false);
+    const { user } = useAuth();
 
     const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment'>('ai');
+    const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
+
 
     // Sentiment State (lazy-loaded)
     const [sentimentData, setSentimentData] = useState<any>(null);
@@ -353,9 +358,16 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     <div className="flex items-center gap-2 mb-2">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{ticker}</h2>
                         <button
-                            onClick={() => setShowAlertModal(true)}
+                            onClick={() => {
+                                if (!user) {
+                                    if (onRequireAuth) onRequireAuth();
+                                    else alert("Please sign in to set alerts.");
+                                    return;
+                                }
+                                setShowAlertModal(true);
+                            }}
                             className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all"
-                            title="Set Price Alert"
+                            title={user ? "Set Price Alert" : "Sign in to set alerts"}
                         >
                             <BellPlus size={18} />
                         </button>
@@ -509,7 +521,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                     <div className="flex-1 relative h-[500px]">
                         <div className="absolute top-4 left-4 z-10 opacity-30 pointer-events-none">
-                            <span className="text-5xl font-bold tracking-tighter text-gray-300 dark:text-gray-700 select-none">VinSight</span>
+                            <span className="text-5xl font-bold tracking-tighter text-gray-300 dark:text-gray-700 select-none">Vinsight</span>
                         </div>
 
                         <div className="h-full w-full p-2 relative">
@@ -538,7 +550,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         className={`py-2 px-4 text-sm font-bold whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'ai' ? 'text-white border-b-2 border-emerald-400 bg-gradient-to-r from-emerald-500 to-blue-500 shadow-lg' : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'}`}
                         onClick={() => handleTabChange('ai')}
                     >
-                        ⚡ VinSight AI
+                        ⚡ Vinsight AI
                     </button>
                     <button
                         className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'stats' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
@@ -568,77 +580,357 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 </div>
 
                 {activeTab === 'ai' && (
-                    <div className="space-y-6">
-                        {/* 1. Header: AI Recommendation */}
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        {/* 1. Hero Section: Recommendation Score */}
                         {analysis?.ai_analysis ? (
-                            <div className={`p-4 rounded-xl flex flex-col md:flex-row items-center justify-between border ${analysis.ai_analysis.rating === 'BUY' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' : analysis.ai_analysis.rating === 'SELL' ? 'bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-800' : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/10 dark:border-yellow-800'}`}>
-                                <div className="flex items-center gap-4 mb-3 md:mb-0">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${analysis.ai_analysis.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : analysis.ai_analysis.color === 'red' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                                        <Zap size={24} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            {analysis.ai_analysis.rating} Recommendation
-                                            <InfoTooltip text="VinSight v2.2: Hybrid FinBERT + Groq sentiment (Groq by default), PEG ratio scoring, temporal news weighting, RSI gap fix, bearish keyword detection, and positive spin detection. Much more accurate sentiment!" />
-                                        </h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">Score: <span className="font-mono font-bold">{analysis.ai_analysis.score}/100</span></p>
-                                        <div className="mt-1 text-[10px] text-gray-400 font-mono">
-                                            <span>Reference: 80-100 Strong Buy • 60-79 Buy • 40-59 Hold • 0-39 Sell</span>
+                            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-xl relative overflow-hidden">
+                                {/* Background Decorations */}
+                                <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
+
+                                {/* Section Header */}
+                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-3 font-semibold">Recommendation Score</p>
+
+                                <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+                                    {/* Left: Score Gauge with Ticker */}
+                                    <div className="relative flex-shrink-0 flex flex-col items-center">
+                                        <div className="w-28 h-28 rounded-full border-8 border-gray-100 dark:border-gray-800 flex items-center justify-center relative">
+                                            {/* SVG Ring for Score */}
+                                            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+                                                <circle
+                                                    cx="50"
+                                                    cy="50"
+                                                    r="46"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="8"
+                                                    className={`text-${analysis.ai_analysis.color}-500 transition-all duration-1000 ease-out`}
+                                                    strokeDasharray={`${(analysis.ai_analysis.score / 100) * 289} 289`}
+                                                    strokeLinecap="round"
+                                                />
+                                            </svg>
+                                            <div className="text-center">
+                                                <span className="text-2xl font-bold text-gray-900 dark:text-white block">{analysis.ai_analysis.score}</span>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider text-${analysis.ai_analysis.color}-500`}>
+                                                    {analysis.ai_analysis.rating}
+                                                </span>
+                                            </div>
                                         </div>
+                                        {/* Ticker below the score */}
+                                        <span className="mt-2 text-base font-bold text-gray-900 dark:text-white tracking-wide">{ticker}</span>
                                     </div>
-                                </div>
-                                <div className="flex gap-4 text-right">
-                                    {analysis.ai_analysis.raw_breakdown && (
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
-                                            <div>Fund: <span className="font-mono font-bold">{analysis.ai_analysis.raw_breakdown.Fundamentals}/30</span></div>
-                                            <div>Tech: <span className="font-mono font-bold">{analysis.ai_analysis.raw_breakdown.Technicals}/30</span></div>
-                                            <div>Sent: <span className="font-mono font-bold">{analysis.ai_analysis.raw_breakdown.Sentiment}/20</span></div>
-                                            <div>Proj: <span className="font-mono font-bold">{analysis.ai_analysis.raw_breakdown.Projections}/20</span></div>
+
+                                    {/* Right: Score Anchor Text & Badges */}
+                                    <div className="flex-1 text-center md:text-left">
+                                        {/* Score anchor explanation */}
+                                        {analysis.ai_analysis.raw_breakdown && (
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-3">
+                                                The score is anchored by{' '}
+                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Fundamentals >= 20 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 15 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                    {analysis.ai_analysis.raw_breakdown.Fundamentals >= 20 ? 'strong' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 15 ? 'moderate' : 'weak'} Fundamentals ({analysis.ai_analysis.raw_breakdown.Fundamentals} pts)
+                                                </span>
+                                                , but weighed down by{' '}
+                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? 'strong' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? 'moderate' : 'weak'} Sentiment ({analysis.ai_analysis.raw_breakdown.Sentiment} pts)
+                                                </span>.
+                                            </p>
+                                        )}
+
+                                        {/* Modifications / Badges */}
+                                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                                            {analysis.ai_analysis.modifications && analysis.ai_analysis.modifications.length > 0 ? (
+                                                analysis.ai_analysis.modifications.map((mod: string, idx: number) => {
+                                                    const isPenalty = mod.includes("Penalty");
+                                                    return (
+                                                        <span key={idx} className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${isPenalty ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'}`}>
+                                                            {isPenalty ? <TrendingDown size={14} /> : <Zap size={14} />}
+                                                            {mod}
+                                                        </span>
+                                                    );
+                                                })
+                                            ) : (
+                                                <span className="px-3 py-1 rounded-full text-xs font-medium text-gray-500 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                                    No Standard Bonuses/Penalties Applied
+                                                </span>
+                                            )}
                                         </div>
-                                    )}
-                                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 flex flex-col justify-center">
-                                        <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-mono block font-bold">Model: VinSight v2.3</span>
-                                        <span className="text-[9px] text-gray-400 font-mono block mt-0.5">Sentiment: Groq (Lazy Load)</span>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-gray-500 italic text-sm p-4">
-                                <Loader className="animate-spin" size={16} /> Generating AI recommendation...
+                            <div className="h-48 flex items-center justify-center bg-gray-50 dark:bg-gray-800/30 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
+                                <div className="flex items-center gap-3 text-gray-500">
+                                    <Loader className="animate-spin text-blue-500" size={24} />
+                                    <p>Conducting v5.0 Analysis...</p>
+                                </div>
                             </div>
                         )}
 
-                        {/* 2. Outlooks */}
+                        {/* 2. The Scorecard (4 Pillars) - Clickable with Details */}
+                        {analysis?.ai_analysis?.raw_breakdown && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Fundamentals - Clickable */}
+                                <div
+                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md transition-all"
+                                    onClick={() => setExpandedPillar(expandedPillar === 'fundamentals' ? null : 'fundamentals')}
+                                >
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                            <BarChart2 size={16} className="text-blue-500" /> Fundamentals
+                                        </h4>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/30</span></span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
+                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 30) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                                        <span>Valuation, Growth, Smart Money</span>
+                                        <span className="text-blue-500 text-[9px] font-medium">{expandedPillar === 'fundamentals' ? '▲ Hide' : '▼ Details'}</span>
+                                    </p>
+                                    {/* Expanded Details */}
+                                    {expandedPillar === 'fundamentals' && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">P/E Ratio</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">{fundamentals?.trailingPE?.toFixed(2) || 'N/A'}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Market Cap</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">{formatLargeNumber(fundamentals?.marketCap)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Revenue Growth</span>
+                                                <span className={`font-mono ${(fundamentals?.revenueGrowth || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {fundamentals?.revenueGrowth ? (fundamentals.revenueGrowth * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Profit Margin</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">
+                                                    {fundamentals?.profitMargins ? (fundamentals.profitMargins * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Technicals - Clickable */}
+                                <div
+                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all"
+                                    onClick={() => setExpandedPillar(expandedPillar === 'technicals' ? null : 'technicals')}
+                                >
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                            <Activity size={16} className="text-emerald-500" /> Technicals
+                                        </h4>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/30</span></span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
+                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 30) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                                        <span>Trend, Momentum, Volume</span>
+                                        <span className="text-emerald-500 text-[9px] font-medium">{expandedPillar === 'technicals' ? '▲ Hide' : '▼ Details'}</span>
+                                    </p>
+                                    {/* Expanded Details */}
+                                    {expandedPillar === 'technicals' && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">5-Day SMA</span>
+                                                <span className={`font-mono ${sma5Diff >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {sma5Diff > 0 ? '+' : ''}{sma5Diff.toFixed(2)}% vs price
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">10-Day SMA</span>
+                                                <span className={`font-mono ${sma10Diff >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {sma10Diff > 0 ? '+' : ''}{sma10Diff.toFixed(2)}% vs price
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">5-Day Return</span>
+                                                <span className={`font-mono ${perf5D.pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {perf5D.pct > 0 ? '+' : ''}{perf5D.pct.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">10-Day Return</span>
+                                                <span className={`font-mono ${perf10D.pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {perf10D.pct > 0 ? '+' : ''}{perf10D.pct.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Sentiment - Clickable */}
+                                <div
+                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md transition-all"
+                                    onClick={() => setExpandedPillar(expandedPillar === 'sentiment' ? null : 'sentiment')}
+                                >
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                            <Newspaper size={16} className="text-purple-500" /> Sentiment
+                                        </h4>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/20</span></span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
+                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 20) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                                        <span>News Flow, Insider Confluence</span>
+                                        <span className="text-purple-500 text-[9px] font-medium">{expandedPillar === 'sentiment' ? '▲ Hide' : '▼ Details'}</span>
+                                    </p>
+                                    {/* Expanded Details */}
+                                    {expandedPillar === 'sentiment' && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">News Sentiment</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">
+                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? '🟢 Positive' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? '🟡 Neutral' : '🔴 Negative'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Recent News</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">{news?.length || 0} articles</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Insider Activity</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">
+                                                    {institutions?.insidersPercentHeld ? (institutions.insidersPercentHeld * 100).toFixed(1) + '% held' : 'N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Projections - Clickable */}
+                                <div
+                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-orange-400 dark:hover:border-orange-600 hover:shadow-md transition-all"
+                                    onClick={() => setExpandedPillar(expandedPillar === 'projections' ? null : 'projections')}
+                                >
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                            <TrendingUp size={16} className="text-orange-500" /> Projections
+                                        </h4>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/20</span></span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
+                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 20) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                                        <span>Upside vs Downside (Monte Carlo)</span>
+                                        <span className="text-orange-500 text-[9px] font-medium">{expandedPillar === 'projections' ? '▲ Hide' : '▼ Details'}</span>
+                                    </p>
+                                    {/* Expanded Details */}
+                                    {expandedPillar === 'projections' && simulation && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Expected Return</span>
+                                                <span className={`font-mono ${(simulation?.expected_return || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                    {simulation?.expected_return ? (simulation.expected_return * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Upside Potential</span>
+                                                <span className="text-emerald-500 font-mono">
+                                                    {simulation?.percentile_95 ? '+' + (simulation.percentile_95 * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Downside Risk</span>
+                                                <span className="text-red-500 font-mono">
+                                                    {simulation?.percentile_5 ? (simulation.percentile_5 * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Volatility</span>
+                                                <span className="text-gray-900 dark:text-white font-mono">
+                                                    {simulation?.volatility ? (simulation.volatility * 100).toFixed(1) + '%' : 'N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. Outlooks Accordion (Collapsible) */}
                         {analysis?.ai_analysis && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700">
-                                    <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2">Short Term (&lt; 6 months)</h4>
-                                    <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
-                                        {analysis.ai_analysis.outlooks?.short_term?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li className="italic">No signals</li>}
-                                    </ul>
+                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50" open>
+                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white">
+                                    <span className="flex items-center gap-2 text-sm"><TrendingUp size={16} className="text-blue-500" /> Outlooks</span>
+                                    <span className="transition group-open:rotate-180">
+                                        <TrendingDown size={16} />
+                                    </span>
+                                </summary>
+                                <div className="border-t border-gray-200 dark:border-gray-700/50 p-3 pt-0 mt-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* Short Term - 1-4 weeks */}
+                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-blue-100 dark:border-blue-900/30">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                                    <Zap size={14} className="text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Short Term</h4>
+                                                    <p className="text-[10px] text-gray-500">1-4 weeks</p>
+                                                </div>
+                                            </div>
+                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
+                                                {analysis.ai_analysis.outlooks?.short_term?.map((s: string, i: number) => (
+                                                    <li key={i} className="flex items-start gap-2 bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></span>
+                                                        <span className="leading-relaxed">{s}</span>
+                                                    </li>
+                                                )) || <li className="italic text-gray-400">No short-term signals available</li>}
+                                            </ul>
+                                        </div>
+
+                                        {/* Medium Term - 1-3 months */}
+                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-purple-100 dark:border-purple-900/30">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                                                    <Activity size={14} className="text-purple-600 dark:text-purple-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Medium Term</h4>
+                                                    <p className="text-[10px] text-gray-500">1-3 months</p>
+                                                </div>
+                                            </div>
+                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
+                                                {analysis.ai_analysis.outlooks?.medium_term?.map((s: string, i: number) => (
+                                                    <li key={i} className="flex items-start gap-2 bg-purple-50/50 dark:bg-purple-900/10 p-2 rounded-lg">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"></span>
+                                                        <span className="leading-relaxed">{s}</span>
+                                                    </li>
+                                                )) || <li className="italic text-gray-400">No medium-term signals available</li>}
+                                            </ul>
+                                        </div>
+
+                                        {/* Long Term - 6-12 months */}
+                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-orange-100 dark:border-orange-900/30">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                                                    <TrendingUp size={14} className="text-orange-600 dark:text-orange-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Long Term</h4>
+                                                    <p className="text-[10px] text-gray-500">6-12 months</p>
+                                                </div>
+                                            </div>
+                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
+                                                {analysis.ai_analysis.outlooks?.long_term?.map((s: string, i: number) => (
+                                                    <li key={i} className="flex items-start gap-2 bg-orange-50/50 dark:bg-orange-900/10 p-2 rounded-lg">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0"></span>
+                                                        <span className="leading-relaxed">{s}</span>
+                                                    </li>
+                                                )) || <li className="italic text-gray-400">No long-term signals available</li>}
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700">
-                                    <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2">Medium Term (6 mo - 2 yr)</h4>
-                                    <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
-                                        {analysis.ai_analysis.outlooks?.medium_term?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li className="italic">No signals</li>}
-                                    </ul>
-                                </div>
-                                <div className="p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700">
-                                    <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2">Long Term (2 - 5 yr)</h4>
-                                    <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
-                                        {analysis.ai_analysis.outlooks?.long_term?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li className="italic">No signals</li>}
-                                    </ul>
-                                </div>
-                            </div>
+                            </details>
                         )}
-
-
                     </div>
                 )}
 

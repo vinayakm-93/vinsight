@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VinSight",
+  title: "Vinsight",
   description: "Your financial insights and stock market analysis platform",
   icons: {
     icon: '/favicon.png',
