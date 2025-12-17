@@ -1,6 +1,6 @@
 # Architecture Overview
 
-VinSight follows a modern **Client-Server Architecture**.
+VinSight follows a modern **Client-Server Architecture** with a **Proxy Layer** for cookie handling.
 
 ## Diagram
 
@@ -8,14 +8,16 @@ VinSight follows a modern **Client-Server Architecture**.
 graph TD
     User[User Browser]
     FE[Next.js Frontend]
+    Proxy[Next.js Rewrites Proxy]
     BE[FastAPI Backend]
-    DB[(SQLite/Postgres)]
+    DB[(PostgreSQL / SQLite)]
     AI1[Groq API]
     AI2[Gemini API]
-    Data[API Ninjas]
+    Data[yfinance]
 
     User -->|HTTP| FE
-    FE -->|REST API| BE
+    FE -->|/api/* requests| Proxy
+    Proxy -->|Forward + Cookies| BE
     BE -->|SQLAlchemy| DB
     BE -->|JSON| AI1
     BE -->|JSON| AI2
@@ -25,19 +27,20 @@ graph TD
 ## Components
 
 ### Frontend (`/frontend`)
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Styling**: TailwindCSS
 - **State**: React Context (AuthContext, ThemeContext)
 - **Charts**: Lightweight-charts
+- **Proxy**: `next.config.js` rewrites `/api/*` to backend
 
 ### Backend (`/backend`)
 - **Framework**: FastAPI
 - **ORM**: SQLAlchemy
 - **Validation**: Pydantic models
-- **Scheduler**: Apscheduler (for background stock checks)
+- **Config**: `redirect_slashes=False` for proxy compatibility
 
 ### Database
-- **Users Table**: Stores generic user info and hashed passwords.
+- **Users Table**: Stores user info, hashed passwords, alert limits.
+- **Watchlists Table**: User watchlists with comma-separated tickers.
+- **Alerts Table**: Price alert triggers configured by users.
 - **Stocks Table**: Metadata about symbols.
-- **Alerts Table**: Triggers configured by users.
-- **Prices Table**: Historical cache.

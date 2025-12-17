@@ -24,7 +24,13 @@ A proprietary algorithm that combines:
 - **Sentiment Alerts**: "Warn me if news turns negative".
 - **Delivery**: Alerts are sent via Email (SMTP).
 
-## 5. Security
+## 5. Guest Mode
+- **No Login Required**: Users can try the app without creating an account.
+- **LocalStorage Persistence**: Guest watchlist is saved in browser storage.
+- **Default Stocks**: Comes pre-loaded with popular tickers (AAPL, NVDA, SPY, etc.).
+
+## 6. Security
 - **JWT Authentication**: Secure login system.
 - **Password Hashing**: PBKDF2 hashing for user passwords.
-- **Role Based Access**: (Planned for v2).
+- **Email Verification**: 6-digit code sent before account creation.
+- **Rate Limiting**: API endpoints protected against abuse.

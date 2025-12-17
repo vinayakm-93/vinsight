@@ -103,4 +103,16 @@ We have automated the deployment process.
 ### 2. Watchlist Empty State
 *   **Fix**: Added logic in `backend/routes/watchlist.py` to automatically create "My First List" if a user has 0 watchlists. This prevents the UI from entering a broken state.
 
+### 3. Trailing Slash Redirect (Dec 16 Fix)
+*   **Issue**: Watchlists failed to load after login with "Not Found" or "Failed to load watchlists" errors.
+*   **Root Cause**: Next.js proxy strips trailing slashes. FastAPI was redirecting via 307, but cookies were lost during redirect.
+*   **Solution**:
+    1. Added `redirect_slashes=False` to FastAPI in `main.py`
+    2. Added dual route decorators (`@router.get("")` and `@router.get("/")`) in `watchlist.py`
+*   **Status**: ✅ Fixed and deployed.
 
+---
+
+## ✨ Recent Features (Dec 16)
+*   **Guest Mode**: Users can explore the app without logging in. Guest watchlist saved to localStorage.
+*   **Improved UI States**: Loading, error, and empty states for better UX.

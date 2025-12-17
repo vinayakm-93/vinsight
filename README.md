@@ -38,8 +38,8 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 1.  **Clone the repo**
     ```bash
-    git clone https://github.com/YOUR_USERNAME/VinSight.git
-    cd VinSight
+    git clone https://github.com/vinayakm-93/vinsight.git
+    cd vinsight
     ```
 
 2.  **Backend Setup**
