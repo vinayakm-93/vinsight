@@ -116,6 +116,10 @@ def test_stock(ticker: str):
         p10_val = sim_result.get('p10', [])[-1] if sim_result.get('p10') else current_price
         
         # Create VinSight v5.0 data
+        # Guard against missing price data – if price is zero or None, skip scoring for this stock
+        if not current_price or current_price == 0:
+            print(f"⚠️ Skipping {ticker} due to missing price data.")
+            return None
         stock_data = StockData(
             ticker=ticker,
             beta=beta,

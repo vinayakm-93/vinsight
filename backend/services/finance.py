@@ -185,11 +185,35 @@ def get_institutional_holders(ticker: str):
         except Exception as e:
             print(f"Error getting insider transactions: {e}")
             holders["insider_transactions"] = []
+        
+        # Try to get Finnhub MSPR for more accurate insider sentiment
+        try:
+            from services.finnhub_insider import get_insider_sentiment, is_available
+            
+            if is_available():
+                finnhub_data = get_insider_sentiment(ticker)
+                if finnhub_data:
+                    holders["insider_mspr"] = finnhub_data.get("mspr", 0.5)
+                    holders["insider_activity"] = finnhub_data.get("activity_label", "No Activity")
+                    holders["insider_source"] = "finnhub"
+                else:
+                    holders["insider_mspr"] = 0.5
+                    holders["insider_activity"] = "No Activity"
+                    holders["insider_source"] = "finnhub_unavailable"
+            else:
+                holders["insider_mspr"] = 0.5
+                holders["insider_activity"] = "No Activity"
+                holders["insider_source"] = "yfinance_fallback"
+        except Exception as e:
+            print(f"Error getting Finnhub insider data: {e}")
+            holders["insider_mspr"] = 0.5
+            holders["insider_activity"] = "No Activity"
+            holders["insider_source"] = "error_fallback"
             
         return holders
     except Exception as e:
         print(f"Error getting holders: {e}")
-        return {"top_holders": [], "insider_transactions": []}
+        return {"top_holders": [], "insider_transactions": [], "insider_mspr": 0.5, "insider_activity": "No Activity"}
 
 @cached(cache_spy)
 def get_market_regime():

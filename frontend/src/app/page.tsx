@@ -108,6 +108,7 @@ export default function Home() {
               watchlistStocks={watchlistStocks}
               onClearSelection={() => setSelectedTicker(null)}
               onRequireAuth={() => setShowAuthModal(true)}
+              onSelectStock={setSelectedTicker}
             />
           </div>
         </div>

@@ -100,6 +100,11 @@ export const getSentiment = async (ticker: string): Promise<any> => {
   return response.data;
 };
 
+export const getSectorBenchmarks = async (): Promise<any> => {
+  const response = await api.get<any>('/api/data/sector-benchmarks');
+  return response.data;
+};
+
 export const importWatchlistFile = async (watchlistId: number, file: File): Promise<Watchlist> => {
   const formData = new FormData();
   formData.append('file', file);

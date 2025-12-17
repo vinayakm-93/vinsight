@@ -119,26 +119,31 @@ We have automated the deployment process.
 
 ---
 
-## 🧠 AI Score v2.5 Update (Dec 17)
+## 🧠 VinSight Score v6.0 Update (Dec 17)
 
-### New Alpha Vantage Integration
-*   **File**: `backend/services/alpha_vantage_news.py`
-*   Pre-scored sentiment with article summaries (not just headlines)
-*   15-minute caching to respect rate limits
-*   Fallback chain: Alpha Vantage → Groq → TextBlob
+### Rebalanced for Retail Investors
+Fundamentals now carry 55% of the total score (vs 30% in v5.1).
 
-### Industry Benchmark Alignment
-| Component | Old | New |
-|-----------|-----|-----|
-| RSI Thresholds | 40/80 | 30/70 (industry standard) |
-| P/E Valuation | Sector-relative only | Graham threshold (< 15 = value) |
-| Earnings Growth | Flat 10% | Sector-adjusted (Tech > 15%, Banks > 8%) |
+| Pillar | Points | Key Components |
+|--------|--------|----------------|
+| **Fundamentals** | 55 | Valuation (12), Growth (10), Margins (10), Debt (8), Inst (8), Flow (7) |
+| **Technicals** | 15 | SMA distance, RSI optimal zone (50-65), volume |
+| **Sentiment** | 15 | News (8 pts) + Finnhub MSPR (7 pts) |
+| **Projections** | 15 | Monte Carlo upside (9 pts) + risk/reward (6 pts) |
 
-### Bug Fixes
-*   **Cluster Selling**: Now preserves news score (was zeroing entire sentiment)
-*   **No Activity**: Added as valid insider type (10 pts)
+### Industry Peer Values UI
+- Displayed in Fundamentals pillar expansion
+- Shows sector-specific: PEG Fair, Growth %, Margin %, Debt ratio
+- API: `/api/data/sector-benchmarks`
+
+### Sector Benchmarks
+| Sector | PEG Fair | Growth Strong | Margin Healthy | Debt Safe |
+|--------|----------|---------------|----------------|-----------|
+| Technology | 2.0 | 15% | 20% | 0.5x |
+| Communication | 1.8 | 12% | 15% | 1.0x |
+| Financial | 1.3 | 8% | 25% | 2.0x |
 
 ### New Environment Variable
 ```
-ALPHA_VANTAGE_API_KEY=  # Free from alphavantage.co
+FINNHUB_API_KEY=  # Free from finnhub.io
 ```

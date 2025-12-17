@@ -6,10 +6,25 @@ from services.search import search_ticker
 from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections, ScoreResult
 import yfinance as yf
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+@router.get("/sector-benchmarks")
+def get_sector_benchmarks():
+    """Return sector benchmarks for peer comparison display in UI."""
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'sector_benchmarks.json')
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Sector benchmarks config not found")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid sector benchmarks config")
+
 
 @router.get("/quote/{ticker}")
 def get_quick_quote(ticker: str):
@@ -200,11 +215,18 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "Energy": 10.0,
             "Utilities": 16.0,
             "Real Estate": 35.0,
-            "Communication Services": 18.0,
+            "Communication Services": 25.0,  # Adjusted from 18 for tech-adjacent companies
             "Basic Materials": 12.0,
         }
         sector = fundamentals_info.get("sector", "")
         sector_pe = SECTOR_PE_MEDIANS.get(sector, 25.0)  # Default to 25 if unknown
+        
+        # v6.0 NEW: Get profit margin and debt/equity
+        profit_margin = fundamentals_info.get("profitMargins", 0) or 0  # 0.0-1.0
+        debt_to_equity = fundamentals_info.get("debtToEquity", 0) or 0  # Ratio (e.g., 50 = 50%)
+        # yfinance returns D/E as percentage, convert to decimal ratio
+        if debt_to_equity > 10:  # Likely a percentage
+            debt_to_equity = debt_to_equity / 100
         
         fund_data = Fundamentals(
             inst_ownership=inst_own,
@@ -212,7 +234,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             pe_ratio=pe or 0,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
-            sector_pe_median=sector_pe
+            sector_pe_median=sector_pe,
+            profit_margin=profit_margin,
+            debt_to_equity=debt_to_equity
         )
 
         # --- Technicals ---
@@ -220,8 +244,11 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         rsi = latest_ind.get('RSI', 50)
         sma50 = latest_ind.get('SMA_50', 0)
         sma200 = latest_ind.get('SMA_200', 0)
-        momentum = latest_ind.get('Momentum_Signal', 'Bearish').capitalize()
-        if momentum not in ["Bullish", "Bearish"]:
+        
+        # Fix: Derive momentum from price vs SMA50 (more reliable than indicator signal)
+        if current_price > sma50:
+            momentum = "Bullish"
+        else:
             momentum = "Bearish"
 
         # Volume Trend - Use 5-day average for more reliable signal
@@ -270,62 +297,67 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             volume_trend=vol_trend
         )
 
-        # Insider Activity Detection - Improved with Cluster Selling detection
-        txs = institutional.get('insider_transactions', [])
-        
-        insider_buy = 0
-        insider_sell = 0
-        sell_dates = []
-        executive_sells = 0  # Track C-suite selling
-        
-        from datetime import datetime, timedelta
-        
-        for t in txs[:15]:  # Look at more transactions
-            text = t.get('Text', '').lower()
-            position = t.get('Position', '').lower()
-            date_str = t.get('Date', '')
-            
-            # Improved pattern matching
-            is_sale = any(word in text for word in ['sale', 'sell', 'sold', 'disposition'])
-            is_buy = any(word in text for word in ['purchase', 'buy', 'bought', 'acquisition', 'exercise'])
-            
-            if is_sale:
-                insider_sell += 1
-                # Track C-suite selling for cluster detection
-                if any(title in position for title in ['ceo', 'cfo', 'coo', 'president', 'director', 'officer']):
-                    executive_sells += 1
-                # Track dates for cluster detection
-                if date_str:
-                    try:
-                        sell_dates.append(datetime.strptime(date_str.split(' ')[0], '%Y-%m-%d'))
-                    except:
-                        pass
-            elif is_buy:
-                insider_buy += 1
-        
-        # Cluster Selling Detection: 3+ executives selling within 2 weeks
-        is_cluster_selling = False
-        if executive_sells >= 3 and len(sell_dates) >= 3:
-            sell_dates.sort()
-            # Check if 3+ sells within 14 days
-            for i in range(len(sell_dates) - 2):
-                if (sell_dates[i+2] - sell_dates[i]).days <= 14:
-                    is_cluster_selling = True
-                    break
-        
-        # Determine insider activity
-        if not txs:
-            ins_activity = "No Activity"
-        elif is_cluster_selling:
-            ins_activity = "Cluster Selling"  # Now properly detected!
-        elif insider_buy > insider_sell and insider_buy >= 2:
-            ins_activity = "Net Buying"
-        elif insider_sell > insider_buy and insider_sell >= 4:
-            ins_activity = "Heavy Selling"
-        elif insider_sell > insider_buy:
-            ins_activity = "Mixed/Minor Selling"
+        # Insider Activity Detection
+        # First, check if Finnhub MSPR is available (more accurate)
+        if institutional.get('insider_source') == 'finnhub':
+            ins_activity = institutional.get('insider_activity', 'No Activity')
         else:
-            ins_activity = "No Activity"
+            # Fallback to yfinance transaction parsing with cluster detection
+            txs = institutional.get('insider_transactions', [])
+            
+            insider_buy = 0
+            insider_sell = 0
+            sell_dates = []
+            executive_sells = 0
+            
+            from datetime import datetime, timedelta
+            
+            for t in txs[:15]:
+                text = t.get('Text', '').lower()
+                position = t.get('Position', '').lower()
+                date_str = t.get('Date', '')
+                
+                # Skip stock gifts (not actual selling)
+                if 'gift' in text:
+                    continue
+                
+                is_sale = any(word in text for word in ['sale', 'sell', 'sold', 'disposition'])
+                is_buy = any(word in text for word in ['purchase', 'buy', 'bought', 'acquisition', 'exercise'])
+                
+                if is_sale:
+                    insider_sell += 1
+                    if any(title in position for title in ['ceo', 'cfo', 'coo', 'president', 'director', 'officer']):
+                        executive_sells += 1
+                    if date_str:
+                        try:
+                            sell_dates.append(datetime.strptime(date_str.split(' ')[0], '%Y-%m-%d'))
+                        except:
+                            pass
+                elif is_buy:
+                    insider_buy += 1
+            
+            # Cluster Selling Detection
+            is_cluster_selling = False
+            if executive_sells >= 3 and len(sell_dates) >= 3:
+                sell_dates.sort()
+                for i in range(len(sell_dates) - 2):
+                    if (sell_dates[i+2] - sell_dates[i]).days <= 14:
+                        is_cluster_selling = True
+                        break
+            
+            # Classify
+            if not txs:
+                ins_activity = "No Activity"
+            elif is_cluster_selling:
+                ins_activity = "Cluster Selling"
+            elif insider_buy > insider_sell and insider_buy >= 2:
+                ins_activity = "Net Buying"
+            elif insider_sell > insider_buy and insider_sell >= 6:
+                ins_activity = "Heavy Selling"
+            elif insider_sell > insider_buy:
+                ins_activity = "Mixed/Minor Selling"
+            else:
+                ins_activity = "No Activity"
         
         sentiment_data = Sentiment(
             news_sentiment_label=sentiment_label,
@@ -394,6 +426,72 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         color = rating_color_map.get(score_result.rating, "yellow")
         
+        # Build detailed score explanation for transparency
+        fund_score = score_result.breakdown.get('Fundamentals', 0)
+        tech_score = score_result.breakdown.get('Technicals', 0)
+        sent_score = score_result.breakdown.get('Sentiment', 0)
+        proj_score = score_result.breakdown.get('Projections', 0)
+        
+        # Generate human-readable explanations for each pillar
+        fund_explanation = []
+        if pe and pe > 0:
+            if pe < 15:
+                fund_explanation.append(f"P/E of {pe:.1f} is undervalued (Graham value)")
+            elif pe < sector_pe:
+                fund_explanation.append(f"P/E of {pe:.1f} is below sector median ({sector_pe:.0f})")
+            else:
+                fund_explanation.append(f"P/E of {pe:.1f} exceeds sector median ({sector_pe:.0f})")
+        if peg > 0:
+            if peg < 1.0:
+                fund_explanation.append(f"PEG of {peg:.2f} suggests undervaluation")
+            elif peg > 1.5:
+                fund_explanation.append(f"PEG of {peg:.2f} indicates growth premium")
+        if inst_own > 70:
+            fund_explanation.append(f"Strong institutional backing ({inst_own:.0f}%)")
+        
+        tech_explanation = []
+        tech_explanation.append(f"Momentum: {momentum}")
+        tech_explanation.append(f"RSI: {rsi:.0f}")
+        if vol_trend != "Weak/Mixed":
+            tech_explanation.append(f"Volume confirms: {vol_trend}")
+        else:
+            tech_explanation.append("Volume pattern is mixed")
+        
+        sent_explanation = []
+        sent_explanation.append(f"News sentiment: {sentiment_label}")
+        sent_explanation.append(f"Insider activity: {ins_activity}")
+        if news_vol_high:
+            sent_explanation.append("High news volume detected")
+        
+        proj_explanation = []
+        upside_pct = ((p50_final - current_price) / current_price) * 100 if current_price > 0 else 0
+        proj_explanation.append(f"90-day P50 upside: {upside_pct:.1f}%")
+        if p90_final > current_price:
+            bull_upside = ((p90_final - current_price) / current_price) * 100
+            proj_explanation.append(f"Bull case (P90): +{bull_upside:.1f}%")
+        if p10_final < current_price:
+            bear_downside = ((current_price - p10_final) / current_price) * 100
+            proj_explanation.append(f"Bear case (P10): -{bear_downside:.1f}%")
+        
+        score_explanation = {
+            "fundamentals": {
+                "score": f"{fund_score}/55",
+                "factors": fund_explanation
+            },
+            "technicals": {
+                "score": f"{tech_score}/15",
+                "factors": tech_explanation
+            },
+            "sentiment": {
+                "score": f"{sent_score}/15",
+                "factors": sent_explanation
+            },
+            "projections": {
+                "score": f"{proj_score}/15",
+                "factors": proj_explanation
+            }
+        }
+        
         ai_analysis_response = {
             "rating": score_result.rating.upper(), # BUY/SELL
             "color": color,
@@ -405,7 +503,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 "long_term": [f"P/E: {pe:.1f}", f"Beta: {beta:.2f}"]
             },
             "raw_breakdown": score_result.breakdown,
-            "modifications": score_result.modifications 
+            "modifications": score_result.modifications,
+            "score_explanation": score_explanation
         }
 
         # Prepare SMA dict for frontend

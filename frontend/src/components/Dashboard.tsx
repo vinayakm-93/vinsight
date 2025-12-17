@@ -5,7 +5,7 @@ import axios from 'axios';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar
 } from 'recharts';
-import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, getBatchStockDetails } from '../lib/api';
+import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText } from 'lucide-react'; // Renamed icon
 import { CandlestickChart } from './CandlestickChart';
@@ -27,6 +27,7 @@ interface DashboardProps {
     watchlistStocks?: string[];
     onClearSelection?: () => void;
     onRequireAuth?: () => void;
+    onSelectStock?: (ticker: string) => void;
 }
 
 const TIME_RANGES = [
@@ -41,7 +42,7 @@ const TIME_RANGES = [
     { label: 'Max', value: 'max', interval: '1wk' },
 ];
 
-export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection, onRequireAuth }: DashboardProps) {
+export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection, onRequireAuth, onSelectStock }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
     const [simulation, setSimulation] = useState<any>(null);
@@ -79,6 +80,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [earningsData, setEarningsData] = useState<any>(null);
     const [loadingEarnings, setLoadingEarnings] = useState(false);
 
+    // Sector Benchmarks (for industry peer values)
+    const [sectorBenchmarks, setSectorBenchmarks] = useState<any>(null);
+
     // Real-time price updates with smart polling
     const { quote: realtimeQuote } = useRealtimePrice(ticker, {
         enabled: Boolean(ticker), // Only poll when a ticker is selected
@@ -91,6 +95,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         setSentimentData(null);
         setLoadingSentiment(false);
     }, [ticker]);
+
+    // Fetch sector benchmarks once on mount
+    useEffect(() => {
+        getSectorBenchmarks().then(setSectorBenchmarks).catch(console.error);
+    }, []);
 
     const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment') => {
         setActiveTab(tab);
@@ -253,8 +262,12 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         const change = stock.regularMarketChange || 0;
                                         const pct = stock.regularMarketChangePercent || 0;
                                         return (
-                                            <tr key={stock.symbol} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0">
-                                                <td className="py-3 px-4 font-bold text-gray-900 dark:text-white">{stock.symbol}</td>
+                                            <tr
+                                                key={stock.symbol}
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                                                onClick={() => onSelectStock?.(stock.symbol)}
+                                            >
+                                                <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400 hover:underline">{stock.symbol}</td>
                                                 <td className="py-3 px-4 font-mono">${price.toFixed(2)}</td>
                                                 <td className={`py-3 px-4 font-mono font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                                     {change > 0 ? '+' : ''}{change.toFixed(2)}
@@ -625,12 +638,12 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         {analysis.ai_analysis.raw_breakdown && (
                                             <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-3">
                                                 The score is anchored by{' '}
-                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Fundamentals >= 20 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 15 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {analysis.ai_analysis.raw_breakdown.Fundamentals >= 20 ? 'strong' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 15 ? 'moderate' : 'weak'} Fundamentals ({analysis.ai_analysis.raw_breakdown.Fundamentals} pts)
+                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Fundamentals >= 37 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 27 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                    {analysis.ai_analysis.raw_breakdown.Fundamentals >= 37 ? 'strong' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 27 ? 'moderate' : 'weak'} Fundamentals ({analysis.ai_analysis.raw_breakdown.Fundamentals} pts)
                                                 </span>
                                                 , but weighed down by{' '}
-                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? 'strong' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? 'moderate' : 'weak'} Sentiment ({analysis.ai_analysis.raw_breakdown.Sentiment} pts)
+                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? 'strong' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? 'moderate' : 'weak'} Sentiment ({analysis.ai_analysis.raw_breakdown.Sentiment} pts)
                                                 </span>.
                                             </p>
                                         )}
@@ -677,10 +690,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                             <BarChart2 size={16} className="text-blue-500" /> Fundamentals
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/30</span></span>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/55</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 30) * 100}%` }}></div>
+                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 55) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Valuation, Growth, Smart Money</span>
@@ -709,6 +722,18 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     {fundamentals?.profitMargins ? (fundamentals.profitMargins * 100).toFixed(1) + '%' : 'N/A'}
                                                 </span>
                                             </div>
+                                            {/* Industry Peer Values */}
+                                            {sectorBenchmarks && fundamentals?.sector && (
+                                                <div className="mt-3 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
+                                                    <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-1.5">Industry Peers: {fundamentals.sector}</p>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
+                                                        <span>PEG Fair: ≤{sectorBenchmarks.sectors?.[fundamentals.sector]?.peg_fair || sectorBenchmarks.defaults?.peg_fair || '1.5'}</span>
+                                                        <span>Growth: ≥{((sectorBenchmarks.sectors?.[fundamentals.sector]?.growth_strong || sectorBenchmarks.defaults?.growth_strong || 0.10) * 100).toFixed(0)}%</span>
+                                                        <span>Margin: ≥{((sectorBenchmarks.sectors?.[fundamentals.sector]?.margin_healthy || sectorBenchmarks.defaults?.margin_healthy || 0.12) * 100).toFixed(0)}%</span>
+                                                        <span>Debt: ≤{sectorBenchmarks.sectors?.[fundamentals.sector]?.debt_safe || sectorBenchmarks.defaults?.debt_safe || '1.0'}x</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -722,10 +747,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                             <Activity size={16} className="text-emerald-500" /> Technicals
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/30</span></span>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/15</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 30) * 100}%` }}></div>
+                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 15) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Trend, Momentum, Volume</span>
@@ -771,10 +796,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                             <Newspaper size={16} className="text-purple-500" /> Sentiment
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/20</span></span>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/15</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 20) * 100}%` }}></div>
+                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 15) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>News Flow, Insider Confluence</span>
@@ -786,7 +811,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             <div className="flex justify-between text-xs">
                                                 <span className="text-gray-500">News Sentiment</span>
                                                 <span className="text-gray-900 dark:text-white font-mono">
-                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 15 ? '🟢 Positive' : analysis.ai_analysis.raw_breakdown.Sentiment >= 10 ? '🟡 Neutral' : '🔴 Negative'}
+                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? '🟢 Positive' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? '🟡 Neutral' : '🔴 Negative'}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between text-xs">
@@ -812,10 +837,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                             <TrendingUp size={16} className="text-orange-500" /> Projections
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/20</span></span>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/15</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 20) * 100}%` }}></div>
+                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 15) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Upside vs Downside (Monte Carlo)</span>

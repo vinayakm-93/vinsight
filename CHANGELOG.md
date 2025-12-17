@@ -1,13 +1,78 @@
 # Changelog
 
+## v6.0.0 - Industry Peer Values UI (2025-12-17)
+
+### 🚀 New Features
+
+#### Industry Peer Values Display
+- Added compact "Industry Peers" section at bottom of Fundamentals pillar expansion
+- Shows sector-specific benchmarks: PEG Fair, Growth %, Margin %, Debt ratio
+- New API endpoint: `/api/data/sector-benchmarks`
+
+### 🔧 Scoring Rebalance (Retail Investor Focus)
+- **Fundamentals**: 30 → 55 pts (more weight on company health)
+- **Technicals**: 30 → 15 pts
+- **Sentiment**: 20 → 15 pts
+- **Projections**: 20 → 15 pts
+
+New sub-factors: Profit Margins (10 pts), Debt Health (8 pts)
+
+---
+
+## v5.1.0 - Range-Based Scoring & Finnhub (2025-12-17)
+
+### 🚀 New Features
+
+#### Finnhub Insider Sentiment Integration
+- Added `finnhub_insider.py` - MSPR (Monthly Share Purchase Ratio) analysis
+- Uses SEC Form 3/4/5 data for accurate insider sentiment
+- MSPR thresholds: >20 = Buying, -20-20 = Neutral, <-50 = Heavy Selling
+- 15-minute caching to respect rate limits (60 calls/min free tier)
+
+#### Range-Based Scoring (No Binary Yes/No)
+- **All 4 pillars** now use linear interpolation for partial credits
+- Sector-specific benchmarks for peer comparison
+- Institutional ownership level now scored (7 pts)
+
+### 🔧 Improvements
+
+#### Fundamentals (30 pts)
+- **Valuation**: PEG 1.0→8pts, fair→4pts, 3.0→0pts (interpolated)
+- **Earnings**: Sector-adjusted thresholds (Tech 15%, Financial 8%)
+- **Inst Ownership**: 80%+→7pts, 60%→5pts (NEW)
+- **Smart Money**: Rising→7, Flat→4, Falling→1
+
+#### Technicals (30 pts)
+- **Trend**: Distance from SMAs (not just above/below)
+- **RSI**: Optimal zone 50-65, smooth interpolation
+- **Volume**: Weak/Mixed gets 5pts (not 0)
+
+#### Sentiment (20 pts / was 10+10)
+- **News**: 12 pts with score interpolation
+- **Insider**: 8 pts with Finnhub MSPR
+
+#### Projections (20 pts)
+- **Upside**: 0%→3, 5%→6, 10%→9, 15%→12 pts
+- **Risk/Reward**: 3x→8, 2x→6, 1x→2 pts
+
+### 🐛 Bug Fixes
+- Fixed momentum detection (now Bullish when price > SMA50)
+- Fixed insider "Heavy Selling" false positives (stock gifts excluded)
+- Communication Services P/E median: 18 → 25
+
+### ⚙️ Configuration
+New environment variable:
+```
+FINNHUB_API_KEY=  # Optional, get free from finnhub.io
+```
+
+---
+
 ## v2.5.0 - AI Score Improvements (2025-12-17)
 
 ### 🚀 New Features
 
 #### Alpha Vantage News Integration
-- Added `alpha_vantage_news.py` - new service for news with built-in sentiment
-- Provides article summaries (not just headlines)
-- Pre-calculated sentiment scores from Alpha Vantage
 - 15-minute caching to respect rate limits
 - Graceful fallback to Groq → TextBlob
 
