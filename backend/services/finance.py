@@ -3,11 +3,13 @@ import pandas as pd
 import math
 from cachetools import cached, TTLCache
 import concurrent.futures
+import time
 
 # Separate caches to avoid key collisions since functions share the same `ticker` argument
 cache_info = TTLCache(maxsize=100, ttl=600)
 cache_peg = TTLCache(maxsize=100, ttl=600)
 cache_inst = TTLCache(maxsize=100, ttl=600)
+cache_spy = TTLCache(maxsize=1, ttl=3600) # Cache SPY for 1 hour
 
 @cached(cache_info)
 def get_stock_info(ticker: str):
@@ -188,6 +190,41 @@ def get_institutional_holders(ticker: str):
     except Exception as e:
         print(f"Error getting holders: {e}")
         return {"top_holders": [], "insider_transactions": []}
+
+@cached(cache_spy)
+def get_market_regime():
+    """
+    Fetch S&P 500 (SPY) status to determine Macro Regime.
+    Returns:
+        {
+            "bull_regime": bool, # True if Price > SMA200
+            "spy_price": float,
+            "spy_sma200": float
+        }
+    """
+    try:
+        spy = yf.Ticker("SPY")
+        # Need 200 days for SMA, fetch 1y to be safe
+        hist = spy.history(period="1y")
+        
+        if hist.empty or len(hist) < 200:
+             # Fallback: Assume Bull if no data
+             return {"bull_regime": True, "spy_price": 0, "spy_sma200": 0}
+             
+        current_price = hist['Close'].iloc[-1]
+        sma200 = hist['Close'].rolling(window=200).mean().iloc[-1]
+        
+        # Determine regime
+        is_bull = current_price > sma200
+        
+        return {
+            "bull_regime": bool(is_bull),
+            "spy_price": float(current_price),
+            "spy_sma200": float(sma200)
+        }
+    except Exception as e:
+        print(f"Error fetching SPY regime: {e}")
+        return {"bull_regime": True, "spy_price": 0, "spy_sma200": 0}
 
 def get_batch_stock_details(tickers: list):
     """
