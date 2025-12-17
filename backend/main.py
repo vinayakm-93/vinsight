@@ -14,7 +14,7 @@ from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Finance Research App")
+app = FastAPI(title="Finance Research App", redirect_slashes=False)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

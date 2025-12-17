@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// Use relative URL to force request through Next.js Proxy (First-Party Cookies)
+// This works because we added 'rewrites' in next.config.ts
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  baseURL: '', // Relative path, browser will append current origin
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

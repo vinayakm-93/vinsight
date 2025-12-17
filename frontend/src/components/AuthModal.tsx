@@ -63,7 +63,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 await login(email, password);
                 onClose();
             } catch (err: any) {
-                setError(err.response?.data?.detail || "Login failed");
+                console.error("Login Error:", err);
+                const status = err.response?.status;
+                const detail = err.response?.data?.detail;
+                const message = detail || err.message || "Login failed";
+                setError(status ? `Error ${status}: ${message}` : message);
             } finally {
                 setLoading(false);
             }
@@ -76,7 +80,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     await requestVerify(email);
                     setStep(2);
                 } catch (err: any) {
-                    setError(err.response?.data?.detail || "Failed to send verification code. Email might be in use.");
+                    console.error("Verify Request Error:", err);
+                    const status = err.response?.status;
+                    const detail = err.response?.data?.detail;
+                    setError(status ? `Error ${status}: ${detail || "Failed to send code"}` : "Failed to send verification code");
                 } finally {
                     setLoading(false);
                 }
@@ -87,7 +94,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     await verifyCodeApi(email, verifyCode);
                     setStep(3);
                 } catch (err: any) {
-                    setError(err.response?.data?.detail || "Invalid code");
+                    console.error("Verify Code Error:", err);
+                    setError(err.response?.data?.detail || `Error ${err.response?.status || 'Unknown'}: Invalid code`);
                 } finally {
                     setLoading(false);
                 }
@@ -98,7 +106,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     await register(email, password, investingGoal, featureRequest, verifyCode);
                     onClose();
                 } catch (err: any) {
-                    setError(err.response?.data?.detail || "Registration failed");
+                    console.error("Registration Error:", err);
+                    const status = err.response?.status;
+                    const detail = err.response?.data?.detail;
+                    setError(status ? `Error ${status}: ${detail || "Registration failed"}` : "Registration failed");
                 } finally {
                     setLoading(false);
                 }

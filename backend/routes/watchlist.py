@@ -43,12 +43,36 @@ from models import Watchlist, Stock, User
 
 # ...
 
+@router.get("", response_model=List[WatchlistOut])
 @router.get("/", response_model=List[WatchlistOut])
 def get_watchlists(db: Session = Depends(get_db), user: Optional[User] = Depends(auth.get_current_user_optional)):
+    logger.info(f"GET /watchlists called. User: {user.email if user else 'None'}")
+    
     if not user:
+        logger.info("No user authenticated, returning empty list")
         return []
         
     watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).all()
+    logger.info(f"Found {len(watchlists)} watchlists for user {user.id}")
+    
+    # Self-healing: If no watchlists exist, create a default one
+    if not watchlists:
+        logger.info(f"No watchlists found for user {user.id}, creating default watchlist")
+        try:
+            default_watchlist = Watchlist(
+                name="My First List",
+                user_id=user.id,
+                stocks="AAPL,NVDA,GOOGL,MSFT,TSLA"
+            )
+            db.add(default_watchlist)
+            db.commit()
+            db.refresh(default_watchlist)
+            watchlists = [default_watchlist]
+            logger.info(f"Created default watchlist id={default_watchlist.id} for user {user.id}")
+        except Exception as e:
+            logger.exception(f"Failed to create default watchlist for user {user.id}: {e}")
+            db.rollback()
+    
     results = []
     for w in watchlists:
         stock_list = w.stocks.split(",") if w.stocks else []
@@ -56,18 +80,28 @@ def get_watchlists(db: Session = Depends(get_db), user: Optional[User] = Depends
         results.append(WatchlistOut(id=w.id, name=w.name, stocks=stock_list))
     return results
 
+@router.post("", response_model=WatchlistOut)
 @router.post("/", response_model=WatchlistOut)
 def create_watchlist(watchlist: WatchlistCreate, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
+    logger.info(f"POST /watchlists called. User: {user.id}, Name: {watchlist.name}")
+    
     # Check for duplicate name for this user
     existing = db.query(Watchlist).filter(Watchlist.user_id == user.id, Watchlist.name == watchlist.name).first()
     if existing:
-         raise HTTPException(status_code=400, detail="Watchlist with this name already exists")
+        logger.warning(f"Duplicate watchlist name '{watchlist.name}' for user {user.id}")
+        raise HTTPException(status_code=400, detail="Watchlist with this name already exists")
 
-    db_watchlist = Watchlist(name=watchlist.name, user_id=user.id)
-    db.add(db_watchlist)
-    db.commit()
-    db.refresh(db_watchlist)
-    return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=[])
+    try:
+        db_watchlist = Watchlist(name=watchlist.name, user_id=user.id)
+        db.add(db_watchlist)
+        db.commit()
+        db.refresh(db_watchlist)
+        logger.info(f"Created watchlist id={db_watchlist.id} for user {user.id}")
+        return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=[])
+    except Exception as e:
+        logger.exception(f"Failed to create watchlist for user {user.id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create watchlist")
 
 @router.delete("/{watchlist_id}")
 def delete_watchlist(watchlist_id: int, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):

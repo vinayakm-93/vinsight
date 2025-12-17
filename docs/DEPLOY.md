@@ -16,6 +16,8 @@ To deploy Backend, Frontend, and Background Jobs:
 ./deploy.sh
 ```
 
+> **Note**: Currently, the Frontend `next.config.js` has a hardcoded Backend URL for stability in Cloud Run. If you redeploy to a different backend URL, you must update `frontend/next.config.js` manually before deploying the frontend.
+
 ## First Time Setup (If Redeploying elsewhere)
 
 ### 1. Database Setup (Cloud SQL)
@@ -54,4 +56,20 @@ gcloud scheduler jobs create http vinsight-market-trigger \
   --http-method=POST \
   --oauth-service-account-email=YOUR_SA_EMAIL \
   --location=us-central1
+```
+
+## Troubleshooting
+
+### "Failed to load watchlists" / 404 Errors
+
+**Cause**: Next.js proxy strips trailing slashes. FastAPI by default redirects to trailing-slash URLs via 307, but cookies are lost during redirect.
+
+**Solution** (Already Applied):
+1. `main.py` has `redirect_slashes=False` in FastAPI config
+2. Routes use dual decorators: `@router.get("")` and `@router.get("/")`
+
+### View Backend Logs
+```bash
+export PATH="$(pwd)/google-cloud-sdk/bin:$PATH"
+gcloud run services logs read vinsight-backend --region us-central1 --limit 50
 ```

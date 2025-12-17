@@ -65,6 +65,7 @@ We have automated the deployment process.
 
 ---
 
+
 ## 🛡️ Security & Infrastructure (Dec 16 Update)
 ### ✅ Completed Upgrades
 *   **Database**: Migrated to **Google Cloud SQL (PostgreSQL)**. Data is now persistent.
@@ -73,4 +74,33 @@ We have automated the deployment process.
 *   **Hardening**:
     *   `/test` route disabled in production.
     *   Strict CORS and Rate Limiting enabled.
+
+### 🔄 Architecture Update (Dec 16 - Auth Fix)
+*   **Proxy Layer**: Implemented **Next.js Rewrites** to proxy API requests.
+    *   **Why?** To solve Third-Party Cookie blocking on Chrome/Safari when Frontend and Backend are on different Cloud Run subdomains.
+    *   **Flow**: Browser -> Frontend (`/api/*`) -> Backend (`/api/*`).
+    *   **Benefit**: Cookies are now "First-Party" and secure.
+
+### ✨ Use Experience (Dec 16)
+*   **Favicon**: Updated with custom brand icon.
+*   **Auth Flow**: Verified Login/Signup logic with new Proxy architecture.
+
+## ✅ Deployment Status Report
+| Component | Status | Verified Date | Notes |
+|-----------|--------|---------------|-------|
+| **Frontend** | 🟢 Stable | Dec 16 | Uses Proxy for API calls. Favicon updated. |
+| **Backend** | 🟢 Stable | Dec 16 | Served via standard port 8080. |
+| **Database** | 🟢 Stable | Dec 16 | Cloud SQL Connection healthy. |
+| **Auth** | 🟢 Stable | Dec 16 | Cookies setting correctly via Proxy. |
+| **Watchlist** | 🟢 Stable | Dec 16 | Self-healing logic added for default lists. |
+
+## ⚠️ Known Issues & Workarounds (Dec 16)
+### 1. Hardcoded Proxy URL
+*   **Issue**: `next.config.js` `rewrites()` function was failing to read `API_URL` environment variable at runtime in Cloud Run.
+*   **Workaround**: We have temporarily hardcoded the backend URL (`https://vinsight-backend-wddr2kfz3a-uc.a.run.app`) in `frontend/next.config.js`.
+*   **Future Fix**: Investigate why Cloud Run environment variable injection is delayed or hidden from Next.js build context vs runtime context.
+
+### 2. Watchlist Empty State
+*   **Fix**: Added logic in `backend/routes/watchlist.py` to automatically create "My First List" if a user has 0 watchlists. This prevents the UI from entering a broken state.
+
 

@@ -14,6 +14,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+@router.get("/health-db")
+def health_db(db: Session = Depends(get_db)):
+    try:
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "message": "Database connection healthy"}
+    except Exception as e:
+        logger.exception("Database health check failed")
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
+
 # Constants
 VERIFICATION_CODE_EXPIRE_MINUTES = 15
 
@@ -144,14 +154,17 @@ def login(request: Request, login_req: LoginRequest, response: Response, db: Ses
     )
     
     # Set HttpOnly Cookie
+    # Set HttpOnly Cookie
+    # Since we are now using Next.js Proxy (First-Party), we should use SameSite=Lax
+    # This is more compatible and secure for first-party contexts than None
     import os
     is_production = os.getenv("ENV", "development") == "production"
     response.set_cookie(
         key="access_token",
         value=f"Bearer {access_token}",
         httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
+        secure=is_production, # Still keep Secure=True in prod (HTTPS)
+        samesite="lax",      # Changed from 'none' to 'lax' for proxy compatibility
         max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
     

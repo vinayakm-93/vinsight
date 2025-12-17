@@ -32,10 +32,12 @@ echo -e "${GREEN}Enabling APIs...${NC}"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com containerregistry.googleapis.com artifactregistry.googleapis.com
 
 # 2. Deploy Backend
-# Load secrets from backend/.env (ignoring comments)
+# Load secrets from backend/.env (using source for safety with special chars)
 if [ -f backend/.env ]; then
   echo "Loading secrets from backend/.env..."
-  export $(grep -v '^#' backend/.env | xargs)
+  set -a
+  source backend/.env
+  set +a
   echo "Debug: Loaded MAIL_USERNAME length: ${#MAIL_USERNAME}"
   echo "Debug: Loaded MAIL_PASSWORD length: ${#MAIL_PASSWORD}"
   echo "Debug: Loaded MAIL_FROM length: ${#MAIL_FROM}"
@@ -84,11 +86,15 @@ gcloud run deploy $BACKEND_SERVICE \
     --platform managed \
     --region $REGION \
     --allow-unauthenticated \
-    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT" \
     --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
     $CLOUD_SQL_FLAG
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --platform managed --region $REGION --format 'value(status.url)')
+if [ -z "$BACKEND_URL" ]; then
+    echo "Error: Failed to get Backend URL. Deployment failed."
+    exit 1
+fi
 echo -e "${GREEN}Backend is live at: $BACKEND_URL${NC}"
 
 # 2.1 Deploy Market Watcher Job
@@ -98,7 +104,7 @@ gcloud run jobs deploy vinsight-watcher \
     --region $REGION \
     --command "python" \
     --args "jobs/market_watcher_job.py" \
-    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT" \
     --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
     --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
 
@@ -112,12 +118,12 @@ cd frontend
 cat > cloudbuild.yaml <<EOF
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '--build-arg', 'NEXT_PUBLIC_API_URL=$BACKEND_URL', '-t', 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE', '.']
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE', '.']
 images:
 - 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE'
 EOF
 
-echo -e "${GREEN}Building Frontend with API_URL=$BACKEND_URL...${NC}"
+echo -e "${GREEN}Building Frontend...${NC}"
 gcloud builds submit --config cloudbuild.yaml .
 rm cloudbuild.yaml # Cleanup
 
@@ -125,7 +131,8 @@ gcloud run deploy $FRONTEND_SERVICE \
     --image gcr.io/$PROJECT_ID/$FRONTEND_SERVICE \
     --platform managed \
     --region $REGION \
-    --allow-unauthenticated
+    --allow-unauthenticated \
+    --set-env-vars "MY_BACKEND_URL=$BACKEND_URL,API_URL=$BACKEND_URL"
 
 FRONTEND_URL=$(gcloud run services describe $FRONTEND_SERVICE --platform managed --region $REGION --format 'value(status.url)')
 echo -e "${GREEN}Frontend is live at: $FRONTEND_URL${NC}"

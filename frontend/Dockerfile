@@ -4,9 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Accept API URL at build time
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# ARG NEXT_PUBLIC_API_URL removed as we now use runtime ENV for server-side proxying
 
 COPY . .
 RUN npm run build
@@ -18,7 +16,7 @@ WORKDIR /app
 ENV NODE_ENV production
 
 # You only need to copy next.config.ts if you are not using the default configuration
-COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
