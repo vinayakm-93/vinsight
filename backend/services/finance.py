@@ -264,7 +264,7 @@ def get_batch_stock_details(tickers: list):
 
 def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fundamentals: dict = {}):
     """
-    Rule-based 'AI' analyst.
+    Rule-based 'AI' analyst with industry-standard benchmarks.
     Inputs: 
        analysis: { rsi: number, sma: { sma_50: number, ... }, current_price: number }
        sentiment: { polarity: number, label: string }
@@ -281,102 +281,146 @@ def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fun
     long_term_signals = []
 
     # --- Short Term (Days/Weeks) ---
-    # 1. Momentum (SMA 5 vs 10) - implied from `analysis` dict structure if available, 
-    # but we might need to rely on what's passed. 
-    # Assumes 'analysis' dict has been updated to include these from the `calculate_technical_indicators` 
-    # output IF that was passed in. However, the `analysis` arg here usually comes from `analysis.py`'s result structure.
-    # We will need to adapt if the caller didn't pass specific fields.
-    
-    # RSI
+    # RSI with industry standard thresholds (30/70)
     rsi = analysis.get('rsi', 50)
     if rsi < 30:
         score += 2
-        short_term_signals.append("RSI Oversold: Potential knee-jerk bounce.")
+        short_term_signals.append("📈 RSI Oversold (<30): Potential bounce opportunity.")
     elif rsi > 70:
         score -= 2
-        short_term_signals.append("RSI Overbought: Risk of immediate pullback.")
+        short_term_signals.append("⚠️ RSI Overbought (>70): Risk of pullback.")
+    elif 50 <= rsi <= 65:
+        score += 0.5
+        short_term_signals.append("✓ RSI Healthy (50-65): Good momentum.")
     else:
-        short_term_signals.append("RSI Neutral.")
-        
+        short_term_signals.append("○ RSI Neutral (30-50): Below average momentum.")
+    
+    # Beta risk for short-term volatility
+    beta = fundamentals.get('beta', 1.0)
+    if beta and beta > 1.5:
+        short_term_signals.append(f"⚡ High volatility (Beta: {beta:.2f}): Expect larger swings.")
+    elif beta and beta < 0.8:
+        short_term_signals.append(f"🛡️ Low volatility (Beta: {beta:.2f}): More stable price action.")
+         
     # --- Medium Term (Weeks/Months) ---
     # SMA 50 Trend
     sma50 = analysis.get('sma', {}).get('sma_50')
     if sma50:
-        if current_price > sma50:
+        if current_price > sma50 * 1.05:  # 5% above SMA50
+            score += 1.5
+            medium_term_signals.append("📈 Strong: Price >5% above 50-day SMA.")
+        elif current_price > sma50:
             score += 1
-            medium_term_signals.append("Bullish: Price above 50-day SMA.")
+            medium_term_signals.append("✓ Bullish: Price above 50-day SMA.")
+        elif current_price > sma50 * 0.95:  # Within 5% below
+            score -= 0.5
+            medium_term_signals.append("○ Neutral: Price within 5% of 50-day SMA.")
         else:
             score -= 1
-            medium_term_signals.append("Bearish: Price below 50-day SMA.")
+            medium_term_signals.append("📉 Bearish: Price below 50-day SMA.")
 
-    # PEG Ratio (Growth at a Reasonable Price)
+    # PEG Ratio (Peter Lynch: <1.0 undervalued, >2.0 overvalued)
     peg = fundamentals.get('pegRatio')
-    if peg:
+    if peg and peg > 0:
         if peg < 1.0:
-            score += 1
-            medium_term_signals.append(f"Undervalued: PEG {peg:.2f} < 1.0.")
+            score += 1.5
+            medium_term_signals.append(f"💎 Undervalued: PEG {peg:.2f} < 1.0 (Peter Lynch).")
+        elif peg <= 1.5:
+            score += 0.5
+            medium_term_signals.append(f"✓ Fair Value: PEG {peg:.2f} (reasonable growth price).")
         elif peg > 2.0:
             score -= 0.5
-            medium_term_signals.append(f"Overvalued Growth: PEG {peg:.2f} > 2.0.")
+            medium_term_signals.append(f"⚠️ Expensive: PEG {peg:.2f} > 2.0.")
 
-    # Sentiment
+    # Sentiment with aligned thresholds (matching Groq analysis)
     sent_score = sentiment.get('polarity', 0)
-    if sent_score > 0.1:
-        score += 0.5
-        medium_term_signals.append("News sentiment is Positive.")
-    elif sent_score < -0.1:
-        score -= 0.5
-        medium_term_signals.append("News sentiment is Negative.")
+    sent_label = sentiment.get('label', 'Neutral')
+    if sent_label == "Positive" or sent_score > 0.4:
+        score += 1
+        medium_term_signals.append("📰 Positive: Bullish news sentiment detected.")
+    elif sent_label == "Negative" or sent_score < -0.25:
+        score -= 1
+        medium_term_signals.append("📰 Negative: Bearish news sentiment detected.")
+    else:
+        medium_term_signals.append("📰 Neutral: Mixed/neutral news sentiment.")
 
     # --- Long Term (Months/Years) ---
-    # P/E Evaluation
+    # P/E Evaluation (Benjamin Graham: <15 = value)
     pe = fundamentals.get('trailingPE')
-    if pe:
-        if pe < 15: # Traditional value
-            score += 1
-            long_term_signals.append(f"Value Territory: P/E {pe:.2f} is low.")
-        elif pe > 60: # High growth/risk
+    if pe and pe > 0:
+        if pe < 15:
+            score += 1.5
+            long_term_signals.append(f"💎 Graham Value: P/E {pe:.1f} < 15 (classic value territory).")
+        elif pe < 25:
+            score += 0.5
+            long_term_signals.append(f"✓ Reasonable: P/E {pe:.1f} (market average range).")
+        elif pe > 60:
             score -= 1
-            long_term_signals.append(f"High Valuation: P/E {pe:.2f}.")
+            long_term_signals.append(f"⚠️ Expensive: P/E {pe:.1f} > 60 (high growth expectations).")
+        else:
+            long_term_signals.append(f"○ Growth premium: P/E {pe:.1f}.")
 
     # Profitability (Margins)
     margins = fundamentals.get('profitMargins')
-    if margins and margins > 0.20:
-        score += 1
-        long_term_signals.append("High Quality: Strong Profit Margins (>20%).")
+    if margins:
+        if margins > 0.20:
+            score += 1
+            long_term_signals.append(f"💪 High Quality: {margins*100:.1f}% profit margins (>20%).")
+        elif margins > 0.10:
+            long_term_signals.append(f"✓ Healthy margins: {margins*100:.1f}%.")
+        elif margins > 0:
+            long_term_signals.append(f"○ Thin margins: {margins*100:.1f}%.")
+        else:
+            score -= 0.5
+            long_term_signals.append("⚠️ Unprofitable: Negative margins.")
+    
+    # 52-Week position
+    high_52w = fundamentals.get('fiftyTwoWeekHigh')
+    low_52w = fundamentals.get('fiftyTwoWeekLow')
+    if high_52w and low_52w and current_price:
+        range_pct = (current_price - low_52w) / (high_52w - low_52w) if high_52w != low_52w else 0.5
+        if range_pct > 0.9:
+            long_term_signals.append(f"📍 Near 52-week high ({range_pct*100:.0f}% of range).")
+        elif range_pct < 0.2:
+            score += 0.5
+            long_term_signals.append(f"📍 Near 52-week low ({range_pct*100:.0f}% of range) - potential opportunity.")
         
-    # SMA 200 (The ultimate trend filter) - extracted from analysis if passed
-    # NOTE: The current `finance.py` calling this might need to ensure SMA_200 is passed in `analysis['sma']`
-    # We'll handle it gracefully if missing.
+    # SMA 200 (The ultimate trend filter)
     sma200 = analysis.get('sma', {}).get('sma_200')
     if sma200:
-        if current_price > sma200:
+        if current_price > sma200 * 1.1:  # 10% above SMA200
+            score += 1.5
+            long_term_signals.append("🚀 Strong Uptrend: Price >10% above 200-day SMA.")
+        elif current_price > sma200:
             score += 1
-            long_term_signals.append("Long-term Uptrend: Price above 200-day SMA.")
+            long_term_signals.append("✓ Long-term Uptrend: Price above 200-day SMA.")
         else:
             score -= 1
-            long_term_signals.append("Long-term Downtrend: Price below 200-day SMA.")
+            long_term_signals.append("📉 Long-term Downtrend: Price below 200-day SMA.")
 
-    # Decision Logic
-    if score >= 3:
+    # Decision Logic with industry-aligned thresholds
+    if score >= 4:
+        rating = "STRONG BUY"
+        color = "emerald"
+    elif score >= 2:
         rating = "BUY"
         color = "emerald"
-    elif score <= -2:
+    elif score <= -3:
         rating = "SELL"
         color = "red"
+    elif score <= -1:
+        rating = "WEAK HOLD"
+        color = "yellow"
     else:
         rating = "HOLD"
         color = "yellow"
         
-    # Flatten reasons for backward compatibility, but we really want the structure
+    # Flatten reasons for backward compatibility
     all_reasons = short_term_signals + medium_term_signals + long_term_signals
     
     # Normalize score to 0-100 for frontend display
-    # Raw score range is approx -6 to +8
-    # 0 = Hold/Neutral (50)
-    # +5 = Strong Buy (100)
-    # -5 = Strong Sell (0)
-    normalized_score = int(max(0, min(100, 50 + (score * 10))))
+    # Raw score range is approx -6 to +10
+    normalized_score = int(max(0, min(100, 50 + (score * 8))))
 
     return {
         "rating": rating,

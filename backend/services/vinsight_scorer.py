@@ -27,7 +27,7 @@ class Technicals:
 class Sentiment:
     news_sentiment_label: Literal["Positive", "Neutral", "Negative"] # From News
     news_volume_high: bool # Proxy for "Social Volume"
-    insider_activity: Literal["Net Buying", "Mixed/Minor Selling", "Heavy Selling", "Cluster Selling"]
+    insider_activity: Literal["Net Buying", "No Activity", "Mixed/Minor Selling", "Heavy Selling", "Cluster Selling"]
 
 @dataclass
 class Projections:
@@ -132,28 +132,27 @@ class VinSightScorer:
         score = 0
         
         # 1. Cluster-Relative Valuation (10 pts)
-        # Hype Override: If Social Volume High + Price Rising, ignore Valuation (Award 5 pts)
-        # We don't have distinct "Price Rising" boolean passed here clearly, assuming vol_trend implies it or Price > SMA.
-        # Let's use vol_trend containing "Price Rising".
+        # Industry benchmark: PEG < 1.0 = undervalued (Peter Lynch)
+        # P/E < 15 = value (Benjamin Graham)
         is_price_rising = "Price Rising" in vol_trend
-        # Note: 'news_volume_high' is in Sentiment object, but we need it here. Since we separated objects, 
-        # strictly speaking we don't have it in 'f'. But let's assume standard logic for now or stick to strict Valuation.
-        # Actually, let's implement validation logic strictly on available data.
         
-        # Check Valuation
-        # Metric: PEG preferred, else P/E
-        val_metric = f.peg_ratio if f.peg_ratio > 0 else (f.pe_ratio / 20.0) # Normalize P/E approx
-        
-        # Benchmark: PEG < 1.0 is cheap. P/E < Sector Median (approx 25) is cheap.
+        # Check Valuation using industry standards
         is_cheap = False
         is_fair = False
         
         if f.peg_ratio > 0:
-            if f.peg_ratio < 1.0: is_cheap = True
-            elif f.peg_ratio <= 1.5: is_fair = True # "Within 10-20% of median" approx. Widened to 1.5 for Growth.
+            # Peter Lynch PEG thresholds
+            if f.peg_ratio < 1.0: 
+                is_cheap = True  # Undervalued
+            elif f.peg_ratio <= 1.5: 
+                is_fair = True   # Fair value
+            # PEG > 1.5 = potentially overvalued
         else:
-            if f.pe_ratio < f.sector_pe_median: is_cheap = True
-            elif f.pe_ratio < f.sector_pe_median * 1.1: is_fair = True
+            # Benjamin Graham P/E thresholds when PEG unavailable
+            if f.pe_ratio > 0 and f.pe_ratio < 15:
+                is_cheap = True  # Graham value threshold
+            elif f.pe_ratio > 0 and f.pe_ratio < f.sector_pe_median:
+                is_fair = True   # Below sector average
             
         if is_cheap:
             score += 10
@@ -162,11 +161,33 @@ class VinSightScorer:
         else:
             score += 0
             
-        # 2. Earnings Momentum (10 pts)
-        if f.earnings_growth_qoq > 0.10: # > 10%
+        # 2. Earnings Momentum (10 pts) - Sector-adjusted thresholds
+        # Industry benchmarks vary by sector:
+        #   Tech/Growth: Need >15% to be impressive
+        #   Utilities/Staples: >5% is strong
+        #   General: >10% is good
+        SECTOR_GROWTH_THRESHOLDS = {
+            30.0: (0.15, 0.08),  # Tech sectors (high PE) need higher growth
+            22.0: (0.12, 0.05),  # Healthcare, Consumer
+            18.0: (0.10, 0.04),  # Industrials, Communication
+            15.0: (0.08, 0.03),  # Financials, Energy, Utilities
+        }
+        
+        # Find appropriate threshold based on sector PE
+        strong_growth = 0.10  # Default
+        moderate_growth = 0.05
+        for pe_threshold, (strong, moderate) in sorted(SECTOR_GROWTH_THRESHOLDS.items(), reverse=True):
+            if f.sector_pe_median >= pe_threshold:
+                strong_growth = strong
+                moderate_growth = moderate
+                break
+        
+        if f.earnings_growth_qoq > strong_growth:
             score += 10
-        elif f.earnings_growth_qoq > 0:
+        elif f.earnings_growth_qoq > moderate_growth:
             score += 5
+        elif f.earnings_growth_qoq > 0:
+            score += 3  # Positive but below threshold
         else:
             score += 0
             
@@ -185,43 +206,53 @@ class VinSightScorer:
         
         # 1. Trend & Turnaround (10 pts)
         if t.price > t.sma50 and t.sma50 > t.sma200:
-            score += 10 # Standard Bull
+            score += 10 # Standard Bull - Golden Cross territory
         elif t.price < t.sma200:
-            # Turnaround Check: RSI Bullish Divergence? 
-            # We don't have divergence calculation passed. Proxy: RSI Oversold (<30) + High Volume?
-            # Or RSI Rising from lows?
-            # Let's use strict logic: If Price < SMA200, usually 0.
-            # But "Turnaround" rule: Price < SMA200 BUT RSI showing Bullish Divergence + High Volume -> 5 pts
-            # Proxying Divergence with RSI < 30 (Oversold) as "potential turnaround" area is weak. 
-            # Let's stick to simple: Price < SMA200 = 0.
-            score += 0
-        else:
-            # In between mess
-            score += 0
-
-        # 2. Momentum / RSI (10 pts)
-        # RSI 60-80 + Rising Volume (Breakout) -> 10 pts
-        # RSI 40-60 (Steady) -> 5 pts
-        # RSI > 80 (Overheated) -> 0 pts
-        if 60 <= t.rsi <= 80:
-            # Check volume
-            if "Vol Rising" in t.volume_trend:
-                score += 10
+            # Below long-term trend = bearish
+            # But check for oversold bounce potential (RSI < 30)
+            if t.rsi < 30:
+                score += 3  # Potential turnaround signal
             else:
-                score += 5 # Good RSI but no vol support
-        elif 40 <= t.rsi < 60:
+                score += 0
+        elif t.price > t.sma200 and t.price < t.sma50:
+            # Consolidating: Above SMA200 but below SMA50 - mild positive
             score += 5
-        elif t.rsi > 80:
-            score += 0
         else:
-            # RSI < 40 (Weak)
-            score += 0
+            # Price above both but SMA50 < SMA200 (recovering)
+            score += 3
+
+        # 2. Momentum / RSI (10 pts) - Industry Standard Thresholds
+        # RSI 30-70 is neutral range (industry standard)
+        # RSI < 30 = Oversold, RSI > 70 = Overbought
+        if t.rsi < 30:
+            # Oversold - potential bounce, but risky
+            score += 2  # Slight positive for turnaround potential
+        elif 30 <= t.rsi < 50:
+            # Below average momentum, recovering
+            score += 3
+        elif 50 <= t.rsi <= 65:
+            # Healthy momentum range
+            if "Vol Rising" in t.volume_trend:
+                score += 8
+            else:
+                score += 5
+        elif 65 < t.rsi <= 75:
+            # Strong momentum, potentially extended
+            if "Vol Rising" in t.volume_trend:
+                score += 10  # Breakout confirmation
+            else:
+                score += 6
+        elif t.rsi > 75:
+            # Overbought - industry standard is >70, using 75 for buffer
+            score += 0  # Risk of pullback
             
         # 3. Volume Conviction (10 pts)
         if t.volume_trend == "Price Rising + Vol Rising":
-            score += 10
+            score += 10  # Strong conviction
         elif t.volume_trend == "Price Rising + Vol Falling":
-            score += 5
+            score += 5   # Weak rally, potential exhaustion
+        elif t.volume_trend == "Price Falling + Vol Rising":
+            score += 2   # Distribution or capitulation
         else:
             score += 0
             
@@ -241,20 +272,18 @@ class VinSightScorer:
             score += 0
             
         # 2. Insider Activity (10 pts)
-        if s.insider_activity == "Cluster Selling":
-            return 0 # CRITICAL PENALTY, wipes out category score? Or just sets this part to 0. 
-            # Prompt says: "Cluster Selling ... 0 pts (CRITICAL PENALTY)". 
-            # Usually implies 0 for this section. If it meant 0 for whole category it would say "Set Sentiment to 0".
-            # Proceeding with 0 for this section.
-        elif s.insider_activity == "Net Buying" or s.insider_activity == "Mixed/Minor Selling": 
-            # Prompt says: "Net Buying or No Activity: 10 pts", "Routine/Minor Selling: 5 pts".
-            # Our enum is slightly different. Mapping:
-            if s.insider_activity == "Net Buying":
-                score += 10
-            else:
-                score += 5
-        else: # Heavy Selling (not cluster)
-            score += 0
+        # Net Buying or No Activity: 10 pts
+        # Mixed/Minor Selling: 5 pts
+        # Heavy Selling: 0 pts
+        # Cluster Selling: 0 pts (CRITICAL - but doesn't wipe news score)
+        if s.insider_activity == "Net Buying" or s.insider_activity == "No Activity":
+            score += 10
+        elif s.insider_activity == "Mixed/Minor Selling":
+            score += 5
+        elif s.insider_activity in ["Heavy Selling", "Cluster Selling"]:
+            score += 0  # No early return - news score preserved
+        else:
+            score += 0  # Unknown - default to 0
             
         return score
 

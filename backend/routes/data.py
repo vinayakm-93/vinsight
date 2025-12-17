@@ -114,7 +114,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             sentiment_result = None
             
         institutional = finance.get_institutional_holders(ticker)
-        sim_result = simulation.run_monte_carlo(history, days=30, simulations=500) # Quick run
+        sim_result = simulation.run_monte_carlo(history, days=30, simulations=1000) # Increased for better accuracy
         
         # v5.0 Data Fetching
         # v5.0 Data Fetching
@@ -140,14 +140,25 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
              inst_own = institutional["institutionsPercentHeld"] * 100
 
         # Inst Ownership Change
-        # Simple heuristic from transaction text or simply assuming "Flat" if unknown
-        # Since we don't have historical ownership array easily here, we look at insider activity as proxy or just default to Flat/Rising
-        # User spec: "Inst. Holdings Rising (10 pts). Flat (5 pts). Selling (0 pts)."
-        # We'll use a placeholder logic or derived from `institutional` dict if we had trend.
-        # For now, let's assume "Flat" unless we see huge buying in insiders (correlated) or if we had diff data.
-        # IMPROVEMENT: Use 'net_institutional_buying' if available. 
-        # Hack: Random determinism or default to Flat for MVP v5.0
-        inst_changing = "Flat" 
+        # Analyze insider transactions to infer institutional sentiment
+        # If recent transactions show more buying -> "Rising", more selling -> "Falling", else "Flat"
+        txs = institutional.get('insider_transactions', [])
+        buy_value = 0
+        sell_value = 0
+        for t in txs[:10]:
+            text = t.get('Text', '').lower()
+            value = t.get('Value') or 0
+            if 'sale' in text or 'sell' in text:
+                sell_value += abs(value) if isinstance(value, (int, float)) else 0
+            elif 'purchase' in text or 'buy' in text:
+                buy_value += abs(value) if isinstance(value, (int, float)) else 0
+        
+        if buy_value > sell_value * 1.5:  # Significantly more buying
+            inst_changing = "Rising"
+        elif sell_value > buy_value * 1.5:  # Significantly more selling
+            inst_changing = "Falling"
+        else:
+            inst_changing = "Flat"
 
         current_price = history[-1]['Close'] if history else 0
         
@@ -178,13 +189,30 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         # PEG Ratio
         peg = finance.get_peg_ratio(ticker)
         
+        # Sector-specific P/E medians for better valuation comparison
+        SECTOR_PE_MEDIANS = {
+            "Technology": 30.0,
+            "Financial Services": 12.0,
+            "Healthcare": 22.0,
+            "Consumer Cyclical": 20.0,
+            "Consumer Defensive": 22.0,
+            "Industrials": 18.0,
+            "Energy": 10.0,
+            "Utilities": 16.0,
+            "Real Estate": 35.0,
+            "Communication Services": 18.0,
+            "Basic Materials": 12.0,
+        }
+        sector = fundamentals_info.get("sector", "")
+        sector_pe = SECTOR_PE_MEDIANS.get(sector, 25.0)  # Default to 25 if unknown
+        
         fund_data = Fundamentals(
             inst_ownership=inst_own,
             inst_changing=inst_changing,
             pe_ratio=pe or 0,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
-            sector_pe_median=25.0 # hardcoded benchmark for now
+            sector_pe_median=sector_pe
         )
 
         # --- Technicals ---
@@ -196,8 +224,30 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         if momentum not in ["Bullish", "Bearish"]:
             momentum = "Bearish"
 
-        # Volume Trend
-        if len(history) >= 2:
+        # Volume Trend - Use 5-day average for more reliable signal
+        if len(history) >= 6:
+            recent_prices = [h['Close'] for h in history[-6:]]
+            recent_volumes = [h['Volume'] for h in history[-6:]]
+            
+            # Price trend: compare last 3 days avg to previous 3 days avg
+            price_recent = sum(recent_prices[-3:]) / 3
+            price_earlier = sum(recent_prices[:3]) / 3
+            price_rising = price_recent > price_earlier
+            
+            # Volume trend: compare last 3 days avg to previous 3 days avg
+            vol_recent = sum(recent_volumes[-3:]) / 3
+            vol_earlier = sum(recent_volumes[:3]) / 3
+            vol_rising = vol_recent > vol_earlier
+            
+            if price_rising and vol_rising:
+                vol_trend = "Price Rising + Vol Rising"
+            elif price_rising and not vol_rising:
+                vol_trend = "Price Rising + Vol Falling"
+            elif not price_rising and vol_rising:
+                vol_trend = "Price Falling + Vol Rising"
+            else:
+                vol_trend = "Weak/Mixed"
+        elif len(history) >= 2:
             p_change = history[-1]['Close'] - history[-2]['Close']
             v_change = history[-1]['Volume'] - history[-2]['Volume']
             if p_change > 0 and v_change > 0:
@@ -220,38 +270,68 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             volume_trend=vol_trend
         )
 
-        # Insider Activity Detection
-        ins_activity = "Neutral"
+        # Insider Activity Detection - Improved with Cluster Selling detection
         txs = institutional.get('insider_transactions', [])
-        # Checking for "Sale" or "Buy" in Text or Position
-        # finance.py returns lists of dicts with 'Text', 'Position'
+        
         insider_buy = 0
         insider_sell = 0
-        for t in txs[:10]:  # Last 10 transactions
+        sell_dates = []
+        executive_sells = 0  # Track C-suite selling
+        
+        from datetime import datetime, timedelta
+        
+        for t in txs[:15]:  # Look at more transactions
             text = t.get('Text', '').lower()
-            if 'sale' in text or 'sell' in text:
+            position = t.get('Position', '').lower()
+            date_str = t.get('Date', '')
+            
+            # Improved pattern matching
+            is_sale = any(word in text for word in ['sale', 'sell', 'sold', 'disposition'])
+            is_buy = any(word in text for word in ['purchase', 'buy', 'bought', 'acquisition', 'exercise'])
+            
+            if is_sale:
                 insider_sell += 1
-            elif 'purchase' in text or 'buy' in text:
+                # Track C-suite selling for cluster detection
+                if any(title in position for title in ['ceo', 'cfo', 'coo', 'president', 'director', 'officer']):
+                    executive_sells += 1
+                # Track dates for cluster detection
+                if date_str:
+                    try:
+                        sell_dates.append(datetime.strptime(date_str.split(' ')[0], '%Y-%m-%d'))
+                    except:
+                        pass
+            elif is_buy:
                 insider_buy += 1
         
-        if insider_buy > insider_sell and insider_buy >= 2:
+        # Cluster Selling Detection: 3+ executives selling within 2 weeks
+        is_cluster_selling = False
+        if executive_sells >= 3 and len(sell_dates) >= 3:
+            sell_dates.sort()
+            # Check if 3+ sells within 14 days
+            for i in range(len(sell_dates) - 2):
+                if (sell_dates[i+2] - sell_dates[i]).days <= 14:
+                    is_cluster_selling = True
+                    break
+        
+        # Determine insider activity
+        if not txs:
+            ins_activity = "No Activity"
+        elif is_cluster_selling:
+            ins_activity = "Cluster Selling"  # Now properly detected!
+        elif insider_buy > insider_sell and insider_buy >= 2:
             ins_activity = "Net Buying"
-        elif insider_sell > insider_buy and insider_sell >= 3:
+        elif insider_sell > insider_buy and insider_sell >= 4:
             ins_activity = "Heavy Selling"
-        else:
+        elif insider_sell > insider_buy:
             ins_activity = "Mixed/Minor Selling"
+        else:
+            ins_activity = "No Activity"
         
         sentiment_data = Sentiment(
             news_sentiment_label=sentiment_label,
             news_volume_high=news_vol_high,
-            insider_activity=ins_activity # We need to map this carefully
+            insider_activity=ins_activity
         )
-        
-        # Mapper for Insider to v5.0 labels
-        # v2 labels: "Net Buying", "Heavy Selling", "Mixed/Minor Selling"
-        # v5 labels: "Net Buying", "Mixed/Minor Selling", "Heavy Selling", "Cluster Selling"
-        # We'll use the existing "ins_activity" var which has compatible values mostly.
-        sentiment_data.insider_activity = ins_activity
             
         # --- Projections ---
         # Simulation returns p50 list. We need the FINAL P50 value.

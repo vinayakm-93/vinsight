@@ -79,24 +79,48 @@ def calculate_risk_metrics(history: List[Dict]) -> Dict:
         "var_95": var_95
     }
 
-def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True) -> Dict:
+def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True, ticker: str = None) -> Dict:
     """
-    Calculates sentiment from news using Groq (Llama 3.3 70B).
+    Calculates sentiment from news using Alpha Vantage (preferred) or Groq (fallback).
     
-    v2.3: Groq-only approach (removed FinBERT hybrid)
+    v2.5: Alpha Vantage primary (has built-in sentiment + summaries)
+          Falls back to yfinance + Groq if Alpha Vantage unavailable
     
     Args:
-        news_items: List of news items with 'title' and optionally 'published' date
-        deep_analysis: Legacy parameter (kept for compatibility, always uses Groq)
+        news_items: List of news items with 'title' (used for fallback)
+        deep_analysis: Legacy parameter (kept for compatibility)
+        ticker: Stock ticker symbol (required for Alpha Vantage)
     
     Returns: {
         'score': float (-1 to 1),
         'label': str ('Positive', 'Negative', 'Neutral'),
         'confidence': float (0 to 1),
         'article_count': int,
-        'source': str ('groq')
+        'source': str ('alpha_vantage' or 'groq')
     }
     """
+    # Try Alpha Vantage first (has built-in sentiment)
+    if ticker:
+        try:
+            from services.alpha_vantage_news import get_alpha_vantage_news, is_available
+            
+            if is_available():
+                av_result = get_alpha_vantage_news(ticker, limit=10)
+                
+                if av_result and av_result.get('articles'):
+                    overall = av_result.get('overall_sentiment', {})
+                    return {
+                        "score": overall.get('score', 0),
+                        "label": overall.get('label', 'Neutral'),
+                        "confidence": 0.85,  # Alpha Vantage is generally reliable
+                        "article_count": av_result.get('article_count', 0),
+                        "source": "alpha_vantage",
+                        "articles": av_result.get('articles', [])  # Include article details
+                    }
+        except Exception as e:
+            print(f"[Sentiment] Alpha Vantage failed, falling back to Groq: {e}")
+    
+    # Fallback: Use yfinance news + Groq analysis
     if not news_items:
         return {
             "score": 0,
@@ -107,17 +131,15 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
         }
     
     try:
-        # Import Groq analyzer only
         from services.groq_sentiment import get_groq_analyzer
         from datetime import datetime, timezone
         
         groq = get_groq_analyzer()
         
         if not groq.is_available():
-            # Fallback to TextBlob if Groq not available
             raise Exception("Groq API not available")
         
-        # Bearish keywords for spin detection
+        # Bearish keywords for spin detection (keep these for safety)
         BEARISH_KEYWORDS = [
             'layoff', 'layoffs', 'job cuts', 'firing', 'downsizing',
             'miss', 'misses', 'missed', 'disappointing', 'shortfall',
@@ -145,12 +167,11 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
                 has_bearish = any(keyword in title_lower for keyword in BEARISH_KEYWORDS)
                 bearish_flags.append(has_bearish)
                 
-                # Try to get published date
+                # Parse date
                 pub_date = item.get('published')
                 if pub_date:
                     try:
                         if isinstance(pub_date, str):
-                            # Parse ISO format or timestamp
                             date_obj = datetime.fromisoformat(pub_date.replace('Z', '+00:00'))
                         else:
                             date_obj = pub_date
@@ -169,15 +190,13 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
                 "source": "none"
             }
         
-        # Analyze all headlines with Groq (batch)
-        # For performance, analyze top 5 most recent headlines
-        top_n = min(5, len(headlines))
+        # Analyze top 10 headlines with Groq
+        top_n = min(10, len(headlines))
         
-        # Sort by recency (most recent first)
-        headline_date_pairs = list(zip(headlines, dates, bearish_flags))
-        headline_date_pairs.sort(key=lambda x: x[1], reverse=True)
+        # Sort by recency
+        headline_data = list(zip(headlines, dates, bearish_flags))
+        headline_data.sort(key=lambda x: x[1], reverse=True)
         
-        # Calculate temporal weights for weighting
         now = datetime.now(timezone.utc)
         
         groq_scores = []
@@ -185,13 +204,13 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
         weights = []
         analyzed_bearish = []
         
-        for headline, date, is_bearish in headline_date_pairs[:top_n]:
+        for headline, date, is_bearish in headline_data[:top_n]:
             groq_result = groq.analyze(headline)
             groq_scores.append(groq_result['score'])
             groq_confidences.append(groq_result['confidence'])
             analyzed_bearish.append(is_bearish)
             
-            # Calculate temporal weight
+            # Temporal weight (recent = higher)
             try:
                 days_ago = (now - date).total_seconds() / 86400
                 weight = 1.0 / (1.0 + 0.1 * days_ago)
@@ -199,41 +218,31 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
             except:
                 weights.append(1.0)
         
-        # Calculate weighted average sentiment
-        total_weighted_score = 0.0
-        total_weighted_confidence = 0.0
-        total_weight = 0.0
+        # Calculate weighted average
+        total_weight = sum(weights)
+        avg_score = sum(s * w for s, w in zip(groq_scores, weights)) / total_weight if total_weight > 0 else 0
+        avg_confidence = sum(c * w for c, w in zip(groq_confidences, weights)) / total_weight if total_weight > 0 else 0
         
-        for score, confidence, weight in zip(groq_scores, groq_confidences, weights):
-            total_weighted_score += score * weight
-            total_weighted_confidence += confidence * weight
-            total_weight += weight
-        
-        avg_score = total_weighted_score / total_weight if total_weight > 0 else 0
-        avg_confidence = total_weighted_confidence / total_weight if total_weight > 0 else 0
-        
-        # Adjust for bearish keywords (positive spin detection)
+        # Apply bearish spin detection penalty
         bearish_count = sum(analyzed_bearish)
         if bearish_count > 0 and avg_score > 0:
-            # Apply penalty: more bearish keywords = more penalty
             penalty_factor = 1.0 - (bearish_count / len(analyzed_bearish)) * 0.5
             avg_score *= penalty_factor
-            print(f"[Spin Detection] {bearish_count}/{len(analyzed_bearish)} bearish headlines, applying {penalty_factor:.2f}x penalty")
+            print(f"[Spin Detection] {bearish_count}/{len(analyzed_bearish)} bearish headlines, penalty {penalty_factor:.2f}x")
         
-        # Classify sentiment with strict thresholds
-        # v2.3: Same thresholds as v2.2
-        if avg_score > 0.5:  # Require strong positive signal
+        # Classify with thresholds
+        if avg_score > 0.4:
             label = "Positive"
-        elif avg_score < -0.3:  # Easier to be negative (asymmetric)
+        elif avg_score < -0.25:
             label = "Negative"
         else:
             label = "Neutral"
         
-        # Additional confidence check - low confidence results default to neutral
-        if avg_confidence < 0.75 and label != "Neutral":
+        # Low confidence defaults to neutral
+        if avg_confidence < 0.70 and label != "Neutral":
             label = "Neutral"
         
-        # Force negative if multiple bearish keywords with weak positive score
+        # Force negative if bearish keywords + weak positive
         if bearish_count >= 2 and 0 < avg_score < 0.3:
             label = "Negative"
             print(f"[Spin Override] Forcing negative due to {bearish_count} bearish keywords")
@@ -243,7 +252,7 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
             "label": label,
             "confidence": avg_confidence,
             "article_count": len(headlines),
-            "source": "groq"  # Always Groq now
+            "source": "groq"
         }
         
     except Exception as e:
@@ -266,9 +275,10 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True)
         
         avg_polarity = total_polarity / count if count > 0 else 0
         
-        if avg_polarity > 0.1:
+        # Use stricter thresholds matching Groq analysis
+        if avg_polarity > 0.5:
             label = "Positive"
-        elif avg_polarity < -0.1:
+        elif avg_polarity < -0.3:
             label = "Negative"
         else:
             label = "Neutral"
