@@ -13,15 +13,17 @@ graph TD
     DB[(PostgreSQL / SQLite)]
     AI1[Groq API]
     AI2[Gemini API]
+    AV[Alpha Vantage API]
     Data[yfinance]
 
     User -->|HTTP| FE
     FE -->|/api/* requests| Proxy
     Proxy -->|Forward + Cookies| BE
     BE -->|SQLAlchemy| DB
-    BE -->|JSON| AI1
-    BE -->|JSON| AI2
-    BE -->|REST| Data
+    BE -->|Sentiment| AI1
+    BE -->|Earnings| AI2
+    BE -->|News + Sentiment| AV
+    BE -->|Stock Data| Data
 ```
 
 ## Components
@@ -38,6 +40,13 @@ graph TD
 - **ORM**: SQLAlchemy
 - **Validation**: Pydantic models
 - **Config**: `redirect_slashes=False` for proxy compatibility
+
+### AI Services (v2.5)
+| Service | Purpose | Fallback |
+|---------|---------|----------|
+| **Alpha Vantage** | News sentiment (pre-scored) | Groq |
+| **Groq (Llama 3.3 70B)** | Deep headline analysis | TextBlob |
+| **Gemini** | Earnings report analysis | - |
 
 ### Database
 - **Users Table**: Stores user info, hashed passwords, alert limits.

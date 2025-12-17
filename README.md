@@ -15,8 +15,8 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 ## 🚀 Features
 
 - **Real-Time Dashboard**: Interactive candlestick charts with volume data.
-- **AI Sentinel**: Sentiment analysis on news and earnings reports using Groq & Gemini.
-- **VinSight Score**: Proprietary scoring algorithm (0-100) to rate stock health.
+- **AI Sentinel**: Multi-source sentiment analysis (Alpha Vantage → Groq → TextBlob fallback).
+- **VinSight Score v2.5**: Industry-aligned scoring with RSI 30/70, Graham P/E, sector-adjusted growth.
 - **Smart Alerts**: Email notifications for price targets and major sentiment shifts.
 - **Portfolio Tracking**: Watchlist management with daily changelog.
 

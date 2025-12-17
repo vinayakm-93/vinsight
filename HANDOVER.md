@@ -116,3 +116,29 @@ We have automated the deployment process.
 ## ✨ Recent Features (Dec 16)
 *   **Guest Mode**: Users can explore the app without logging in. Guest watchlist saved to localStorage.
 *   **Improved UI States**: Loading, error, and empty states for better UX.
+
+---
+
+## 🧠 AI Score v2.5 Update (Dec 17)
+
+### New Alpha Vantage Integration
+*   **File**: `backend/services/alpha_vantage_news.py`
+*   Pre-scored sentiment with article summaries (not just headlines)
+*   15-minute caching to respect rate limits
+*   Fallback chain: Alpha Vantage → Groq → TextBlob
+
+### Industry Benchmark Alignment
+| Component | Old | New |
+|-----------|-----|-----|
+| RSI Thresholds | 40/80 | 30/70 (industry standard) |
+| P/E Valuation | Sector-relative only | Graham threshold (< 15 = value) |
+| Earnings Growth | Flat 10% | Sector-adjusted (Tech > 15%, Banks > 8%) |
+
+### Bug Fixes
+*   **Cluster Selling**: Now preserves news score (was zeroing entire sentiment)
+*   **No Activity**: Added as valid insider type (10 pts)
+
+### New Environment Variable
+```
+ALPHA_VANTAGE_API_KEY=  # Free from alphavantage.co
+```

@@ -5,19 +5,21 @@
 - **Volume Bars**: Visual representation of trading activity.
 - **Timeframes**: Switch between Daily, Weekly, and Intraday views.
 
-## 2. Artificial Intelligence
-- **Sentiment Analysis**:
-    - We fetch the latest news using Google News RSS.
-    - **Groq (Llama 3)** analyzes headlines for immediate sentiment (Positive/Negative/Neutral).
-    - **Gemini 1.5 Pro** performs "Deep Reasoning" on earnings reports to find hidden risks.
-- **AI Analyst**: An automated agent that summarizes the financial health of a company in natural language.
+## 2. Artificial Intelligence (v2.5)
+- **Sentiment Analysis** (Hybrid Cascade):
+    - **Alpha Vantage** (Primary): Pre-scored sentiment with article summaries.
+    - **Groq (Llama 3.3 70B)** (Fallback): Deep headline analysis with spin detection.
+    - **TextBlob** (Emergency): Dictionary-based fallback if APIs unavailable.
+- **Spin Detection**: Bearish keyword list catches positive framing of negative news.
+- **AI Analyst**: Automated natural language summary of company financial health.
 
-## 3. VinSight Score
-A proprietary algorithm that combines:
-- Technical Indicators (RSI, MACD)
-- Fundamental Data (P/E Ratio, EPS)
-- Sentiment Score (AI derived)
-**Result**: A single score from 0-100 indicating stock health.
+## 3. VinSight Score (v2.5 - Industry Benchmarks)
+A proprietary algorithm combining **4 pillars (100 pts)**:
+- **Fundamentals (30 pts)**: PEG < 1.0 (Peter Lynch), P/E < 15 (Graham), sector-adjusted growth.
+- **Technicals (30 pts)**: RSI 30/70 thresholds, SMA trends, volume conviction.
+- **Sentiment (20 pts)**: News sentiment + insider activity (detects Cluster Selling).
+- **Projections (20 pts)**: Monte Carlo P50 upside + risk/reward ratio.
+**Result**: Score 0-100 with ratings (Strong Buy/Buy/Hold/Weak Hold/Sell).
 
 ## 4. Smart Alerts
 - **Price Alerts**: "Tell me if AAPL goes above $200".
