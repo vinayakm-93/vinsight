@@ -90,8 +90,12 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             const data = await getWatchlists();
             console.log("Fetched watchlists data:", data);
             setWatchlists(data);
-            if (data.length > 0 && !activeWatchlistId) {
-                setActiveWatchlistId(data[0].id);
+            // Always select first watchlist if we have any and no valid selection
+            if (data.length > 0) {
+                const currentValid = data.some((w: Watchlist) => w.id === activeWatchlistId);
+                if (!currentValid) {
+                    setActiveWatchlistId(data[0].id);
+                }
             }
         } catch (error: any) {
             console.error("Failed to fetch watchlists", error);
@@ -283,7 +287,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 h-full flex flex-col relative overflow-hidden transition-colors duration-300" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
             <div className="flex justify-between items-center mb-6 shrink-0">
                 <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
-                    {user ? "My Watchlists" : "Default Watchlist"}
+                    {user ? "My Watchlist" : "Watchlist"}
                 </h2>
                 <div className="flex gap-1">
                     {activeWatchlistId && (
@@ -365,13 +369,6 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                     >
                         <Plus size={16} /> Create Watchlist
                     </button>
-                </div>
-            )}
-
-            {/* Not Logged In State */}
-            {!isLoading && !user && (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                    <p className="text-gray-500 text-sm">Sign in to view your watchlists.</p>
                 </div>
             )}
 
