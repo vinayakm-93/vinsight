@@ -27,6 +27,14 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [activeWatchlistId, setActiveWatchlistId] = useState<number | null>(null);
 
+    // Guest Mode Constant
+    const GUEST_WATCHLIST_KEY = 'vinsight_guest_watchlist';
+    const DEFAULT_GUEST_WATCHLIST: Watchlist = {
+        id: -1,
+        name: "Guest Watchlist",
+        stocks: ["AAPL", "NVDA", "SPY", "TSLA", "AMZN", "MSFT", "GOOGL"]
+    };
+
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -53,8 +61,23 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         if (user) {
             fetchWatchlists();
         } else {
-            setWatchlists([]);
-            setActiveWatchlistId(null);
+            // Guest Mode: Load from LocalStorage or use Default
+            const saved = localStorage.getItem(GUEST_WATCHLIST_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    // Ensure it matches Watchlist structure
+                    const guestList = { ...DEFAULT_GUEST_WATCHLIST, stocks: parsed.stocks || parsed };
+                    setWatchlists([guestList]);
+                    setActiveWatchlistId(guestList.id);
+                } catch (e) {
+                    setWatchlists([DEFAULT_GUEST_WATCHLIST]);
+                    setActiveWatchlistId(DEFAULT_GUEST_WATCHLIST.id);
+                }
+            } else {
+                setWatchlists([DEFAULT_GUEST_WATCHLIST]);
+                setActiveWatchlistId(DEFAULT_GUEST_WATCHLIST.id);
+            }
             setIsLoading(false);
         }
     }, [user]);
@@ -130,6 +153,20 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
 
     const handleAddStock = async (symbol: string) => {
         if (!activeWatchlistId) return;
+
+        if (!user && activeWatchlistId === -1) {
+            // Guest Mode
+            const activeList = watchlists.find(w => w.id === -1);
+            if (activeList && !activeList.stocks.includes(symbol)) {
+                const updatedList = { ...activeList, stocks: [...activeList.stocks, symbol] };
+                setWatchlists([updatedList]);
+                localStorage.setItem(GUEST_WATCHLIST_KEY, JSON.stringify(updatedList));
+                setSearchQuery('');
+                setShowResults(false);
+            }
+            return;
+        }
+
         try {
             const updated = await addStockToWatchlist(activeWatchlistId, symbol);
             setWatchlists(watchlists.map(w => w.id === activeWatchlistId ? updated : w));
@@ -143,6 +180,19 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
 
     const handleRemoveStock = async (symbol: string) => {
         if (!activeWatchlistId) return;
+
+        if (!user && activeWatchlistId === -1) {
+            // Guest Mode
+            const activeList = watchlists.find(w => w.id === -1);
+            if (activeList) {
+                const updatedList = { ...activeList, stocks: activeList.stocks.filter(s => s !== symbol) };
+                setWatchlists([updatedList]);
+                localStorage.setItem(GUEST_WATCHLIST_KEY, JSON.stringify(updatedList));
+                setMenuOpenFor(null);
+            }
+            return;
+        }
+
         try {
             const updated = await removeStockFromWatchlist(activeWatchlistId, symbol);
             setWatchlists(watchlists.map(w => w.id === activeWatchlistId ? updated : w));
@@ -233,7 +283,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 h-full flex flex-col relative overflow-hidden transition-colors duration-300" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
             <div className="flex justify-between items-center mb-6 shrink-0">
                 <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
-                    My Watchlists
+                    {user ? "My Watchlists" : "Default Watchlist"}
                 </h2>
                 <div className="flex gap-1">
                     {activeWatchlistId && (
@@ -386,6 +436,11 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                             <div className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-800 rounded-xl">
                                 <p className="mb-2">This watchlist is empty.</p>
                                 <p className="text-xs">Search above to add stocks.</p>
+                                {!user && (
+                                    <div className="mt-4">
+                                        <p className="text-xs text-blue-500 mb-2">Sign in to save your watchlist permanently!</p>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             activeWatchlist.stocks.map((stock) => {

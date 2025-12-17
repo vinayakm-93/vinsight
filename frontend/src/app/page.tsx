@@ -33,11 +33,11 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
-            alt="VinSight Logo"
+            alt="Vinsight Logo"
             className="h-8 w-8 object-contain transition-opacity duration-300"
           />
           <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400">
-            VinSight
+            Vinsight
           </h1>
 
           {/* Feedback Button - Nav Item */}
@@ -107,6 +107,7 @@ export default function Home() {
               ticker={selectedTicker}
               watchlistStocks={watchlistStocks}
               onClearSelection={() => setSelectedTicker(null)}
+              onRequireAuth={() => setShowAuthModal(true)}
             />
           </div>
         </div>
