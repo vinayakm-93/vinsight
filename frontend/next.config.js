@@ -7,11 +7,10 @@ const nextConfig = {
     async rewrites() {
         console.log('Rewrites called. MY_BACKEND_URL:', process.env.MY_BACKEND_URL);
 
-        // TODO: Revert to env var once injection issue is resolved. Hardcoded for stability.
-        // Local Development
-        const apiUrl = 'http://127.0.0.1:8000';
-        // const backendUrl = process.env.MY_BACKEND_URL || process.env.API_URL;
-        // const apiUrl = backendUrl ? backendUrl.trim() : 'http://localhost:8000';
+        // Use Cloud Run backend URL for production
+        const apiUrl = process.env.NODE_ENV === 'production'
+            ? 'https://vinsight-backend-wddr2kfz3a-uc.a.run.app'
+            : 'http://127.0.0.1:8000';
 
         console.log('Proxying /api requests to:', apiUrl);
 
