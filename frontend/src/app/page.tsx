@@ -32,7 +32,7 @@ export default function Home() {
       <header className="p-4 md:p-6 flex justify-between items-center text-black dark:text-white shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
         <div className="flex items-center gap-3">
           <img
-            src="/logo.png"
+            src={effectiveTheme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
             alt="Vinsight Logo"
             className="h-8 w-8 object-contain transition-opacity duration-300"
           />

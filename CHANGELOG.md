@@ -1,5 +1,42 @@
 # Changelog
 
+## v6.1.0 - Sector Expansion & Weight Rebalance (2025-12-17)
+
+### 🚀 New Features
+
+#### Expanded Sector Benchmarks (29 total)
+- Added 14 new sub-industries with distinct thresholds:
+  - **Tech**: Cloud/SaaS, Fintech, Cybersecurity, AI/ML, Gaming
+  - **Media**: Streaming/Media, E-commerce
+  - **Specialty**: EV/Clean Energy, Biotech, Pharma
+  - **Financial**: Banks, Insurance, REITs
+  - **Industrial**: Aerospace & Defense, Mining, Luxury Goods
+- Widened variance: P/E median ranges 8 (Mining) → 80 (EV/Clean Energy)
+
+#### Sector Override Dropdown Moved
+- Dropdown relocated from Fundamentals pillar to Recommendation Score header
+- Shows all 31 options (29 sectors + Auto + Standard)
+
+### 🔧 Scoring Rebalance (v6.1)
+- **Fundamentals**: 55 → **60 pts** (Valuation 16, Growth 14, Margins 14, Debt 8, Inst 4, Flow 4)
+- **Sentiment**: 15 pts (unchanged)
+- **Projections**: 15 pts (unchanged)
+- **Technicals**: 15 → **10 pts** (Trend 4, RSI 3, Volume 3)
+
+#### UI Pillar Order Updated
+Now displays: **Fundamentals → Sentiment → Projections → Technicals**
+
+### 📊 Outlook Refactor (3m/6m/12m)
+- **3 Months**: Technical/Momentum (RSI, SMA50, Sentiment, Beta)
+- **6 Months**: Valuation/Growth (PEG, P/E, SMA200, Earnings Growth)
+- **12 Months**: Quality/Fundamentals (Margins, Debt, 52W Range, Dividends, Market Cap)
+
+### 🐛 Bug Fixes
+- Fixed `sector` variable bug in `data.py:441` (was using undefined `sector` instead of `active_sector`)
+- Monte Carlo tooltip: cleaner UI, day indicator, hides individual path noise
+
+---
+
 ## v6.0.0 - Industry Peer Values UI (2025-12-17)
 
 ### 🚀 New Features

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict
 
-def run_monte_carlo(history: List[Dict], days: int = 30, simulations: int = 1000) -> Dict:
+def run_monte_carlo(history: List[Dict], days: int = 90, simulations: int = 10000) -> Dict:
     """
     Runs Monte Carlo simulation for future price paths.
     """

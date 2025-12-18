@@ -1,15 +1,15 @@
 """
-Unit Tests for VinSight Scorer v6.0
+Unit Tests for VinSight Scorer v6.1 (Research-Based Rebalance)
 Tests individual scoring components to verify correctness.
 
-v6.0 Weight Distribution:
+v6.1 Weight Distribution:
 - Fundamentals: 55 pts
 - Technicals: 15 pts
 - Sentiment: 15 pts
 - Projections: 15 pts
 """
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, 'backend')
 
 import pytest
 from services.vinsight_scorer import (
@@ -24,44 +24,48 @@ class TestSentimentScoring:
         self.scorer = VinSightScorer()
     
     def test_positive_news_net_buying_gives_max_score(self):
-        """v6.0: Positive news (7) + Net Buying (8) = 15 points"""
+        """v6.0: Positive news (10) + Net Buying (5) = 15 points"""
         sentiment = Sentiment(
             news_sentiment_label="Positive",
-            news_volume_high=True,
+            news_sentiment_score=0.4,  # Max positive
+            news_article_count=10,
             insider_activity="Net Buying"
         )
         score = self.scorer._score_sentiment(sentiment)
         assert score == 15, f"Expected 15, got {score}"
     
     def test_neutral_news_net_buying(self):
-        """v6.0: Neutral news (3.5) + Net Buying (8) = 11-12 points"""
+        """v6.0: Neutral news (5) + Net Buying (5) = 10 points"""
         sentiment = Sentiment(
             news_sentiment_label="Neutral",
-            news_volume_high=False,
+            news_sentiment_score=0.0,  # Neutral
+            news_article_count=10,
             insider_activity="Net Buying"
         )
         score = self.scorer._score_sentiment(sentiment)
-        assert 11 <= score <= 12, f"Expected 11-12, got {score}"
+        assert score == 10, f"Expected 10, got {score}"
     
     def test_negative_news_net_buying(self):
-        """v6.0: Negative news (1) + Net Buying (8) = 9 points"""
+        """v6.0: Negative news (0) + Net Buying (5) = 5 points"""
         sentiment = Sentiment(
             news_sentiment_label="Negative",
-            news_volume_high=False,
+            news_sentiment_score=-0.4,  # Max negative
+            news_article_count=10,
             insider_activity="Net Buying"
         )
         score = self.scorer._score_sentiment(sentiment)
-        assert score == 9, f"Expected 9, got {score}"
+        assert score == 5, f"Expected 5, got {score}"
     
     def test_positive_news_cluster_selling(self):
-        """v6.0: Positive news (6-7) + Cluster Selling (0.5) = 6-8 points"""
+        """v6.0: Positive news (10) + Cluster Selling (0) = 10 points"""
         sentiment = Sentiment(
             news_sentiment_label="Positive",
-            news_volume_high=False,
+            news_sentiment_score=0.4,  # Max positive
+            news_article_count=10,
             insider_activity="Cluster Selling"
         )
         score = self.scorer._score_sentiment(sentiment)
-        assert 6 <= score <= 8, f"Expected 6-8, got {score}"
+        assert score == 10, f"Expected 10, got {score}"
 
 
 class TestFundamentalsScoring:
@@ -78,7 +82,7 @@ class TestFundamentalsScoring:
             pe_ratio=15.0,
             peg_ratio=0.8,
             earnings_growth_qoq=0.20,
-            sector_pe_median=25.0,
+            sector_name="Technology",
             profit_margin=0.25,
             debt_to_equity=0.3
         )
@@ -93,7 +97,7 @@ class TestFundamentalsScoring:
             pe_ratio=25.0,
             peg_ratio=1.5,
             earnings_growth_qoq=0.05,
-            sector_pe_median=25.0,
+            sector_name="Technology",
             profit_margin=0.10,
             debt_to_equity=0.8
         )
@@ -108,7 +112,7 @@ class TestFundamentalsScoring:
             pe_ratio=60.0,
             peg_ratio=3.5,
             earnings_growth_qoq=-0.15,
-            sector_pe_median=25.0,
+            sector_name="Technology",
             profit_margin=-0.05,
             debt_to_equity=3.0
         )
@@ -156,26 +160,26 @@ class TestProjectionsScoring:
         self.scorer = VinSightScorer()
     
     def test_strong_upside_high_reward(self):
-        """v6.0: P50 >15% upside (8) + Ratio >3x (7) = 15"""
+        """v6.1: P50 >=30% upside (8) + Ratio >=4x (7) = 15"""
         projections = Projections(
-            monte_carlo_p50=120.0,
-            monte_carlo_p90=140.0,
-            monte_carlo_p10=95.0,
+            monte_carlo_p50=135.0,  # 35% upside for max
+            monte_carlo_p90=160.0,
+            monte_carlo_p10=85.0,   # 4:1 ratio
             current_price=100.0
         )
         score = self.scorer._score_projections(projections)
         assert score == 15, f"Expected 15, got {score}"
     
     def test_moderate_projections(self):
-        """v6.0: Moderate upside and ratio"""
+        """v6.1: Moderate upside and ratio - stricter thresholds"""
         projections = Projections(
-            monte_carlo_p50=108.0,
+            monte_carlo_p50=108.0,  # 8% upside
             monte_carlo_p90=118.0,
             monte_carlo_p10=92.0,
             current_price=100.0
         )
         score = self.scorer._score_projections(projections)
-        assert 8 <= score <= 12, f"Expected 8-12, got {score}"
+        assert 5 <= score <= 9, f"Expected 5-9, got {score}"
 
 
 class TestFullScoreIntegration:
@@ -197,7 +201,7 @@ class TestFullScoreIntegration:
                 pe_ratio=18.0,
                 peg_ratio=0.9,
                 earnings_growth_qoq=0.18,
-                sector_pe_median=25.0,
+                sector_name="Technology",
                 profit_margin=0.22,
                 debt_to_equity=0.35
             ),
@@ -211,13 +215,14 @@ class TestFullScoreIntegration:
             ),
             sentiment=Sentiment(
                 news_sentiment_label="Positive",
-                news_volume_high=True,
+                news_sentiment_score=0.4,
+                news_article_count=10,
                 insider_activity="Net Buying"
             ),
             projections=Projections(
-                monte_carlo_p50=125.0,
-                monte_carlo_p90=145.0,
-                monte_carlo_p10=100.0,
+                monte_carlo_p50=145.0,  # 32% upside for strong score
+                monte_carlo_p90=170.0,
+                monte_carlo_p10=90.0,   # 4:1 ratio
                 current_price=110.0
             )
         )
@@ -251,7 +256,7 @@ class TestFullScoreIntegration:
                 pe_ratio=15.0,
                 peg_ratio=0.8,
                 earnings_growth_qoq=0.15,
-                sector_pe_median=25.0,
+                sector_name="Technology",
                 profit_margin=0.20,
                 debt_to_equity=0.3
             ),
@@ -265,13 +270,14 @@ class TestFullScoreIntegration:
             ),
             sentiment=Sentiment(
                 news_sentiment_label="Positive",
-                news_volume_high=True,
+                news_sentiment_score=0.4,
+                news_article_count=10,
                 insider_activity="Net Buying"
             ),
             projections=Projections(
-                monte_carlo_p50=130.0,
-                monte_carlo_p90=150.0,
-                monte_carlo_p10=100.0,
+                monte_carlo_p50=145.0,  # 32% upside
+                monte_carlo_p90=165.0,
+                monte_carlo_p10=90.0,
                 current_price=110.0
             )
         )

@@ -9,6 +9,9 @@ sys.path.append('.')
 from backend.services import finance, analysis
 from backend.services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections
 from backend.services import simulation
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Diverse test dataset
 TEST_STOCKS = {
@@ -29,7 +32,7 @@ def test_stock(ticker: str):
         fundamentals_info = finance.get_stock_info(ticker)
         news = finance.get_news(ticker)
         institutional = finance.get_institutional_holders(ticker)
-        sim_result = simulation.run_monte_carlo(history, days=30, simulations=500)
+        sim_result = simulation.run_monte_carlo(history, days=90, simulations=500)
         
         # v5.0 Specific Data
         regime = finance.get_market_regime()
@@ -142,7 +145,8 @@ def test_stock(ticker: str):
             ),
             sentiment=Sentiment(
                 news_sentiment_label=sent_label,
-                news_volume_high=news_vol_high,
+                news_sentiment_score=sentiment_result.get('score', 0),
+                news_article_count=news_art_count,
                 insider_activity=insider
             ),
             projections=Projections(

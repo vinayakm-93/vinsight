@@ -293,136 +293,194 @@ def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fun
        analysis: { rsi: number, sma: { sma_50: number, ... }, current_price: number }
        sentiment: { polarity: number, label: string }
        fundamentals: { trailingPE, beta, profitMargins, fiftyTwoWeekHigh, fiftyTwoWeekLow, ... }
+    
+    Outlook Time Horizons:
+       - 3 Months: Technical/Momentum Focus (RSI, SMA50, Volume, Sentiment)
+       - 6 Months: Valuation/Growth Focus (PEG, P/E, Earnings Growth, SMA200)
+       - 12 Months: Quality/Fundamental Focus (Margins, Debt, 52W Range, Dividends)
     """
     score = 0
     reasons = []
     
     current_price = analysis.get('current_price', 0)
     
-    # Outlook buckets
-    short_term_signals = []
-    medium_term_signals = []
-    long_term_signals = []
+    # Outlook buckets - REFOCUSED
+    outlook_3m = []  # Technical/Momentum
+    outlook_6m = []  # Valuation/Growth  
+    outlook_12m = []  # Quality/Fundamental
 
-    # --- Short Term (Days/Weeks) ---
-    # RSI with industry standard thresholds (30/70)
+    # === 3-MONTH OUTLOOK: TECHNICAL/MOMENTUM ===
+    
+    # RSI Momentum
     rsi = analysis.get('rsi', 50)
     if rsi < 30:
         score += 2
-        short_term_signals.append("📈 RSI Oversold (<30): Potential bounce opportunity.")
+        outlook_3m.append("📈 RSI Oversold (<30): High bounce probability.")
     elif rsi > 70:
         score -= 2
-        short_term_signals.append("⚠️ RSI Overbought (>70): Risk of pullback.")
+        outlook_3m.append("⚠️ RSI Overbought (>70): Pullback risk elevated.")
     elif 50 <= rsi <= 65:
         score += 0.5
-        short_term_signals.append("✓ RSI Healthy (50-65): Good momentum.")
+        outlook_3m.append(f"✓ Healthy momentum (RSI: {rsi:.0f}).")
     else:
-        short_term_signals.append("○ RSI Neutral (30-50): Below average momentum.")
+        outlook_3m.append(f"○ Neutral momentum (RSI: {rsi:.0f}).")
     
-    # Beta risk for short-term volatility
-    beta = fundamentals.get('beta', 1.0)
-    if beta and beta > 1.5:
-        short_term_signals.append(f"⚡ High volatility (Beta: {beta:.2f}): Expect larger swings.")
-    elif beta and beta < 0.8:
-        short_term_signals.append(f"🛡️ Low volatility (Beta: {beta:.2f}): More stable price action.")
-         
-    # --- Medium Term (Weeks/Months) ---
-    # SMA 50 Trend
+    # SMA 50 Trend (3-month focus)
     sma50 = analysis.get('sma', {}).get('sma_50')
-    if sma50:
-        if current_price > sma50 * 1.05:  # 5% above SMA50
+    if sma50 and current_price:
+        pct_from_sma50 = ((current_price - sma50) / sma50) * 100
+        if pct_from_sma50 > 5:
             score += 1.5
-            medium_term_signals.append("📈 Strong: Price >5% above 50-day SMA.")
-        elif current_price > sma50:
+            outlook_3m.append(f"📈 Strong trend: +{pct_from_sma50:.1f}% above 50-day SMA.")
+        elif pct_from_sma50 > 0:
             score += 1
-            medium_term_signals.append("✓ Bullish: Price above 50-day SMA.")
-        elif current_price > sma50 * 0.95:  # Within 5% below
+            outlook_3m.append(f"✓ Uptrend: +{pct_from_sma50:.1f}% above 50-day SMA.")
+        elif pct_from_sma50 > -5:
             score -= 0.5
-            medium_term_signals.append("○ Neutral: Price within 5% of 50-day SMA.")
+            outlook_3m.append(f"○ Near support: {pct_from_sma50:.1f}% from 50-day SMA.")
         else:
             score -= 1
-            medium_term_signals.append("📉 Bearish: Price below 50-day SMA.")
+            outlook_3m.append(f"📉 Downtrend: {pct_from_sma50:.1f}% below 50-day SMA.")
+    
+    # News Sentiment (near-term catalyst)
+    sent_score = sentiment.get('polarity', 0)
+    sent_label = sentiment.get('label', 'Neutral')
+    if sent_label == "Positive" or sent_score > 0.2:
+        score += 1
+        outlook_3m.append("📰 Bullish sentiment: Positive news flow.")
+    elif sent_label == "Negative" or sent_score < -0.15:
+        score -= 1
+        outlook_3m.append("📰 Bearish sentiment: Negative news flow.")
+    else:
+        outlook_3m.append("📰 Neutral sentiment: Mixed news coverage.")
+    
+    # Beta (short-term volatility expectation)
+    beta = fundamentals.get('beta', 1.0)
+    if beta and beta > 1.5:
+        outlook_3m.append(f"⚡ High volatility (β={beta:.2f}): Larger price swings expected.")
+    elif beta and beta < 0.7:
+        outlook_3m.append(f"🛡️ Low volatility (β={beta:.2f}): More stable price action.")
 
-    # PEG Ratio (Peter Lynch: <1.0 undervalued, >2.0 overvalued)
+    # === 6-MONTH OUTLOOK: VALUATION/GROWTH ===
+    
+    # PEG Ratio (Peter Lynch growth-adjusted value)
     peg = fundamentals.get('pegRatio')
     if peg and peg > 0:
         if peg < 1.0:
             score += 1.5
-            medium_term_signals.append(f"💎 Undervalued: PEG {peg:.2f} < 1.0 (Peter Lynch).")
+            outlook_6m.append(f"💎 Undervalued: PEG {peg:.2f} < 1.0 (growth at discount).")
         elif peg <= 1.5:
             score += 0.5
-            medium_term_signals.append(f"✓ Fair Value: PEG {peg:.2f} (reasonable growth price).")
-        elif peg > 2.0:
+            outlook_6m.append(f"✓ Fair value: PEG {peg:.2f} (reasonable growth price).")
+        elif peg <= 2.0:
+            outlook_6m.append(f"○ Slightly rich: PEG {peg:.2f}.")
+        else:
             score -= 0.5
-            medium_term_signals.append(f"⚠️ Expensive: PEG {peg:.2f} > 2.0.")
-
-    # Sentiment with aligned thresholds (matching Groq analysis)
-    sent_score = sentiment.get('polarity', 0)
-    sent_label = sentiment.get('label', 'Neutral')
-    if sent_label == "Positive" or sent_score > 0.4:
-        score += 1
-        medium_term_signals.append("📰 Positive: Bullish news sentiment detected.")
-    elif sent_label == "Negative" or sent_score < -0.25:
-        score -= 1
-        medium_term_signals.append("📰 Negative: Bearish news sentiment detected.")
-    else:
-        medium_term_signals.append("📰 Neutral: Mixed/neutral news sentiment.")
-
-    # --- Long Term (Months/Years) ---
-    # P/E Evaluation (Benjamin Graham: <15 = value)
+            outlook_6m.append(f"⚠️ Expensive: PEG {peg:.2f} > 2.0 (high expectations priced in).")
+    
+    # P/E Relative to Market
     pe = fundamentals.get('trailingPE')
     if pe and pe > 0:
         if pe < 15:
             score += 1.5
-            long_term_signals.append(f"💎 Graham Value: P/E {pe:.1f} < 15 (classic value territory).")
+            outlook_6m.append(f"💎 Deep value: P/E {pe:.1f} (Benjamin Graham territory).")
         elif pe < 25:
             score += 0.5
-            long_term_signals.append(f"✓ Reasonable: P/E {pe:.1f} (market average range).")
-        elif pe > 60:
+            outlook_6m.append(f"✓ Reasonable: P/E {pe:.1f} (near market average).")
+        elif pe > 50:
             score -= 1
-            long_term_signals.append(f"⚠️ Expensive: P/E {pe:.1f} > 60 (high growth expectations).")
+            outlook_6m.append(f"⚠️ Premium: P/E {pe:.1f} (requires strong growth).")
         else:
-            long_term_signals.append(f"○ Growth premium: P/E {pe:.1f}.")
+            outlook_6m.append(f"○ Growth premium: P/E {pe:.1f}.")
+    
+    # SMA 200 (intermediate trend)
+    sma200 = analysis.get('sma', {}).get('sma_200')
+    if sma200 and current_price:
+        pct_from_sma200 = ((current_price - sma200) / sma200) * 100
+        if pct_from_sma200 > 10:
+            score += 1.5
+            outlook_6m.append(f"🚀 Strong uptrend: +{pct_from_sma200:.1f}% above 200-day SMA.")
+        elif pct_from_sma200 > 0:
+            score += 1
+            outlook_6m.append(f"✓ Uptrend intact: +{pct_from_sma200:.1f}% above 200-day SMA.")
+        else:
+            score -= 1
+            outlook_6m.append(f"📉 Below trend: {pct_from_sma200:.1f}% from 200-day SMA.")
+    
+    # Earnings Growth (forward-looking)
+    earnings_growth = fundamentals.get('earningsGrowth') or fundamentals.get('earningsQuarterlyGrowth')
+    if earnings_growth:
+        growth_pct = earnings_growth * 100
+        if growth_pct > 20:
+            outlook_6m.append(f"📈 Strong growth: +{growth_pct:.1f}% earnings growth.")
+        elif growth_pct > 0:
+            outlook_6m.append(f"✓ Positive growth: +{growth_pct:.1f}% earnings growth.")
+        else:
+            outlook_6m.append(f"⚠️ Declining: {growth_pct:.1f}% earnings contraction.")
 
-    # Profitability (Margins)
+    # === 12-MONTH OUTLOOK: QUALITY/FUNDAMENTAL ===
+    
+    # Profit Margins (business quality)
     margins = fundamentals.get('profitMargins')
     if margins:
-        if margins > 0.20:
+        margin_pct = margins * 100
+        if margin_pct > 20:
             score += 1
-            long_term_signals.append(f"💪 High Quality: {margins*100:.1f}% profit margins (>20%).")
-        elif margins > 0.10:
-            long_term_signals.append(f"✓ Healthy margins: {margins*100:.1f}%.")
-        elif margins > 0:
-            long_term_signals.append(f"○ Thin margins: {margins*100:.1f}%.")
+            outlook_12m.append(f"💪 High quality: {margin_pct:.1f}% profit margin (>20%).")
+        elif margin_pct > 10:
+            outlook_12m.append(f"✓ Healthy margins: {margin_pct:.1f}%.")
+        elif margin_pct > 0:
+            outlook_12m.append(f"○ Thin margins: {margin_pct:.1f}%.")
         else:
             score -= 0.5
-            long_term_signals.append("⚠️ Unprofitable: Negative margins.")
+            outlook_12m.append("⚠️ Unprofitable: Negative margins.")
     
-    # 52-Week position
+    # Debt-to-Equity (financial health)
+    debt_equity = fundamentals.get('debtToEquity')
+    if debt_equity:
+        de_ratio = debt_equity / 100 if debt_equity > 10 else debt_equity  # Normalize
+        if de_ratio < 0.5:
+            outlook_12m.append(f"🛡️ Low debt: {de_ratio:.2f}x D/E ratio.")
+        elif de_ratio < 1.0:
+            outlook_12m.append(f"✓ Moderate debt: {de_ratio:.2f}x D/E ratio.")
+        else:
+            outlook_12m.append(f"⚠️ High leverage: {de_ratio:.2f}x D/E ratio.")
+    
+    # 52-Week Range Position
     high_52w = fundamentals.get('fiftyTwoWeekHigh')
     low_52w = fundamentals.get('fiftyTwoWeekLow')
     if high_52w and low_52w and current_price:
         range_pct = (current_price - low_52w) / (high_52w - low_52w) if high_52w != low_52w else 0.5
         if range_pct > 0.9:
-            long_term_signals.append(f"📍 Near 52-week high ({range_pct*100:.0f}% of range).")
+            outlook_12m.append(f"📍 Near 52-week high ({range_pct*100:.0f}% of range).")
         elif range_pct < 0.2:
             score += 0.5
-            long_term_signals.append(f"📍 Near 52-week low ({range_pct*100:.0f}% of range) - potential opportunity.")
-        
-    # SMA 200 (The ultimate trend filter)
-    sma200 = analysis.get('sma', {}).get('sma_200')
-    if sma200:
-        if current_price > sma200 * 1.1:  # 10% above SMA200
-            score += 1.5
-            long_term_signals.append("🚀 Strong Uptrend: Price >10% above 200-day SMA.")
-        elif current_price > sma200:
-            score += 1
-            long_term_signals.append("✓ Long-term Uptrend: Price above 200-day SMA.")
+            outlook_12m.append(f"📍 Near 52-week low ({range_pct*100:.0f}%) - potential value.")
         else:
-            score -= 1
-            long_term_signals.append("📉 Long-term Downtrend: Price below 200-day SMA.")
+            outlook_12m.append(f"📊 Mid-range: {range_pct*100:.0f}% of 52-week range.")
+    
+    # Dividend Yield (income component)
+    div_yield = fundamentals.get('dividendYield') or fundamentals.get('trailingAnnualDividendYield')
+    if div_yield and div_yield > 0.01:
+        yield_pct = div_yield * 100
+        if yield_pct > 3:
+            outlook_12m.append(f"💰 Strong income: {yield_pct:.2f}% dividend yield.")
+        else:
+            outlook_12m.append(f"💵 Income: {yield_pct:.2f}% dividend yield.")
+    
+    # Market Cap Size (stability indicator)
+    market_cap = fundamentals.get('marketCap')
+    if market_cap:
+        if market_cap > 200e9:
+            outlook_12m.append("🏛️ Mega-cap: High stability, lower growth potential.")
+        elif market_cap > 10e9:
+            outlook_12m.append("📊 Large-cap: Balanced stability and growth.")
+        elif market_cap > 2e9:
+            outlook_12m.append("📈 Mid-cap: Growth potential with moderate risk.")
+        else:
+            outlook_12m.append("🚀 Small-cap: Higher risk, higher reward potential.")
 
-    # Decision Logic with industry-aligned thresholds
+    # Decision Logic
     if score >= 4:
         rating = "STRONG BUY"
         color = "emerald"
@@ -440,10 +498,9 @@ def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fun
         color = "yellow"
         
     # Flatten reasons for backward compatibility
-    all_reasons = short_term_signals + medium_term_signals + long_term_signals
+    all_reasons = outlook_3m + outlook_6m + outlook_12m
     
-    # Normalize score to 0-100 for frontend display
-    # Raw score range is approx -6 to +10
+    # Normalize score to 0-100
     normalized_score = int(max(0, min(100, 50 + (score * 8))))
 
     return {
@@ -452,8 +509,9 @@ def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fun
         "score": normalized_score,
         "justification": " ".join(all_reasons),
         "outlooks": {
-            "short_term": short_term_signals,
-            "medium_term": medium_term_signals,
-            "long_term": long_term_signals
+            "short_term": outlook_3m,    # 3 months
+            "medium_term": outlook_6m,   # 6 months
+            "long_term": outlook_12m     # 12 months
         }
     }
+

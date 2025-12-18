@@ -117,6 +117,19 @@ def get_alpha_vantage_news(ticker: str, limit: int = 10) -> Optional[Dict]:
                 "sentiment_label": label,
                 "relevance_score": relevance
             }
+            
+            # v6.1 Date Filtering: Only include articles from the last 30 days
+            from datetime import datetime, timedelta
+            try:
+                # Format: 20240315T150000
+                pub_time_str = item.get("time_published", "")
+                if pub_time_str:
+                    pub_dt = datetime.strptime(pub_time_str, "%Y%m%dT%H%M%S")
+                    if (datetime.now() - pub_dt).days > 30:
+                        continue # Skip old articles
+            except Exception:
+                pass # If date parsing fails, keep it (fallback)
+
             articles.append(article)
             
             # Weight by relevance for overall score

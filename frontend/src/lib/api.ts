@@ -55,8 +55,12 @@ export const getHistory = async (ticker: string, period = "1mo", interval = "1d"
   return response.data;
 };
 
-export const getAnalysis = async (ticker: string): Promise<any> => {
-  const response = await api.get<any>(`/api/data/analysis/${ticker}`);
+export const getAnalysis = async (ticker: string, sectorOverride?: string): Promise<any> => {
+  const params: any = {};
+  if (sectorOverride && sectorOverride !== 'Auto') {
+    params.sector_override = sectorOverride;
+  }
+  const response = await api.get<any>(`/api/data/analysis/${ticker}`, { params });
   return response.data;
 };
 

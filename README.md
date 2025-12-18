@@ -14,18 +14,21 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 ## 🚀 Features
 
-- **Real-Time Dashboard**: Interactive candlestick charts with volume data.
-- **AI Sentinel**: Multi-source sentiment analysis (Alpha Vantage → Groq → TextBlob fallback).
-- **VinSight Score v2.5**: Industry-aligned scoring with RSI 30/70, Graham P/E, sector-adjusted growth.
+- **Real-Time Dashboard**: Interactive candlestick charts with volume data and period performance badge.
+- **AI Sentinel**: Multi-source sentiment analysis (Alpha Vantage → Groq → TextBlob fallback) + Finnhub insider MSPR.
+- **VinSight Score v6.1**: Fundamentals-heavy scoring (60/15/15/10) with 29 sector-specific benchmarks.
+- **Sector Override**: Compare any stock against different industry benchmarks (Cloud/SaaS, EV, Banks, Mining, etc.).
+- **Outlooks**: 3m (Technical), 6m (Valuation), 12m (Quality) time horizon analysis.
+- **Monte Carlo Simulation**: 1,000 path projections with P10/P50/P90 percentiles.
 - **Smart Alerts**: Email notifications for price targets and major sentiment shifts.
 - **Portfolio Tracking**: Watchlist management with daily changelog.
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 15, TypeScript, TailwindCSS, Lightweight Charts
-- **Backend**: FastAPI (Python), SQLAlchemy, Pydantic
-- **AI**: Groq (Llama 3), Google Gemini
-- **Database**: SQLite (Local) / PostgreSQL (Cloud)
+- **Frontend**: Next.js 15, TypeScript, TailwindCSS, Recharts, Lightweight Charts
+- **Backend**: FastAPI (Python 3.11), SQLAlchemy, Pydantic
+- **AI**: Groq (Llama 3.3 70B), Google Gemini 1.5 Pro, Alpha Vantage, Finnhub
+- **Database**: SQLite (Local) / PostgreSQL (Cloud SQL)
 
 ## 🏁 Quick Start
 

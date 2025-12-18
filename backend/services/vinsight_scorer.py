@@ -14,8 +14,8 @@ class Fundamentals:
     peg_ratio: float
     earnings_growth_qoq: float # Percentage
     
-    # Cluster Data (Approximated)
-    sector_pe_median: float = 25.0 # Benchmark, default if peer data unavailable
+    # Cluster Data
+    sector_name: str = "Technology" # Default sector
     
     # v6.0 NEW FIELDS
     profit_margin: float = 0.0  # 0.0-1.0 (e.g., 0.20 = 20%)
@@ -33,7 +33,8 @@ class Technicals:
 @dataclass
 class Sentiment:
     news_sentiment_label: Literal["Positive", "Neutral", "Negative"] # From News
-    news_volume_high: bool # Proxy for "Social Volume"
+    news_sentiment_score: float # Raw score (-1 to 1) for granular scoring
+    news_article_count: int # For volume penalty Logic (<5 = penalty)
     insider_activity: Literal["Net Buying", "No Activity", "Mixed/Minor Selling", "Heavy Selling", "Cluster Selling"]
 
 @dataclass
@@ -82,13 +83,14 @@ def _load_sector_benchmarks() -> Dict:
 # --- Scoring Engine v6.0 ---
 
 class VinSightScorer:
-    VERSION = "v6.0"
+    VERSION = "v6.1"
     
-    # v6.0 Weight Distribution (100 pts total)
-    WEIGHT_FUNDAMENTALS = 55
-    WEIGHT_TECHNICALS = 15
+    # v6.1 Weight Distribution (100 pts total)
+    # Fundamentals-heavy for retail investor focus
+    WEIGHT_FUNDAMENTALS = 60
     WEIGHT_SENTIMENT = 15
     WEIGHT_PROJECTIONS = 15
+    WEIGHT_TECHNICALS = 10
 
     def __init__(self):
         self.sector_benchmarks, self.defaults = _load_sector_benchmarks()
@@ -156,28 +158,24 @@ class VinSightScorer:
         
         return ScoreResult(final_score, rating, narrative, breakdown, modifications)
 
-    def _get_benchmarks(self, sector_pe_median: float) -> Dict:
-        """Get sector benchmarks by matching PE median."""
-        if sector_pe_median > 0:
-            for sector, bm in self.sector_benchmarks.items():
-                if abs(bm.get("pe_median", 0) - sector_pe_median) < 3:
-                    return bm
-        return self.defaults
+    def _get_benchmarks(self, sector_name: str) -> Dict:
+        """Get sector benchmarks by matching sector name."""
+        return self.sector_benchmarks.get(sector_name, self.defaults)
 
     def _score_fundamentals(self, f: Fundamentals) -> int:
         """
         Score fundamentals using range-based partial credits.
         
-        v6.0 Breakdown (55 pts total):
-        - Valuation (PEG/PE): 12 pts
-        - Earnings Growth: 10 pts  
-        - Profit Margins: 10 pts (NEW)
-        - Debt Health: 8 pts (NEW)
-        - Institutional Ownership: 8 pts
-        - Smart Money Flow: 7 pts
+        v6.1 Breakdown (60 pts total):
+        - Valuation (PEG/PE): 16 pts
+        - Earnings Growth: 14 pts
+        - Profit Margins: 14 pts
+        - Debt Health: 8 pts
+        - Institutional Ownership: 4 pts
+        - Smart Money Flow: 4 pts
         """
         score = 0.0
-        benchmarks = self._get_benchmarks(f.sector_pe_median)
+        benchmarks = self._get_benchmarks(f.sector_name)
         
         peg_fair = benchmarks.get("peg_fair", 1.5)
         growth_strong = benchmarks.get("growth_strong", 0.10)
@@ -185,64 +183,64 @@ class VinSightScorer:
         margin_healthy = benchmarks.get("margin_healthy", 0.12)
         debt_safe = benchmarks.get("debt_safe", 1.0)
         
-        # 1. Valuation Score (12 pts) - Range-based
+        # 1. Valuation Score (16 pts) - Range-based
         val_score = 0.0
         if f.peg_ratio > 0:
             if f.peg_ratio < 1.0:
-                val_score = 12.0
+                val_score = 16.0
             elif f.peg_ratio < peg_fair:
-                val_score = 12.0 - (f.peg_ratio - 1.0) / (peg_fair - 1.0) * 6.0
+                val_score = 16.0 - (f.peg_ratio - 1.0) / (peg_fair - 1.0) * 8.0
             elif f.peg_ratio < 3.0:
-                val_score = 6.0 - (f.peg_ratio - peg_fair) / (3.0 - peg_fair) * 6.0
+                val_score = 8.0 - (f.peg_ratio - peg_fair) / (3.0 - peg_fair) * 8.0
             else:
                 val_score = 0.0
         elif f.pe_ratio > 0:
             if f.pe_ratio < 15:
-                val_score = 12.0
+                val_score = 16.0
             elif f.pe_ratio < pe_median:
-                val_score = 12.0 - (f.pe_ratio - 15) / (pe_median - 15) * 6.0
+                val_score = 16.0 - (f.pe_ratio - 15) / (pe_median - 15) * 8.0
             elif f.pe_ratio < pe_median * 2:
-                val_score = 6.0 - (f.pe_ratio - pe_median) / pe_median * 6.0
+                val_score = 8.0 - (f.pe_ratio - pe_median) / pe_median * 8.0
             else:
                 val_score = 0.0
         else:
-            val_score = 6.0  # No data = neutral
+            val_score = 8.0  # No data = neutral
             
-        score += max(0, min(12, val_score))
+        score += max(0, min(16, val_score))
         
-        # 2. Earnings Momentum (10 pts)
+        # 2. Earnings Momentum (14 pts)
         growth = f.earnings_growth_qoq
         growth_score = 0.0
         
         if growth > growth_strong:
-            growth_score = 10.0
+            growth_score = 14.0
         elif growth > growth_strong * 0.5:
-            growth_score = 5.0 + (growth - growth_strong * 0.5) / (growth_strong * 0.5) * 5.0
+            growth_score = 7.0 + (growth - growth_strong * 0.5) / (growth_strong * 0.5) * 7.0
         elif growth > 0:
-            growth_score = 2.5 + (growth / (growth_strong * 0.5)) * 2.5
+            growth_score = 3.5 + (growth / (growth_strong * 0.5)) * 3.5
         elif growth > -0.10:
-            growth_score = 1.0 + (growth + 0.10) / 0.10 * 1.5
+            growth_score = 1.0 + (growth + 0.10) / 0.10 * 2.5
         else:
             growth_score = 0.0
             
-        score += max(0, min(10, growth_score))
+        score += max(0, min(14, growth_score))
         
-        # 3. Profit Margins (10 pts) - NEW in v6.0
+        # 3. Profit Margins (14 pts)
         margin = f.profit_margin
         margin_score = 0.0
         
         if margin >= margin_healthy:
-            margin_score = 10.0
+            margin_score = 14.0
         elif margin >= margin_healthy * 0.5:
-            margin_score = 5.0 + (margin - margin_healthy * 0.5) / (margin_healthy * 0.5) * 5.0
+            margin_score = 7.0 + (margin - margin_healthy * 0.5) / (margin_healthy * 0.5) * 7.0
         elif margin > 0:
-            margin_score = 2.0 + (margin / (margin_healthy * 0.5)) * 3.0
+            margin_score = 2.0 + (margin / (margin_healthy * 0.5)) * 5.0
         else:
             margin_score = 0.0  # Unprofitable
             
-        score += max(0, min(10, margin_score))
+        score += max(0, min(14, margin_score))
         
-        # 4. Debt Health (8 pts) - NEW in v6.0
+        # 4. Debt Health (8 pts) - Unchanged
         debt = f.debt_to_equity
         debt_score = 0.0
         
@@ -259,128 +257,138 @@ class VinSightScorer:
             
         score += max(0, min(8, debt_score))
         
-        # 5. Institutional Ownership (8 pts)
+        # 5. Institutional Ownership (4 pts) - REDUCED
         inst_pct = f.inst_ownership
         inst_score = 0.0
         
         if inst_pct >= 80:
-            inst_score = 8.0
+            inst_score = 4.0
         elif inst_pct >= 60:
-            inst_score = 5.5 + (inst_pct - 60) / 20 * 2.5
+            inst_score = 2.5 + (inst_pct - 60) / 20 * 1.5
         elif inst_pct >= 40:
-            inst_score = 3.0 + (inst_pct - 40) / 20 * 2.5
+            inst_score = 1.5 + (inst_pct - 40) / 20 * 1.0
         elif inst_pct >= 20:
-            inst_score = 1.0 + (inst_pct - 20) / 20 * 2.0
+            inst_score = 0.5 + (inst_pct - 20) / 20 * 1.0
         else:
-            inst_score = inst_pct / 20
+            inst_score = inst_pct / 40 # Tiny score
             
-        score += max(0, min(8, inst_score))
+        score += max(0, min(4, inst_score))
         
-        # 6. Smart Money Flow (7 pts)
+        # 6. Smart Money Flow (4 pts) - REDUCED
         flow_score = 0.0
         if f.inst_changing == "Rising":
-            flow_score = 7.0
-        elif f.inst_changing == "Flat":
             flow_score = 4.0
+        elif f.inst_changing == "Flat":
+            flow_score = 2.0
         else:  # Falling
-            flow_score = 1.0
+            flow_score = 0.0
             
         score += flow_score
         
-        return int(round(min(55, max(0, score))))
+        return int(round(min(60, max(0, score))))
 
     def _score_technicals(self, t: Technicals) -> int:
         """
         Score technicals using range-based partial credits.
         
-        v6.0 Breakdown (15 pts total):
-        - Trend Position: 5 pts
-        - RSI Momentum: 5 pts
-        - Volume Conviction: 5 pts
+        v6.1 Breakdown (10 pts total):
+        - Trend Position: 4 pts
+        - RSI Momentum: 3 pts
+        - Volume Conviction: 3 pts
         """
         score = 0.0
         
-        # 1. Trend Position (5 pts)
+        # 1. Trend Position (4 pts)
         if t.sma50 > 0 and t.sma200 > 0:
             if t.price > t.sma50 and t.sma50 > t.sma200:
-                score += 5.0  # Golden Cross
+                score += 4.0  # Golden Cross
             elif t.price > t.sma200 and t.price > t.sma50:
-                score += 4.0  # Above both
+                score += 3.0  # Above both
             elif t.price > t.sma200:
-                score += 3.0  # Above 200 only
+                score += 2.0  # Above 200 only
             elif t.price > t.sma200 * 0.95:
-                score += 1.5  # Near support
+                score += 1.0  # Near support
             else:
                 score += 0.5  # Below both
         else:
-            score += 2.5  # No data
+            score += 2.0  # No data
         
-        # 2. RSI Momentum (5 pts)
+        # 2. RSI Momentum (3 pts)
         rsi = t.rsi
         if 50 <= rsi <= 65:
-            score += 5.0
-        elif 45 <= rsi < 50 or 65 < rsi <= 70:
-            score += 4.0
-        elif 35 <= rsi < 45 or 70 < rsi <= 80:
-            score += 2.5
-        elif rsi < 35:
-            score += 2.0  # Oversold bounce potential
-        else:  # > 80
-            score += 1.0  # Overbought
-        
-        # 3. Volume Conviction (5 pts)
-        if t.volume_trend == "Price Rising + Vol Rising":
-            score += 5.0
-        elif t.volume_trend == "Price Rising + Vol Falling":
             score += 3.0
-        elif t.volume_trend == "Price Falling + Vol Falling":
-            score += 2.0
-        elif t.volume_trend == "Price Falling + Vol Rising":
-            score += 1.5
-        else:
+        elif 45 <= rsi < 50 or 65 < rsi <= 70:
             score += 2.5
+        elif 35 <= rsi < 45 or 70 < rsi <= 80:
+            score += 1.5
+        elif rsi < 35:
+            score += 1.5  # Oversold bounce potential
+        else:  # > 80
+            score += 0.5  # Overbought
+        
+        # 3. Volume Conviction (3 pts)
+        if t.volume_trend == "Price Rising + Vol Rising":
+            score += 3.0
+        elif t.volume_trend == "Price Rising + Vol Falling":
+            score += 2.0
+        elif t.volume_trend == "Price Falling + Vol Falling":
+            score += 1.0
+        elif t.volume_trend == "Price Falling + Vol Rising":
+            score += 1.0
+        else:
+            score += 1.5
             
-        return int(round(min(15, max(0, score))))
+        return int(round(min(10, max(0, score))))
 
     def _score_sentiment(self, s: Sentiment, sentiment_score: float = 0.0) -> int:
         """
         Score sentiment using range-based partial credits.
         
         v6.0 Breakdown (15 pts total):
-        - News Sentiment: 7 pts (was 12)
-        - Insider Activity: 8 pts (was 8)
+        - News Sentiment: 10 pts
+        - Insider Activity: 5 pts
         """
         score = 0.0
         
-        # 1. News Sentiment (7 pts)
-        if s.news_sentiment_label == "Positive":
-            if s.news_volume_high:
-                score += 7.0
-            else:
-                score += 6.0
-        elif s.news_sentiment_label == "Neutral":
-            if s.news_volume_high:
-                score += 4.5
-            else:
-                score += 3.5
-        elif s.news_sentiment_label == "Negative":
-            score += 1.0
-        else:
-            score += 3.5  # Unknown = neutral
+        # 1. News Sentiment (10 pts)
+        # Map raw score (-0.4 to 0.4 usually) to 0-10 scale
         
-        # 2. Insider Activity (8 pts)
+        raw = s.news_sentiment_score
+        
+        # Clamp significant range to -0.4 to 0.4
+        clamped = max(-0.4, min(0.4, raw))
+        
+        # Normalize to 0-1
+        # (-0.4 -> 0.0, 0.4 -> 1.0)
+        normalized = (clamped + 0.4) / 0.8
+        
+        # Scale to 0-10
+        base_score = normalized * 10
+        
+        # Round to 1 decimal place (Continuous, not step)
+        score += round(base_score, 1)
+             
+        # Volume Penalty (Integer Steps)
+        # < 3 articles: -2 pts
+        # < 5 articles: -1 pt
+        if s.news_article_count < 3:
+            score -= 2.0
+        elif s.news_article_count < 5:
+            score -= 1.0
+        
+        # 2. Insider Activity (5 pts)
         if s.insider_activity == "Net Buying":
-            score += 8.0
+            score += 5.0
         elif s.insider_activity == "No Activity":
-            score += 6.0
-        elif s.insider_activity == "Mixed/Minor Selling":
             score += 4.0
+        elif s.insider_activity == "Mixed/Minor Selling":
+            score += 3.0
         elif s.insider_activity == "Heavy Selling":
-            score += 1.5
+            score += 2.0 # Soft Penalty
         elif s.insider_activity == "Cluster Selling":
-            score += 0.5
+            score += 0.0
         else:
-            score += 4.0  # Unknown
+            score += 3.0  # Unknown
             
         return int(round(min(15, max(0, score))))
 
@@ -388,44 +396,53 @@ class VinSightScorer:
         """
         Score projections using range-based partial credits.
         
-        v6.0 Breakdown (15 pts total):
-        - Probabilistic Upside: 8 pts (was 12)
-        - Risk/Reward Ratio: 7 pts (was 8)
+        v6.1 Breakdown (15 pts total) - RECALIBRATED:
+        - Probabilistic Upside: 8 pts (stricter thresholds)
+        - Risk/Reward Ratio: 7 pts (capped at 5.0)
         """
         score = 0.0
 
         if p.current_price is None or p.current_price <= 0:
-            return 8  # Neutral
+            return 7  # Neutral (slightly below midpoint)
 
-        # 1. Probabilistic Upside (8 pts)
+        # 1. Probabilistic Upside (8 pts) - STRICTER THRESHOLDS
         upside_pct = ((p.monte_carlo_p50 - p.current_price) / p.current_price) * 100
         
-        if upside_pct >= 15:
-            score += 8.0
-        elif upside_pct >= 10:
-            score += 6.0 + (upside_pct - 10) / 5 * 2
-        elif upside_pct >= 5:
-            score += 4.0 + (upside_pct - 5) / 5 * 2
+        if upside_pct >= 30:
+            score += 8.0  # Exceptional (was 20%)
+        elif upside_pct >= 20:
+            # Interpolate 6->8 over 20->30 (range 10)
+            score += 6.0 + (upside_pct - 20) / 10 * 2
+        elif upside_pct >= 12:
+            # Interpolate 4->6 over 12->20 (range 8)
+            score += 4.0 + (upside_pct - 12) / 8 * 2
+        elif upside_pct >= 6:
+            # Interpolate 2->4 over 6->12 (range 6)
+            score += 2.0 + (upside_pct - 6) / 6 * 2
         elif upside_pct > 0:
-            score += 2.0 + upside_pct / 5 * 2
+            # Interpolate 1->2 over 0->6 (range 6)
+            score += 1.0 + upside_pct / 6 * 1
         elif upside_pct > -5:
-            score += 1.0
-        else:
             score += 0.5
+        else:
+            score += 0.0
 
-        # 2. Risk/Reward Ratio (7 pts)
+        # 2. Risk/Reward Ratio (7 pts) - CAPPED AT 5.0
         upside_diff = max(0, p.monte_carlo_p90 - p.current_price)
         downside_diff = max(0.01, p.current_price - p.monte_carlo_p10)
-        ratio = upside_diff / downside_diff
+        raw_ratio = upside_diff / downside_diff
+        ratio = min(raw_ratio, 5.0)  # Cap at 5:1 to prevent outliers
 
-        if ratio >= 3.0:
-            score += 7.0
+        if ratio >= 4.0:
+            score += 7.0  # Excellent
+        elif ratio >= 3.0:
+            score += 5.5 + (ratio - 3.0) * 1.5
         elif ratio >= 2.0:
-            score += 5.0 + (ratio - 2.0) * 2
+            score += 4.0 + (ratio - 2.0) * 1.5
         elif ratio >= 1.5:
-            score += 3.5 + (ratio - 1.5) * 3
+            score += 3.0 + (ratio - 1.5) * 2
         elif ratio >= 1.0:
-            score += 2.0 + (ratio - 1.0) * 3
+            score += 2.0 + (ratio - 1.0) * 2
         elif ratio >= 0.5:
             score += 1.0 + (ratio - 0.5) * 2
         else:
@@ -493,7 +510,7 @@ def run_test_case():
             pe_ratio=20.0,
             peg_ratio=1.2,
             earnings_growth_qoq=0.12,
-            sector_pe_median=25.0,
+            sector_name="Technology",
             profit_margin=0.18,
             debt_to_equity=0.4
         ),
@@ -507,13 +524,14 @@ def run_test_case():
         ),
         sentiment=Sentiment(
             news_sentiment_label="Positive",
-            news_volume_high=True,
+            news_sentiment_score=0.35,
+            news_article_count=10,
             insider_activity="Net Buying"
         ),
         projections=Projections(
-            monte_carlo_p50=115.0,
-            monte_carlo_p90=128.0,
-            monte_carlo_p10=95.0,
+            monte_carlo_p50=118.0,
+            monte_carlo_p90=135.0,
+            monte_carlo_p10=98.0,
             current_price=105.0
         )
     )

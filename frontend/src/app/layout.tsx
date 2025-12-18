@@ -18,7 +18,16 @@ export const metadata: Metadata = {
   title: "Vinsight",
   description: "Your financial insights and stock market analysis platform",
   icons: {
-    icon: '/favicon.png',
+    icon: [
+      {
+        url: '/favicon-light.png',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/favicon-dark.png',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
   },
 };
 

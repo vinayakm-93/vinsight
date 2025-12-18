@@ -114,7 +114,7 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
                         "label": overall.get('label', 'Neutral'),
                         "confidence": 0.85,  # Alpha Vantage is generally reliable
                         "article_count": av_result.get('article_count', 0),
-                        "source": "alpha_vantage",
+                        "source": "Alpha Vantage (Tier 1)",
                         "articles": av_result.get('articles', [])  # Include article details
                     }
         except Exception as e:
@@ -252,7 +252,7 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "label": label,
             "confidence": avg_confidence,
             "article_count": len(headlines),
-            "source": "groq"
+            "source": "Groq Llama 3 (Tier 2)"
         }
         
     except Exception as e:
@@ -288,6 +288,6 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "label": label,
             "confidence": 0.5,
             "article_count": count,
-            "source": "textblob_fallback"
+            "source": "TextBlob (Tier 3)"
         }
 

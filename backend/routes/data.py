@@ -105,7 +105,11 @@ def get_stock_news(ticker: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/analysis/{ticker}")
-def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False):
+def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, sector_override: str = None):
+    """
+    Technical analysis with optional sector override.
+    sector_override: None (auto-detect), 'Standard' (defaults), or specific sector name
+    """
     try:
         # 1. Fetch Basic Data
         history = finance.get_stock_history(ticker, period, interval)
@@ -129,7 +133,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             sentiment_result = None
             
         institutional = finance.get_institutional_holders(ticker)
-        sim_result = simulation.run_monte_carlo(history, days=30, simulations=1000) # Increased for better accuracy
+        sim_result = simulation.run_monte_carlo(history, days=90, simulations=10000) # 10k sims for statistical accuracy
         
         # v5.0 Data Fetching
         # v5.0 Data Fetching
@@ -185,7 +189,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             sentiment_score = 0
             sentiment_label = 'Neutral'
-            news_art_count = 0
+            # Fix: Use actual news count even if deep analysis was skipped
+            news_art_count = len(news) if news else 0
             
         # Social Volume Proxy: High if article count > 5 (arbitrary for now)
         news_vol_high = news_art_count > 5
@@ -204,22 +209,16 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         # PEG Ratio
         peg = finance.get_peg_ratio(ticker)
         
-        # Sector-specific P/E medians for better valuation comparison
-        SECTOR_PE_MEDIANS = {
-            "Technology": 30.0,
-            "Financial Services": 12.0,
-            "Healthcare": 22.0,
-            "Consumer Cyclical": 20.0,
-            "Consumer Defensive": 22.0,
-            "Industrials": 18.0,
-            "Energy": 10.0,
-            "Utilities": 16.0,
-            "Real Estate": 35.0,
-            "Communication Services": 25.0,  # Adjusted from 18 for tech-adjacent companies
-            "Basic Materials": 12.0,
-        }
-        sector = fundamentals_info.get("sector", "")
-        sector_pe = SECTOR_PE_MEDIANS.get(sector, 25.0)  # Default to 25 if unknown
+        detected_sector = fundamentals_info.get("sector", "Technology")
+        
+        # Apply sector override if provided
+        if sector_override and sector_override != "Auto":
+            if sector_override == "Standard":
+                active_sector = "Standard"  # Will use defaults in scorer
+            else:
+                active_sector = sector_override
+        else:
+            active_sector = detected_sector
         
         # v6.0 NEW: Get profit margin and debt/equity
         profit_margin = fundamentals_info.get("profitMargins", 0) or 0  # 0.0-1.0
@@ -234,7 +233,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             pe_ratio=pe or 0,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
-            sector_pe_median=sector_pe,
+            sector_name=active_sector,
             profit_margin=profit_margin,
             debt_to_equity=debt_to_equity
         )
@@ -359,11 +358,16 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             else:
                 ins_activity = "No Activity"
         
-        sentiment_data = Sentiment(
-            news_sentiment_label=sentiment_label,
-            news_volume_high=news_vol_high,
-            insider_activity=ins_activity
-        )
+        try:
+            sentiment_data = Sentiment(
+                news_sentiment_label=sentiment_label,
+                news_sentiment_score=sentiment_score,
+                news_article_count=news_art_count,
+                insider_activity=ins_activity
+            )
+        except TypeError as e:
+            logger.error(f"Sentiment Instantiation Failed: {e}. LIKELY STALE SERVER STATE.")
+            raise HTTPException(status_code=500, detail=f"Server State Mismatch (Restart Backend): {e}")
             
         # --- Projections ---
         # Simulation returns p50 list. We need the FINAL P50 value.
@@ -434,6 +438,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         # Generate human-readable explanations for each pillar
         fund_explanation = []
+        benchmarks = scorer._get_benchmarks(active_sector)
+        sector_pe = benchmarks.get('pe_median', 20.0)
+
         if pe and pe > 0:
             if pe < 15:
                 fund_explanation.append(f"P/E of {pe:.1f} is undervalued (Graham value)")
@@ -449,6 +456,21 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         if inst_own > 70:
             fund_explanation.append(f"Strong institutional backing ({inst_own:.0f}%)")
         
+        # New v6.0 Fundamentals Factors
+        margin_target = benchmarks.get('margin_healthy', 0.12)
+        if profit_margin:
+            if profit_margin >= margin_target:
+                fund_explanation.append(f"Healthy margins ({profit_margin*100:.1f}%) vs sector ({margin_target*100:.0f}%)")
+            else:
+                fund_explanation.append(f"Margins ({profit_margin*100:.1f}%) trail sector ({margin_target*100:.0f}%)")
+        
+        debt_target = benchmarks.get('debt_safe', 1.0)
+        if debt_to_equity:
+            if debt_to_equity <= debt_target:
+                fund_explanation.append(f"Prudent debt level ({debt_to_equity:.1f}x) vs peer max ({debt_target:.1f}x)")
+            else:
+                fund_explanation.append(f"Elevated debt ({debt_to_equity:.1f}x) vs peer max ({debt_target:.1f}x)")
+        
         tech_explanation = []
         tech_explanation.append(f"Momentum: {momentum}")
         tech_explanation.append(f"RSI: {rsi:.0f}")
@@ -459,28 +481,49 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         sent_explanation = []
         sent_explanation.append(f"News sentiment: {sentiment_label}")
+        
+        # Format Source safely
+        if sentiment_result:
+            raw_source = sentiment_result.get('source', 'Unknown')
+            source_display = {
+                "alpha_vantage": "Alpha Vantage (Tier 1)",
+                "finnhub": "Finnhub (Tier 1)",
+                "yfinance": "Yahoo Finance (Tier 2)",
+                "textblob": "TextBlob (Fallback)"
+            }.get(raw_source, raw_source)
+            sent_explanation.append(f"Source: {source_display}")
+        else:
+            sent_explanation.append("Source: Unknown (Fallback)")
+             
         sent_explanation.append(f"Insider activity: {ins_activity}")
-        if news_vol_high:
-            sent_explanation.append("High news volume detected")
+        if news_art_count < 3:
+            sent_explanation.append("Low volume penalty: < 3 articles (-2pts)")
+        elif news_art_count < 5:
+            sent_explanation.append("Low volume penalty: < 5 articles (-1pt)")
         
         proj_explanation = []
         upside_pct = ((p50_final - current_price) / current_price) * 100 if current_price > 0 else 0
-        proj_explanation.append(f"90-day P50 upside: {upside_pct:.1f}%")
+        proj_explanation.append(f"Quarterly P50 Target: ${p50_final:.2f} ({'+' if upside_pct > 0 else ''}{upside_pct:.1f}%)")
+        
         if p90_final > current_price:
             bull_upside = ((p90_final - current_price) / current_price) * 100
-            proj_explanation.append(f"Bull case (P90): +{bull_upside:.1f}%")
+            proj_explanation.append(f"Bull Case (P90): ${p90_final:.2f} (+{bull_upside:.1f}%)")
+            
         if p10_final < current_price:
             bear_downside = ((current_price - p10_final) / current_price) * 100
-            proj_explanation.append(f"Bear case (P10): -{bear_downside:.1f}%")
+            proj_explanation.append(f"Bear Case (P10): ${p10_final:.2f} (-{bear_downside:.1f}%)")
+            
+        # VaR
+        var_risk = risk.get('var_95', 0)
+        # VaR is percentage drop. Convert to price impact.
+        # VaR_95 = 0.05 -> 5% drop at risk
+        var_amt = abs(var_risk * current_price)
+        proj_explanation.append(f"Daily Value at Risk (95%): ${var_amt:.2f}")
         
         score_explanation = {
             "fundamentals": {
-                "score": f"{fund_score}/55",
+                "score": f"{fund_score}/60",
                 "factors": fund_explanation
-            },
-            "technicals": {
-                "score": f"{tech_score}/15",
-                "factors": tech_explanation
             },
             "sentiment": {
                 "score": f"{sent_score}/15",
@@ -489,6 +532,10 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "projections": {
                 "score": f"{proj_score}/15",
                 "factors": proj_explanation
+            },
+            "technicals": {
+                "score": f"{tech_score}/10",
+                "factors": tech_explanation
             }
         }
         
@@ -520,7 +567,12 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "risk": risk, 
             "sentiment": sentiment_result,  # Can be None
             "ai_analysis": ai_analysis_response, 
-            "sma": sma_data
+            "sma": sma_data,
+            "sector_info": {
+                "detected": detected_sector,
+                "active": active_sector,
+                "is_override": sector_override is not None and sector_override != "Auto"
+            }
         }
     except Exception as e:
         logger.exception(f"Error in technical analysis for {ticker}")

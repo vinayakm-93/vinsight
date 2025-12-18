@@ -14,16 +14,22 @@
 - **Spin Detection**: Bearish keyword list catches positive framing of negative news.
 - **AI Analyst**: Automated natural language summary of company financial health.
 
-## 3. VinSight Score (v6.0 - Rebalanced for Retail Investors)
+## 3. VinSight Score (v6.1 - Retail Investor Focused)
 A proprietary algorithm combining **4 pillars (100 pts)** with **partial credits everywhere**:
-- **Fundamentals (55 pts)**: Valuation (12), Earnings Growth (10), Profit Margins (10), Debt Health (8), Institutional Ownership (8), Smart Money Flow (7).
-- **Technicals (15 pts)**: SMA distance scoring, RSI optimal zone (50-65), volume conviction.
-- **Sentiment (15 pts)**: News sentiment (8 pts) + Finnhub insider MSPR (7 pts).
+- **Fundamentals (60 pts)**: Valuation (16), Earnings Growth (14), Profit Margins (14), Debt Health (8), Institutional Ownership (4), Smart Money Flow (4).
+- **Sentiment (15 pts)**: News sentiment (10 pts) + Finnhub insider MSPR (5 pts).
 - **Projections (15 pts)**: Monte Carlo P50 upside (9 pts) + risk/reward ratio (6 pts).
+- **Technicals (10 pts)**: SMA distance scoring (4), RSI optimal zone 50-65 (3), volume conviction (3).
 
-**Industry Peer Values** (displayed in Fundamentals expansion):
-- Shows sector-specific benchmarks: PEG fair value, growth threshold, margin threshold, safe debt level.
-- Dynamically fetched from `/api/data/sector-benchmarks`.
+**Sector Override Feature**:
+- 29 industry-specific benchmarks (P/E median ranges 8-80 across sectors)
+- Override dropdown in Recommendation Score header
+- Options: Auto-detect, Standard, or specific sector (Cloud/SaaS, EV, Biotech, Banks, etc.)
+
+**Outlooks (3m/6m/12m)**:
+- **3 Months**: Technical/Momentum focus (RSI, SMA50, Sentiment, Beta)
+- **6 Months**: Valuation/Growth focus (PEG, P/E, SMA200, Earnings Growth)
+- **12 Months**: Quality/Fundamental focus (Margins, Debt, 52W Range, Dividends)
 
 **Result**: Score 0-100 with ratings (Strong Buy ≥80 / Buy ≥65 / Hold ≥45 / Sell <45).
 

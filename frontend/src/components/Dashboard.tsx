@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar
@@ -83,17 +83,60 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     // Sector Benchmarks (for industry peer values)
     const [sectorBenchmarks, setSectorBenchmarks] = useState<any>(null);
 
+    // Sector Override State
+    const [selectedSector, setSelectedSector] = useState<string>('Auto');
+    const [isRecalculating, setIsRecalculating] = useState(false);
+
+    // Available sectors for dropdown (matches backend sector_benchmarks.json)
+    const SECTOR_OPTIONS = [
+        'Auto',
+        'Standard',
+        // Traditional Sectors
+        'Technology',
+        'Communication Services',
+        'Healthcare',
+        'Consumer Cyclical',
+        'Consumer Defensive',
+        'Industrials',
+        'Financial Services',
+        'Energy',
+        'Utilities',
+        'Real Estate',
+        'Basic Materials',
+        // Sub-Industries
+        'Semiconductors',
+        'Software',
+        'Biotech',
+        'Retail',
+        'Cloud/SaaS',
+        'Fintech',
+        'EV/Clean Energy',
+        'Pharma',
+        'Insurance',
+        'Banks',
+        'REITs',
+        'Aerospace & Defense',
+        'Mining',
+        'Luxury Goods',
+        'Streaming/Media',
+        'E-commerce',
+        'Gaming',
+        'Cybersecurity',
+        'AI/ML'
+    ];
+
     // Real-time price updates with smart polling
     const { quote: realtimeQuote } = useRealtimePrice(ticker, {
         enabled: Boolean(ticker), // Only poll when a ticker is selected
     });
 
-    // Reset earnings and sentiment data when ticker changes
+    // Reset earnings, sentiment, and sector data when ticker changes
     useEffect(() => {
         setEarningsData(null);
         setLoadingEarnings(false);
         setSentimentData(null);
         setLoadingSentiment(false);
+        setSelectedSector('Auto'); // Reset sector override on ticker change
     }, [ticker]);
 
     // Fetch sector benchmarks once on mount
@@ -136,7 +179,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
             try {
                 // Fetch basics first
                 const [analData, newsData] = await Promise.all([
-                    getAnalysis(ticker),
+                    getAnalysis(ticker, selectedSector),
                     getNews(ticker)
                 ]);
                 setAnalysis(analData);
@@ -223,6 +266,16 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         };
         fetchSummary();
     }, [ticker, watchlistStocks]);
+
+    // Calculate % change for selected timeframe - MUST be before any early returns
+    const selectedRangeChange = useMemo(() => {
+        if (history.length < 2) return null;
+        const firstClose = history[0].Close;
+        const lastClose = history[history.length - 1].Close;
+        const change = lastClose - firstClose;
+        const pctChange = (change / firstClose) * 100;
+        return { change, pctChange };
+    }, [history]);
 
     if (!ticker) {
         return (
@@ -496,28 +549,19 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             </button>
                         </div>
 
-                        {/* Data Range Indicator */}
-                        {history.length > 0 && (
-                            <div className="ml-3 px-2 py-1 bg-blue-50 dark:bg-blue-900/10 rounded text-[10px] text-blue-600 dark:text-blue-400 font-medium border border-blue-200 dark:border-blue-800">
-                                {timeRange.label === '1D' ? (
-                                    <>📊 Today's Trading ({new Date(history[0]?.Date).toLocaleDateString()} - Live)</>
-                                ) : (
-                                    <>
-                                        📊 {new Date(history[0]?.Date).toLocaleDateString()} - {new Date(history[history.length - 1]?.Date).toLocaleDateString()}
-                                    </>
-                                )}
-                            </div>
-                        )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <button className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <Settings size={16} />
-                        </button>
-                        <button className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors">
-                            <ZoomIn size={16} />
-                        </button>
-                    </div>
+                    {/* Selected Period Performance - Compact */}
+                    {selectedRangeChange && (
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ${selectedRangeChange.pctChange >= 0
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                            }`}>
+                            {selectedRangeChange.pctChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                            <span>{selectedRangeChange.pctChange >= 0 ? '+' : ''}{selectedRangeChange.pctChange.toFixed(2)}%</span>
+                            <span className="text-[10px] font-normal opacity-60">({timeRange.label})</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-1 relative">
@@ -600,8 +644,54 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 {/* Background Decorations */}
                                 <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
 
-                                {/* Section Header */}
-                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-3 font-semibold">Recommendation Score</p>
+                                {/* Section Header with Sector Dropdown */}
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
+
+                                    {/* Sector Override Dropdown - Moved here from Fundamentals */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] text-gray-500 font-medium">Compare Against:</label>
+                                        <div className="relative">
+                                            <select
+                                                value={selectedSector}
+                                                onChange={async (e) => {
+                                                    const newSector = e.target.value;
+                                                    setSelectedSector(newSector);
+                                                    setIsRecalculating(true);
+                                                    try {
+                                                        const newAnalysis = await getAnalysis(ticker!, newSector);
+                                                        setAnalysis(newAnalysis);
+                                                    } catch (err) {
+                                                        console.error('Failed to recalculate:', err);
+                                                    } finally {
+                                                        setIsRecalculating(false);
+                                                    }
+                                                }}
+                                                className="text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 pr-6 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-500 transition-colors appearance-none"
+                                            >
+                                                {SECTOR_OPTIONS.map((sector) => (
+                                                    <option key={sector} value={sector}>
+                                                        {sector === 'Auto' ? `Auto (${analysis?.sector_info?.detected || fundamentals?.sector || 'Detect'})` : sector}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                                ▼
+                                            </div>
+                                            {isRecalculating && (
+                                                <div className="absolute -right-5 top-1/2 -translate-y-1/2">
+                                                    <Loader className="animate-spin text-blue-500" size={12} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        {selectedSector !== 'Auto' && (
+                                            <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                                <AlertTriangle size={10} />
+                                                Override
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
 
                                 <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
                                     {/* Left: Score Gauge with Ticker */}
@@ -690,10 +780,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                             <BarChart2 size={16} className="text-blue-500" /> Fundamentals
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/55</span></span>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/60</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 55) * 100}%` }}></div>
+                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 60) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Valuation, Growth, Smart Money</span>
@@ -701,88 +791,23 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     </p>
                                     {/* Expanded Details */}
                                     {expandedPillar === 'fundamentals' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">P/E Ratio</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">{fundamentals?.trailingPE?.toFixed(2) || 'N/A'}</span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Market Cap</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">{formatLargeNumber(fundamentals?.marketCap)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Revenue Growth</span>
-                                                <span className={`font-mono ${(fundamentals?.revenueGrowth || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {fundamentals?.revenueGrowth ? (fundamentals.revenueGrowth * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Profit Margin</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">
-                                                    {fundamentals?.profitMargins ? (fundamentals.profitMargins * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
-                                            {/* Industry Peer Values */}
-                                            {sectorBenchmarks && fundamentals?.sector && (
-                                                <div className="mt-3 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
-                                                    <p className="text-[9px] text-gray-400 uppercase tracking-wider mb-1.5">Industry Peers: {fundamentals.sector}</p>
-                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                                        <span>PEG Fair: ≤{sectorBenchmarks.sectors?.[fundamentals.sector]?.peg_fair || sectorBenchmarks.defaults?.peg_fair || '1.5'}</span>
-                                                        <span>Growth: ≥{((sectorBenchmarks.sectors?.[fundamentals.sector]?.growth_strong || sectorBenchmarks.defaults?.growth_strong || 0.10) * 100).toFixed(0)}%</span>
-                                                        <span>Margin: ≥{((sectorBenchmarks.sectors?.[fundamentals.sector]?.margin_healthy || sectorBenchmarks.defaults?.margin_healthy || 0.12) * 100).toFixed(0)}%</span>
-                                                        <span>Debt: ≤{sectorBenchmarks.sectors?.[fundamentals.sector]?.debt_safe || sectorBenchmarks.defaults?.debt_safe || '1.0'}x</span>
-                                                    </div>
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {/* Backend Factors - Primary Display */}
+                                            {analysis.ai_analysis?.score_explanation?.fundamentals?.factors ? (
+                                                <div className="space-y-2 bg-blue-50/50 dark:bg-blue-900/10 p-2.5 rounded-lg border border-blue-100 dark:border-blue-800/30">
+                                                    {analysis.ai_analysis.score_explanation.fundamentals.factors.map((factor: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-2 text-xs">
+                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.toLowerCase().includes('undervalued') || factor.toLowerCase().includes('strong') || factor.toLowerCase().includes('healthy') || factor.toLowerCase().includes('prudent') ? 'bg-emerald-500' :
+                                                                factor.toLowerCase().includes('premium') || factor.toLowerCase().includes('trail') || factor.toLowerCase().includes('elevated') || factor.toLowerCase().includes('exceeds') ? 'bg-red-500' :
+                                                                    'bg-yellow-500'
+                                                                }`}></span>
+                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
                                             )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Technicals - Clickable */}
-                                <div
-                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all"
-                                    onClick={() => setExpandedPillar(expandedPillar === 'technicals' ? null : 'technicals')}
-                                >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                            <Activity size={16} className="text-emerald-500" /> Technicals
-                                        </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/15</span></span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 15) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Trend, Momentum, Volume</span>
-                                        <span className="text-emerald-500 text-[9px] font-medium">{expandedPillar === 'technicals' ? '▲ Hide' : '▼ Details'}</span>
-                                    </p>
-                                    {/* Expanded Details */}
-                                    {expandedPillar === 'technicals' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">5-Day SMA</span>
-                                                <span className={`font-mono ${sma5Diff >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {sma5Diff > 0 ? '+' : ''}{sma5Diff.toFixed(2)}% vs price
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">10-Day SMA</span>
-                                                <span className={`font-mono ${sma10Diff >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {sma10Diff > 0 ? '+' : ''}{sma10Diff.toFixed(2)}% vs price
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">5-Day Return</span>
-                                                <span className={`font-mono ${perf5D.pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {perf5D.pct > 0 ? '+' : ''}{perf5D.pct.toFixed(2)}%
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">10-Day Return</span>
-                                                <span className={`font-mono ${perf10D.pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {perf10D.pct > 0 ? '+' : ''}{perf10D.pct.toFixed(2)}%
-                                                </span>
-                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -802,26 +827,39 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 15) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>News Flow, Insider Confluence</span>
+                                        <span>Sentiment & Insider</span>
                                         <span className="text-purple-500 text-[9px] font-medium">{expandedPillar === 'sentiment' ? '▲ Hide' : '▼ Details'}</span>
                                     </p>
                                     {/* Expanded Details */}
                                     {expandedPillar === 'sentiment' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">News Sentiment</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">
-                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? '🟢 Positive' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? '🟡 Neutral' : '🔴 Negative'}
-                                                </span>
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {/* Score Breakdown Header */}
+                                            <div className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">
+                                                Score Breakdown (News 10pts + Insider 5pts)
                                             </div>
+
+                                            {/* Backend Factors - Primary Display */}
+                                            {analysis.ai_analysis?.score_explanation?.sentiment?.factors ? (
+                                                <div className="space-y-2 bg-purple-50/50 dark:bg-purple-900/10 p-2.5 rounded-lg border border-purple-100 dark:border-purple-800/30">
+                                                    {analysis.ai_analysis.score_explanation.sentiment.factors.map((factor: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-2 text-xs">
+                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.toLowerCase().includes('positive') || factor.toLowerCase().includes('buying') ? 'bg-emerald-500' :
+                                                                factor.toLowerCase().includes('negative') || factor.toLowerCase().includes('selling') ? 'bg-red-500' :
+                                                                    'bg-yellow-500'
+                                                                }`}></span>
+                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
+                                            )}
+
+                                            {/* Articles Analyzed */}
                                             <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Recent News</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">{news?.length || 0} articles</span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Insider Activity</span>
+                                                <span className="text-gray-500">Articles Analyzed</span>
                                                 <span className="text-gray-900 dark:text-white font-mono">
-                                                    {institutions?.insidersPercentHeld ? (institutions.insidersPercentHeld * 100).toFixed(1) + '% held' : 'N/A'}
+                                                    {news?.length || 0}
                                                 </span>
                                             </div>
                                         </div>
@@ -847,32 +885,62 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <span className="text-orange-500 text-[9px] font-medium">{expandedPillar === 'projections' ? '▲ Hide' : '▼ Details'}</span>
                                     </p>
                                     {/* Expanded Details */}
-                                    {expandedPillar === 'projections' && simulation && (
+                                    {expandedPillar === 'projections' && (
+                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {/* Backend Factors - Primary Display */}
+                                            {analysis.ai_analysis?.score_explanation?.projections?.factors ? (
+                                                <div className="space-y-2 bg-orange-50/50 dark:bg-orange-900/10 p-2.5 rounded-lg border border-orange-100 dark:border-orange-800/30">
+                                                    {analysis.ai_analysis.score_explanation.projections.factors.map((factor: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-2 text-xs">
+                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.includes('+') ? 'bg-emerald-500' :
+                                                                factor.includes('-') ? 'bg-red-500' :
+                                                                    'bg-orange-500'
+                                                                }`}></span>
+                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
+                                            )}
+
+                                            <p className="text-[9px] text-gray-400 italic leading-tight">
+                                                Monte Carlo simulation (1,000 runs) based on historical volatility and drift.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Technicals - Clickable (Now Last) */}
+                                <div
+                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all"
+                                    onClick={() => setExpandedPillar(expandedPillar === 'technicals' ? null : 'technicals')}
+                                >
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                            <Activity size={16} className="text-emerald-500" /> Technicals
+                                        </h4>
+                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/10</span></span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
+                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 10) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                                        <span>Trend, Momentum, Volume</span>
+                                        <span className="text-emerald-500 text-[9px] font-medium">{expandedPillar === 'technicals' ? '▲ Hide' : '▼ Details'}</span>
+                                    </p>
+                                    {/* Expanded Details */}
+                                    {expandedPillar === 'technicals' && (
                                         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Expected Return</span>
-                                                <span className={`font-mono ${(simulation?.expected_return || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {simulation?.expected_return ? (simulation.expected_return * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Upside Potential</span>
-                                                <span className="text-emerald-500 font-mono">
-                                                    {simulation?.percentile_95 ? '+' + (simulation.percentile_95 * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Downside Risk</span>
-                                                <span className="text-red-500 font-mono">
-                                                    {simulation?.percentile_5 ? (simulation.percentile_5 * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Volatility</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">
-                                                    {simulation?.volatility ? (simulation.volatility * 100).toFixed(1) + '%' : 'N/A'}
-                                                </span>
-                                            </div>
+                                            {analysis.ai_analysis.score_explanation?.technicals?.factors ? (
+                                                analysis.ai_analysis.score_explanation.technicals.factors.map((factor: string, idx: number) => (
+                                                    <div key={idx} className="flex justify-between text-xs">
+                                                        <span className="text-gray-900 dark:text-white font-mono break-all">{factor}</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs text-gray-400">Analysis details unavailable</p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -881,11 +949,13 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                         {/* 3. Outlooks Accordion (Collapsible) */}
                         {analysis?.ai_analysis && (
-                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50" open>
-                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white">
+                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors" open>
+                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors">
                                     <span className="flex items-center gap-2 text-sm"><TrendingUp size={16} className="text-blue-500" /> Outlooks</span>
-                                    <span className="transition group-open:rotate-180">
-                                        <TrendingDown size={16} />
+                                    <span className="flex items-center gap-2 text-gray-400 group-hover:text-blue-500 transition-colors">
+                                        <span className="text-[10px] font-normal group-open:hidden">Click to expand</span>
+                                        <span className="text-[10px] font-normal hidden group-open:inline">Click to collapse</span>
+                                        <span className="transition-transform duration-200 group-open:rotate-180 text-xs">▼</span>
                                     </span>
                                 </summary>
                                 <div className="border-t border-gray-200 dark:border-gray-700/50 p-3 pt-0 mt-3">
@@ -897,8 +967,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     <Zap size={14} className="text-blue-600 dark:text-blue-400" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Short Term</h4>
-                                                    <p className="text-[10px] text-gray-500">1-4 weeks</p>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">3 Months</h4>
+                                                    <p className="text-[10px] text-gray-500">Technical/Momentum</p>
                                                 </div>
                                             </div>
                                             <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
@@ -918,8 +988,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     <Activity size={14} className="text-purple-600 dark:text-purple-400" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Medium Term</h4>
-                                                    <p className="text-[10px] text-gray-500">1-3 months</p>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">6 Months</h4>
+                                                    <p className="text-[10px] text-gray-500">Valuation/Growth</p>
                                                 </div>
                                             </div>
                                             <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
@@ -939,8 +1009,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     <TrendingUp size={14} className="text-orange-600 dark:text-orange-400" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">Long Term</h4>
-                                                    <p className="text-[10px] text-gray-500">6-12 months</p>
+                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">12 Months</h4>
+                                                    <p className="text-[10px] text-gray-500">Quality/Fundamentals</p>
                                                 </div>
                                             </div>
                                             <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
@@ -1160,48 +1230,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     </div>
                                 </div>
 
-                                {/* Methodology Explanation */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 rounded-xl border bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/30">
-                                        <h4 className="font-bold text-sm text-blue-800 dark:text-blue-400 mb-2 flex items-center gap-2">
-                                            <Zap size={16} /> Groq/Llama 3.3 70B
-                                        </h4>
-                                        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                                            Uses Groq's Llama 3.3 70B model for deep contextual understanding of financial news.
-                                            The LLM analyzes tone, implications, and market impact beyond simple keyword matching.
-                                        </p>
-                                    </div>
 
-                                    <div className="p-4 rounded-xl border bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30">
-                                        <h4 className="font-bold text-sm text-purple-800 dark:text-purple-400 mb-2 flex items-center gap-2">
-                                            <AlertTriangle size={16} /> Bearish Keyword Detection
-                                        </h4>
-                                        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                                            Detects 25+ bearish keywords (layoffs, misses, decline, etc.) to identify positive spin on bad news.
-                                            Applies penalty when positive sentiment contradicts bearish signals.
-                                        </p>
-                                    </div>
-
-                                    <div className="p-4 rounded-xl border bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-800/30">
-                                        <h4 className="font-bold text-sm text-orange-800 dark:text-orange-400 mb-2 flex items-center gap-2">
-                                            <TrendingUp size={16} /> Temporal Weighting
-                                        </h4>
-                                        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                                            Recent news weighs more heavily than older articles. Uses exponential decay:
-                                            today = 1.0x, 10 days ago = 0.5x, 20 days ago = 0.33x weight.
-                                        </p>
-                                    </div>
-
-                                    <div className="p-4 rounded-xl border bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/30">
-                                        <h4 className="font-bold text-sm text-emerald-800 dark:text-emerald-400 mb-2 flex items-center gap-2">
-                                            <BarChart2 size={16} /> Strict Thresholds
-                                        </h4>
-                                        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                                            Positive: score &gt; 0.5 (50%) | Negative: score &lt; -0.3 (-30%) | Otherwise: Neutral.
-                                            Asymmetric to correct for positive bias in financial news coverage.
-                                        </p>
-                                    </div>
-                                </div>
 
                                 {/* Source Badge */}
                                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -1405,8 +1434,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         </div>
 
                     </div>
-                )}
-            </div>
+                )
+                }
+            </div >
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Simulation Chart */}
@@ -1417,7 +1447,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 <Zap className="text-blue-500" /> Monte Carlo Simulation
                                 <InfoTooltip text="Simulates 1,000 possible future price paths based on historical volatility to estimate risk and probability." />
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 30 days into the future based on recent volatility.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 90 days into the future based on recent volatility.</p>
                         </div>
                     </div>
 
@@ -1447,15 +1477,23 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 <XAxis dataKey="step" hide />
                                 <YAxis domain={['auto', 'auto']} stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `$${val.toFixed(0)}`} />
                                 <RechartsTooltip
-                                    contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    labelStyle={{ display: 'none' }}
-                                    formatter={(value: number, name: string) => {
-                                        if (name === 'p10') return [`$${value.toFixed(2)}`, 'Worst Case (P10)'];
-                                        if (name === 'p50') return [`$${value.toFixed(2)}`, 'Most Likely (P50)'];
-                                        if (name === 'p90') return [`$${value.toFixed(2)}`, 'Best Case (P90)'];
-                                        return [`$${value.toFixed(2)}`, ''];
+                                    contentStyle={{
+                                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                                        borderColor: '#374151',
+                                        borderRadius: '12px',
+                                        padding: '12px 16px',
+                                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
                                     }}
+                                    itemStyle={{ color: '#fff', padding: '4px 0' }}
+                                    labelFormatter={(label) => `Day ${label} of 90`}
+                                    labelStyle={{ color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold', fontSize: '12px' }}
+                                    formatter={(value: number, name: string) => {
+                                        if (name === 'p10') return [`$${value.toFixed(2)}`, '🔴 Worst Case (10%)'];
+                                        if (name === 'p50') return [`$${value.toFixed(2)}`, '🔵 Most Likely (50%)'];
+                                        if (name === 'p90') return [`$${value.toFixed(2)}`, '🟢 Best Case (90%)'];
+                                        return [null, null]; // Hide individual path values
+                                    }}
+                                    filterNull={true}
                                 />
                                 {simulation?.paths ? (
                                     simulation.paths.slice(0, 20).map((_: any, i: number) => (
@@ -1537,6 +1575,6 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
             {/* AlertModal */}
             {showAlertModal && <AlertModal ticker={ticker} onClose={() => setShowAlertModal(false)} isOpen={showAlertModal} currentPrice={lastClose} />}
-        </div>
+        </div >
     );
 }

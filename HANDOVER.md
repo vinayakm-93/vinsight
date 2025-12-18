@@ -119,31 +119,39 @@ We have automated the deployment process.
 
 ---
 
-## 🧠 VinSight Score v6.0 Update (Dec 17)
+## 🧠 VinSight Score v6.1 Update (Dec 17)
 
 ### Rebalanced for Retail Investors
-Fundamentals now carry 55% of the total score (vs 30% in v5.1).
+Fundamentals now carry **60%** of the total score.
 
 | Pillar | Points | Key Components |
 |--------|--------|----------------|
-| **Fundamentals** | 55 | Valuation (12), Growth (10), Margins (10), Debt (8), Inst (8), Flow (7) |
-| **Technicals** | 15 | SMA distance, RSI optimal zone (50-65), volume |
-| **Sentiment** | 15 | News (8 pts) + Finnhub MSPR (7 pts) |
+| **Fundamentals** | 60 | Valuation (16), Growth (14), Margins (14), Debt (8), Inst (4), Flow (4) |
+| **Sentiment** | 15 | News (10 pts) + Finnhub MSPR (5 pts) |
 | **Projections** | 15 | Monte Carlo upside (9 pts) + risk/reward (6 pts) |
+| **Technicals** | 10 | SMA distance (4), RSI optimal zone (3), volume (3) |
 
-### Industry Peer Values UI
-- Displayed in Fundamentals pillar expansion
-- Shows sector-specific: PEG Fair, Growth %, Margin %, Debt ratio
-- API: `/api/data/sector-benchmarks`
+### Sector Override Feature
+- 29 industry-specific benchmarks with wide variance
+- Dropdown in Recommendation Score header (moved from Fundamentals)
+- P/E median ranges: 8 (Mining) → 80 (EV/Clean Energy)
 
-### Sector Benchmarks
-| Sector | PEG Fair | Growth Strong | Margin Healthy | Debt Safe |
-|--------|----------|---------------|----------------|-----------|
-| Technology | 2.0 | 15% | 20% | 0.5x |
-| Communication | 1.8 | 12% | 15% | 1.0x |
-| Financial | 1.3 | 8% | 25% | 2.0x |
+### Expanded Sector Benchmarks (v6.1)
+| Sector | P/E Median | PEG Fair | Growth % | Margin % |
+|--------|------------|----------|----------|----------|
+| Technology | 30 | 2.0 | 15% | 20% |
+| Cloud/SaaS | 60 | 3.5 | 25% | 15% |
+| EV/Clean Energy | 80 | 4.0 | 35% | 5% |
+| Banks | 12 | 1.2 | 8% | 30% |
+| Mining | 8 | 1.0 | 5% | 15% |
+
+### Outlook Time Horizons
+- **3 Months**: Technical/Momentum (RSI, SMA50, Sentiment, Beta)
+- **6 Months**: Valuation/Growth (PEG, P/E, SMA200, Earnings Growth)
+- **12 Months**: Quality/Fundamentals (Margins, Debt, 52W Range, Dividends)
 
 ### New Environment Variable
 ```
 FINNHUB_API_KEY=  # Free from finnhub.io
 ```
+

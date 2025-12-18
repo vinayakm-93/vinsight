@@ -1,7 +1,7 @@
 # VinSight Product Requirements Document (PRD)
 
-**Version:** 2.0 (Post-Cloud Migration)
-**Date:** December 16, 2025
+**Version:** 3.0 (v6.1 Scoring Engine)
+**Date:** December 17, 2025
 **Status:** Live in Production
 
 ## 1. Executive Summary
@@ -22,13 +22,19 @@ VinSight is an AI-powered financial analytics platform that democratizes institu
 
 ### 2.3 AI Analysis Engine
 *   **Sentiment Analysis**: 
-    *   Ingests news feeds via Google News RSS.
-    *   Uses **Groq (Llama 3)** for high-speed headline sentiment scoring.
+    *   **Alpha Vantage** (Primary): Pre-scored sentiment with article summaries.
+    *   **Groq (Llama 3.3 70B)** (Fallback): Deep headline analysis with spin detection.
+    *   **Finnhub**: Insider sentiment via MSPR (Monthly Share Purchase Ratio).
 *   **Earnings Deep Dive**:
     *   Uses **Gemini 1.5 Pro** to analyze financial statements and earnings call transcripts.
     *   Extracts "Bullish" and "Bearish" signals beyond just the numbers.
-*   **VinSight Score**: 
-    *   Composite metric (0-100) combining Technicals (RSI/MACD) + Fundamentals (P/E) + AI Sentiment.
+*   **VinSight Score v6.1**: 
+    *   **Fundamentals (60 pts)**: Valuation (16), Growth (14), Margins (14), Debt (8), Institutional (4), Flow (4).
+    *   **Sentiment (15 pts)**: News sentiment (10) + Insider MSPR (5).
+    *   **Projections (15 pts)**: Monte Carlo upside (9) + Risk/Reward (6).
+    *   **Technicals (10 pts)**: SMA distance (4), RSI zone (3), Volume (3).
+*   **Sector Override**: 29 industry-specific benchmarks (P/E median 8-80 across sectors).
+*   **Outlooks**: 3m (Technical), 6m (Valuation), 12m (Quality) time horizons.
 
 ### 2.4 Smart Alerts
 *   **Market Watcher**: A background job that monitors prices against user targets.
