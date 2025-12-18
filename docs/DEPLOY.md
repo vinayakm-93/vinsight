@@ -16,7 +16,12 @@ To deploy Backend, Frontend, and Background Jobs:
 ./deploy.sh
 ```
 
-> **Note**: Currently, the Frontend `next.config.js` has a hardcoded Backend URL for stability in Cloud Run. If you redeploy to a different backend URL, you must update `frontend/next.config.js` manually before deploying the frontend.
+> [!IMPORTANT]
+> **Frontend API Proxy Configuration**: The `frontend/next.config.js` contains the backend URL for API proxying.
+> - In **production**, it uses the Cloud Run backend URL: `https://vinsight-backend-wddr2kfz3a-uc.a.run.app`
+> - In **development**, it uses localhost: `http://127.0.0.1:8000`
+> - The switch is automatic based on `NODE_ENV`
+> - **If deploying to a different backend URL**, update the production URL in `next.config.js` before deploying!
 
 ## First Time Setup (If Redeploying elsewhere)
 
@@ -60,6 +65,31 @@ gcloud scheduler jobs create http vinsight-market-trigger \
 
 ## Troubleshooting
 
+### 500 Internal Server Error / Watchlist Stocks "Loading..."
+
+**Symptoms**: All API calls return 500, watchlist stock prices show "Loading..." indefinitely.
+
+**Cause**: The frontend `next.config.js` proxy is pointing to the wrong backend URL. This happens if:
+- The config was accidentally set to localhost (`http://127.0.0.1:8000`) for production
+- The `NODE_ENV` check was removed or broken
+
+**Solution**:
+1. Check `frontend/next.config.js` and verify the production URL is correct:
+   ```javascript
+   const apiUrl = process.env.NODE_ENV === 'production' 
+       ? 'https://vinsight-backend-wddr2kfz3a-uc.a.run.app'  // Must be Cloud Run URL
+       : 'http://127.0.0.1:8000';
+   ```
+2. Redeploy the frontend after fixing.
+
+**Verification**: Test the proxy is working in production:
+```bash
+curl -s https://vinsight-frontend-wddr2kfz3a-uc.a.run.app/api/data/quote/AAPL
+# Should return JSON stock quote, not "Internal Server Error"
+```
+
+---
+
 ### "Failed to load watchlists" / 404 Errors
 
 **Cause**: Next.js proxy strips trailing slashes. FastAPI by default redirects to trailing-slash URLs via 307, but cookies are lost during redirect.
@@ -67,6 +97,8 @@ gcloud scheduler jobs create http vinsight-market-trigger \
 **Solution** (Already Applied):
 1. `main.py` has `redirect_slashes=False` in FastAPI config
 2. Routes use dual decorators: `@router.get("")` and `@router.get("/")`
+
+---
 
 ### View Backend Logs
 ```bash
