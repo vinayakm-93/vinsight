@@ -24,4 +24,5 @@ EXPOSE 8080
 # Run gunicorn server (Production)
 # Workers: 1 per core is a good start, but for Cloud Run with 1 vCPU, 1-2 workers is standard.
 # Timeout: 0 to disable timeouts (Cloud Run handles this)
-CMD ["gunicorn", "main:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8080", "--timeout", "0"]
+# --preload: Load app before forking workers to avoid race conditions in init_db()
+CMD ["gunicorn", "main:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8080", "--timeout", "0", "--preload"]

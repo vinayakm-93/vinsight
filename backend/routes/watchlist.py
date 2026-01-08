@@ -56,7 +56,7 @@ def get_watchlists(db: Session = Depends(get_db), user: Optional[User] = Depends
     if not user:
         logger.info("No user authenticated, returning empty list")
         return []
-        
+
     watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).order_by(Watchlist.position.asc()).all()
     logger.info(f"Found {len(watchlists)} watchlists for user {user.id}")
     

@@ -7,9 +7,9 @@ const nextConfig = {
     async rewrites() {
         console.log('Rewrites called. MY_BACKEND_URL:', process.env.MY_BACKEND_URL);
 
-        // Use Cloud Run backend URL for production
+        // Use MY_BACKEND_URL if set, otherwise fallback to localhost for dev
         const apiUrl = process.env.NODE_ENV === 'production'
-            ? 'https://vinsight-backend-wddr2kfz3a-uc.a.run.app'
+            ? (process.env.MY_BACKEND_URL || 'https://vinsight-backend-wddr2kfz3a-uc.a.run.app')
             : 'http://127.0.0.1:8000';
 
         console.log('Proxying /api requests to:', apiUrl);

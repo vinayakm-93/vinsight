@@ -17,12 +17,20 @@ def get_stock_info(ticker: str):
     stock = yf.Ticker(ticker)
     info = stock.info
     
+    # Clean info of NaN/Inf for JSON safety
+    cleaned_info = {}
+    for k, v in info.items():
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            cleaned_info[k] = None
+        else:
+            cleaned_info[k] = v
+
     # Enrich with calculated flags
-    peg = info.get('pegRatio')
+    peg = cleaned_info.get('pegRatio')
     if peg is not None and peg < 1.0:
-        info['valuation_flag'] = "Undervalued"
+        cleaned_info['valuation_flag'] = "Undervalued"
         
-    return info
+    return cleaned_info
 
 def get_stock_history(ticker: str, period="1mo", interval="1d"):
     """Fetch historical data."""
@@ -143,11 +151,19 @@ def get_institutional_holders(ticker: str):
                 # Clean keys
                 cleaned_holders = []
                 for h in top_holders:
+                    shares = h.get("Shares", 0)
+                    pct_out = h.get("% Out", h.get("pctHeld", 0))
+                    
+                    if isinstance(shares, float) and math.isnan(shares):
+                        shares = None
+                    if isinstance(pct_out, float) and math.isnan(pct_out):
+                        pct_out = None
+
                     cleaned_holders.append({
                         "Holder": h.get("Holder", "Unknown"),
-                        "Shares": h.get("Shares", 0),
+                        "Shares": shares,
                         "Date Reported": str(h.get("Date Reported", "")),
-                        "% Out": h.get("% Out", h.get("pctHeld", 0))
+                        "% Out": pct_out
                     })
                 holders["top_holders"] = cleaned_holders
         except:
@@ -261,15 +277,21 @@ def get_batch_stock_details(tickers: list):
             # If we call this for 10 stocks, and they were recently accessed, it's instant.
             # Even if not, we run in parallel.
             info = get_stock_info(ticker)
+            # Ensure values are JSON-safe
+            def safe_val(val):
+                if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                    return None
+                return val
+
             return {
                 "symbol": ticker,
-                "currentPrice": info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0),
-                "regularMarketChange": info.get('regularMarketChange') or 0,
-                "regularMarketChangePercent": info.get('regularMarketChangePercent') or 0,
-                "previousClose": info.get('regularMarketPreviousClose') or info.get('previousClose', 0),
-                "marketCap": info.get('marketCap'),
-                "trailingPE": info.get('trailingPE'),
-                "fiftyTwoWeekHigh": info.get('fiftyTwoWeekHigh')
+                "currentPrice": safe_val(info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)),
+                "regularMarketChange": safe_val(info.get('regularMarketChange') or 0),
+                "regularMarketChangePercent": safe_val(info.get('regularMarketChangePercent') or 0),
+                "previousClose": safe_val(info.get('regularMarketPreviousClose') or info.get('previousClose', 0)),
+                "marketCap": safe_val(info.get('marketCap')),
+                "trailingPE": safe_val(info.get('trailingPE')),
+                "fiftyTwoWeekHigh": safe_val(info.get('fiftyTwoWeekHigh'))
             }
         except Exception as e:
             print(f"Error fetching batch detail for {ticker}: {e}")

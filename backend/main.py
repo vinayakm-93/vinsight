@@ -25,8 +25,12 @@ if ENV == "production":
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
     allowed_origins = [o.strip() for o in allowed_origins if o.strip()]
 else:
-    # Development: Allow localhost
-    allowed_origins = ["http://localhost:3000"]
+    # Development: Allow localhost and 127.0.0.1
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001", # Common fallback
+    ]
 
 app.add_middleware(
     CORSMiddleware,
