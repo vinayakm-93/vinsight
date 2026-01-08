@@ -51,6 +51,7 @@ class Watchlist(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=False, nullable=False)
     stocks = Column(String, default="") # Comma separated tickers
+    position = Column(Integer, default=0)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Nullable for guest lists/backward compatibility
 
     user = relationship("User", back_populates="watchlists")

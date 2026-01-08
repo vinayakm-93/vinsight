@@ -14,6 +14,7 @@ export interface Watchlist {
   id: number;
   name: string;
   stocks: string[];
+  position: number;
 }
 
 export const getWatchlists = async (): Promise<Watchlist[]> => {
@@ -43,6 +44,14 @@ export const removeStockFromWatchlist = async (watchlistId: number, symbol: stri
 export const moveStockToWatchlist = async (sourceId: number, targetId: number, symbol: string): Promise<Watchlist> => {
   const response = await api.post<Watchlist>(`/api/watchlists/${sourceId}/move`, { symbol, target_watchlist_id: targetId });
   return response.data;
+};
+
+export const reorderWatchlists = async (ids: number[]): Promise<void> => {
+  await api.post('/api/watchlists/reorder', { ids });
+};
+
+export const reorderStocks = async (watchlistId: number, symbols: string[]): Promise<void> => {
+  await api.post(`/api/watchlists/${watchlistId}/reorder`, { symbols });
 };
 
 export const searchStocks = async (query: string): Promise<any[]> => {

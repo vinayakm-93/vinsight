@@ -37,3 +37,7 @@ build/
 # scripts/
 google-cloud-sdk/
 google-cloud-cli-darwin-arm.tar.gz
+
+# Personal/Blog
+docs/MEDIUM_POST.txt
+docs/MEDIUM_POST.md

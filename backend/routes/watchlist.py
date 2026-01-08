@@ -33,6 +33,7 @@ class WatchlistOut(BaseModel):
     id: int
     name: str
     stocks: List[str]
+    position: int = 0
 
     class Config:
         from_attributes = True
@@ -41,7 +42,11 @@ class WatchlistOut(BaseModel):
 from services import importer, auth
 from models import Watchlist, Stock, User
 
-# ...
+class ReorderWatchlists(BaseModel):
+    ids: List[int]
+
+class ReorderStocks(BaseModel):
+    symbols: List[str]
 
 @router.get("", response_model=List[WatchlistOut])
 @router.get("/", response_model=List[WatchlistOut])
@@ -52,7 +57,7 @@ def get_watchlists(db: Session = Depends(get_db), user: Optional[User] = Depends
         logger.info("No user authenticated, returning empty list")
         return []
         
-    watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).all()
+    watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).order_by(Watchlist.position.asc()).all()
     logger.info(f"Found {len(watchlists)} watchlists for user {user.id}")
     
     # Self-healing: If no watchlists exist, create a default one
@@ -77,7 +82,7 @@ def get_watchlists(db: Session = Depends(get_db), user: Optional[User] = Depends
     for w in watchlists:
         stock_list = w.stocks.split(",") if w.stocks else []
         stock_list = [s for s in stock_list if s] 
-        results.append(WatchlistOut(id=w.id, name=w.name, stocks=stock_list))
+        results.append(WatchlistOut(id=w.id, name=w.name, stocks=stock_list, position=w.position))
     return results
 
 @router.post("", response_model=WatchlistOut)
@@ -97,7 +102,7 @@ def create_watchlist(watchlist: WatchlistCreate, db: Session = Depends(get_db), 
         db.commit()
         db.refresh(db_watchlist)
         logger.info(f"Created watchlist id={db_watchlist.id} for user {user.id}")
-        return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=[])
+        return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=[], position=db_watchlist.position)
     except Exception as e:
         logger.exception(f"Failed to create watchlist for user {user.id}: {e}")
         db.rollback()
@@ -128,7 +133,7 @@ def add_stock_to_watchlist(watchlist_id: int, stock: StockAdd, db: Session = Dep
     db.refresh(db_watchlist)
     stock_list = db_watchlist.stocks.split(",") if db_watchlist.stocks else []
     stock_list = [s for s in stock_list if s]
-    return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=stock_list)
+    return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=stock_list, position=db_watchlist.position)
 
 @router.delete("/{watchlist_id}/remove/{symbol}", response_model=WatchlistOut)
 def remove_stock_from_watchlist(watchlist_id: int, symbol: str, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
@@ -145,7 +150,7 @@ def remove_stock_from_watchlist(watchlist_id: int, symbol: str, db: Session = De
     db.refresh(db_watchlist)
     stock_list = db_watchlist.stocks.split(",") if db_watchlist.stocks else []
     stock_list = [s for s in stock_list if s]
-    return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=stock_list)
+    return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=stock_list, position=db_watchlist.position)
 
 @router.post("/{watchlist_id}/move", response_model=WatchlistOut)
 def move_stock(watchlist_id: int, move: StockMove, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
@@ -176,7 +181,27 @@ def move_stock(watchlist_id: int, move: StockMove, db: Session = Depends(get_db)
     
     stock_list = source_wl.stocks.split(",") if source_wl.stocks else []
     stock_list = [s for s in stock_list if s]
-    return WatchlistOut(id=source_wl.id, name=source_wl.name, stocks=stock_list)
+    return WatchlistOut(id=source_wl.id, name=source_wl.name, stocks=stock_list, position=source_wl.position)
+
+@router.post("/reorder")
+def reorder_watchlists(data: ReorderWatchlists, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
+    """Reorder watchlists for the current user."""
+    for index, watchlist_id in enumerate(data.ids):
+        db.query(Watchlist).filter(Watchlist.id == watchlist_id, Watchlist.user_id == user.id).update({"position": index})
+    db.commit()
+    return {"status": "success"}
+
+@router.post("/{watchlist_id}/reorder")
+def reorder_stocks(watchlist_id: int, data: ReorderStocks, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
+    """Reorder stocks within a specific watchlist."""
+    db_watchlist = db.query(Watchlist).filter(Watchlist.id == watchlist_id, Watchlist.user_id == user.id).first()
+    if not db_watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    
+    # Update the stocks field with the new order
+    db_watchlist.stocks = ",".join(data.symbols)
+    db.commit()
+    return {"status": "success"}
 
 @router.post("/{watchlist_id}/import", response_model=WatchlistOut)
 async def import_stocks(watchlist_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):

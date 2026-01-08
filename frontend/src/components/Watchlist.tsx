@@ -12,16 +12,209 @@ import {
     searchStocks,
     importWatchlistFile,
     getStockDetails,
+    reorderWatchlists,
+    reorderStocks,
     Watchlist
 } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
-import { Plus, Search, Trash2, ArrowRightLeft, X, Check, MoreVertical, LayoutGrid, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, Search, Trash2, ArrowRightLeft, X, Check, MoreVertical, LayoutGrid, Upload, FileSpreadsheet, GripVertical } from 'lucide-react';
+
+// DND Kit Imports
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+    TouchSensor
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    horizontalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface WatchlistProps {
     onSelectStock?: (symbol: string) => void;
     onWatchlistChange?: (stocks: string[]) => void;
 }
+
+// --- Sortable Helper Components ---
+
+interface SortableWatchlistTabProps {
+    watchlist: Watchlist;
+    isActive: boolean;
+    onClick: () => void;
+}
+
+function SortableWatchlistTab({ watchlist, isActive, onClick }: SortableWatchlistTabProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id: watchlist.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    return (
+        <button
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            onClick={onClick}
+            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border shrink-0 ${isActive
+                ? 'bg-blue-100 dark:bg-blue-600/20 border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
+                }`}
+        >
+            {watchlist.name}
+        </button>
+    );
+}
+
+interface SortableStockRowProps {
+    stock: string;
+    stockData: Record<string, any>;
+    menuOpenFor: string | null;
+    setMenuOpenFor: (symbol: string | null) => void;
+    onSelectStock?: (symbol: string) => void;
+    handleRemoveStock: (symbol: string) => void;
+    handleMoveStock: (symbol: string, targetId: number) => void;
+    watchlists: Watchlist[];
+    activeWatchlistId: number | null;
+}
+
+function SortableStockRow({
+    stock,
+    stockData,
+    menuOpenFor,
+    setMenuOpenFor,
+    onSelectStock,
+    handleRemoveStock,
+    handleMoveStock,
+    watchlists,
+    activeWatchlistId
+}: SortableStockRowProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({ id: stock });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    const info = stockData[stock];
+    const price = info?.currentPrice || info?.regularMarketPrice || info?.previousClose;
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="flex items-center gap-1 group"
+        >
+            <div
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+                <GripVertical size={16} />
+            </div>
+
+            <div
+                onClick={() => onSelectStock && onSelectStock(stock)}
+                className="relative flex-1 flex justify-between items-start p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
+            >
+                {/* Left: Ticker & Name */}
+                <div className="min-w-0 flex-1 pr-2">
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight track-tight">{stock}</h3>
+                    <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
+                        {info?.shortName || "Loading..."}
+                    </p>
+                </div>
+
+                {/* Right: Price, Change, Date */}
+                <div className="flex items-start gap-3 shrink-0">
+                    <div className="text-right">
+                        {price ? (
+                            <>
+                                <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight">
+                                    ${price.toFixed(2)}
+                                </span>
+                                <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                                    <span className={`text-[10px] font-bold ${(info?.regularMarketChangePercent || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                        }`}>
+                                        {(info?.regularMarketChangePercent || 0) > 0 ? '+' : ''}
+                                        {(info?.regularMarketChangePercent || 0).toFixed(2)}%
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <span className="text-xs text-blue-400 animate-pulse">---</span>
+                        )}
+                    </div>
+
+                    {/* Actions Menu Trigger */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                            onClick={() => setMenuOpenFor(menuOpenFor === stock ? null : stock)}
+                            className="p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <MoreVertical size={16} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {menuOpenFor === stock && (
+                            <div className="absolute right-0 top-8 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-1">
+                                <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100 dark:border-gray-700 mb-1">Actions</div>
+
+                                <button
+                                    onClick={() => handleRemoveStock(stock)}
+                                    className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md flex items-center gap-2 mb-1"
+                                >
+                                    <Trash2 size={14} /> Remove
+                                </button>
+
+                                <div className="px-3 py-2 text-xs font-semibold text-gray-500 mt-1">Move to...</div>
+                                {watchlists.filter(w => w.id !== activeWatchlistId).length === 0 && (
+                                    <div className="px-3 py-1 text-xs text-gray-600 italic">No other lists</div>
+                                )}
+                                {watchlists.filter(w => w.id !== activeWatchlistId).map(w => (
+                                    <button
+                                        key={w.id}
+                                        onClick={() => handleMoveStock(stock, w.id)}
+                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-2"
+                                    >
+                                        <ArrowRightLeft size={14} /> {w.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Main Component ---
 
 export default function WatchlistComponent({ onSelectStock, onWatchlistChange }: WatchlistProps) {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
@@ -32,7 +225,8 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     const DEFAULT_GUEST_WATCHLIST: Watchlist = {
         id: -1,
         name: "Guest Watchlist",
-        stocks: ["AAPL", "NVDA", "SPY", "TSLA", "AMZN", "MSFT", "GOOGL"]
+        stocks: ["AAPL", "NVDA", "SPY", "TSLA", "AMZN", "MSFT", "GOOGL"],
+        position: 0
     };
 
     // Search State
@@ -56,6 +250,76 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     // Loading/error states
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // DND Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 250,
+                tolerance: 5,
+            },
+        })
+    );
+
+    const handleWatchlistDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = watchlists.findIndex((w) => w.id === active.id);
+            const newIndex = watchlists.findIndex((w) => w.id === over.id);
+
+            const newWatchlists = arrayMove(watchlists, oldIndex, newIndex);
+            setWatchlists(newWatchlists);
+
+            if (user) {
+                try {
+                    await reorderWatchlists(newWatchlists.map(w => w.id));
+                } catch (e) {
+                    console.error("Failed to save watchlist order", e);
+                }
+            }
+        }
+    };
+
+    const handleStockDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id && activeWatchlistId) {
+            const activeList = watchlists.find(w => w.id === activeWatchlistId);
+            if (!activeList) return;
+
+            const oldIndex = activeList.stocks.indexOf(active.id as string);
+            const newIndex = activeList.stocks.indexOf(over.id as string);
+
+            const newStocks = arrayMove(activeList.stocks, oldIndex, newIndex);
+
+            // Update local state
+            const updatedWatchlists = watchlists.map(w =>
+                w.id === activeWatchlistId ? { ...w, stocks: newStocks } : w
+            );
+            setWatchlists(updatedWatchlists);
+
+            if (user) {
+                try {
+                    await reorderStocks(activeWatchlistId, newStocks);
+                } catch (e) {
+                    console.error("Failed to save stock order", e);
+                }
+            } else {
+                // Guest mode
+                const guestList = updatedWatchlists.find(w => w.id === -1);
+                if (guestList) {
+                    localStorage.setItem(GUEST_WATCHLIST_KEY, JSON.stringify(guestList));
+                }
+            }
+        }
+    };
 
     useEffect(() => {
         if (user) {
@@ -375,18 +639,25 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             {/* Tabs - Only show when there are watchlists */}
             {!isLoading && watchlists.length > 0 && (
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                    {watchlists.map(w => (
-                        <button
-                            key={w.id}
-                            onClick={() => setActiveWatchlistId(w.id)}
-                            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border ${activeWatchlistId === w.id
-                                ? 'bg-blue-100 dark:bg-blue-600/20 border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
-                                }`}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleWatchlistDragEnd}
+                    >
+                        <SortableContext
+                            items={watchlists.map(w => w.id)}
+                            strategy={horizontalListSortingStrategy}
                         >
-                            {w.name}
-                        </button>
-                    ))}
+                            {watchlists.map(w => (
+                                <SortableWatchlistTab
+                                    key={w.id}
+                                    watchlist={w}
+                                    isActive={activeWatchlistId === w.id}
+                                    onClick={() => setActiveWatchlistId(w.id)}
+                                />
+                            ))}
+                        </SortableContext>
+                    </DndContext>
                 </div>
             )}
 
@@ -440,101 +711,31 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                                 )}
                             </div>
                         ) : (
-                            activeWatchlist.stocks.map((stock) => {
-                                const info = stockData[stock];
-                                const price = info?.currentPrice || info?.regularMarketPrice || info?.previousClose;
-
-                                return (
-                                    <div
-                                        key={stock}
-                                        onClick={() => onSelectStock && onSelectStock(stock)}
-                                        className="relative flex justify-between items-start p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg group transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
-                                    >
-
-                                        {/* Left: Ticker & Name */}
-                                        <div className="min-w-0 flex-1 pr-2">
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight track-tight">{stock}</h3>
-                                            <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
-                                                {info?.shortName || "Loading..."}
-                                            </p>
-                                        </div>
-
-                                        {/* Right: Price, Change, Date */}
-                                        <div className="flex items-start gap-3 shrink-0">
-                                            <div className="text-right">
-                                                {price ? (
-                                                    <>
-                                                        <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight">
-                                                            ${price.toFixed(2)}
-                                                        </span>
-                                                        <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                                                            <span className={`text-[10px] font-bold ${(info?.regularMarketChangePercent || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                                                                }`}>
-                                                                {(info?.regularMarketChangePercent || 0) > 0 ? '+' : ''}
-                                                                {/* yfinance returns percentage value (e.g. 0.22 for 0.22%), so no need to multiply by 100 */}
-                                                                {(info?.regularMarketChangePercent || 0).toFixed(2)}%
-                                                            </span>
-                                                            <span className="text-[9px] text-gray-600">
-                                                                {(() => {
-                                                                    if (!info?.regularMarketTime) return "---";
-                                                                    const date = new Date(info.regularMarketTime * 1000);
-                                                                    const now = new Date();
-                                                                    const isToday = date.getDate() === now.getDate() &&
-                                                                        date.getMonth() === now.getMonth() &&
-                                                                        date.getFullYear() === now.getFullYear();
-                                                                    return isToday
-                                                                        ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                                                        : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                                                                })()}
-                                                            </span>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-xs text-blue-400 animate-pulse">---</span>
-                                                )}
-                                            </div>
-
-                                            {/* Actions Menu Trigger */}
-                                            <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={() => setMenuOpenFor(menuOpenFor === stock ? null : stock)}
-                                                    className="p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                                >
-                                                    <MoreVertical size={16} />
-                                                </button>
-
-                                                {/* Dropdown Menu */}
-                                                {menuOpenFor === stock && (
-                                                    <div className="absolute right-0 top-8 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-1">
-                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100 dark:border-gray-700 mb-1">Actions</div>
-
-                                                        <button
-                                                            onClick={() => handleRemoveStock(stock)}
-                                                            className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md flex items-center gap-2 mb-1"
-                                                        >
-                                                            <Trash2 size={14} /> Remove
-                                                        </button>
-
-                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 mt-1">Move to...</div>
-                                                        {watchlists.filter(w => w.id !== activeWatchlistId).length === 0 && (
-                                                            <div className="px-3 py-1 text-xs text-gray-600 italic">No other lists</div>
-                                                        )}
-                                                        {watchlists.filter(w => w.id !== activeWatchlistId).map(w => (
-                                                            <button
-                                                                key={w.id}
-                                                                onClick={() => handleMoveStock(stock, w.id)}
-                                                                className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-2"
-                                                            >
-                                                                <ArrowRightLeft size={14} /> {w.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleStockDragEnd}
+                            >
+                                <SortableContext
+                                    items={activeWatchlist.stocks}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    {activeWatchlist.stocks.map((stock) => (
+                                        <SortableStockRow
+                                            key={stock}
+                                            stock={stock}
+                                            stockData={stockData}
+                                            menuOpenFor={menuOpenFor}
+                                            setMenuOpenFor={setMenuOpenFor}
+                                            onSelectStock={onSelectStock}
+                                            handleRemoveStock={handleRemoveStock}
+                                            handleMoveStock={handleMoveStock}
+                                            watchlists={watchlists}
+                                            activeWatchlistId={activeWatchlistId}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </DndContext>
                         )}
                     </div>
                 </div>
