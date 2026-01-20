@@ -128,7 +128,7 @@ function SortableStockRow({
         <div
             ref={setNodeRef}
             style={style}
-            className="flex items-center gap-1 group"
+            className="flex items-center gap-0 group"
         >
             <div
                 {...attributes}
@@ -140,26 +140,28 @@ function SortableStockRow({
 
             <div
                 onClick={() => onSelectStock && onSelectStock(stock)}
-                className="relative flex-1 flex justify-between items-start p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                className="relative flex-1 flex items-center py-1 pl-1 pr-0.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
             >
                 {/* Left: Ticker & Name */}
-                <div className="min-w-0 flex-1 pr-2">
-                    <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight track-tight">{stock}</h3>
-                    <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
+                <div className="flex-1 min-w-0 pr-1">
+                    <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{stock}</h3>
+                    <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight max-w-[90px] sm:max-w-[120px]">
                         {info?.shortName || "Loading..."}
                     </p>
                 </div>
 
-                {/* Right: Price, Change, Date */}
-                <div className="flex items-start gap-3 shrink-0">
+                {/* Right: Price & Actions */}
+                <div className="flex items-center gap-0.5 shrink-0 ml-auto">
                     <div className="text-right">
                         {price ? (
                             <>
-                                <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight">
+                                <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight tabular-nums whitespace-nowrap">
                                     ${price.toFixed(2)}
                                 </span>
-                                <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                                    <span className={`text-[10px] font-bold ${(info?.regularMarketChangePercent || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                <div className="flex items-center justify-end mt-0.5">
+                                    <span className={`text-[10px] font-bold tabular-nums whitespace-nowrap ${(info?.regularMarketChangePercent || 0) >= 0
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         {(info?.regularMarketChangePercent || 0) > 0 ? '+' : ''}
                                         {(info?.regularMarketChangePercent || 0).toFixed(2)}%
@@ -175,9 +177,9 @@ function SortableStockRow({
                     <div className="relative" onClick={(e) => e.stopPropagation()}>
                         <button
                             onClick={() => setMenuOpenFor(menuOpenFor === stock ? null : stock)}
-                            className="p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            className="p-1 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
-                            <MoreVertical size={16} />
+                            <MoreVertical size={14} />
                         </button>
 
                         {/* Dropdown Menu */}
@@ -548,8 +550,8 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     const activeWatchlist = watchlists.find(w => w.id === activeWatchlistId);
 
     return (
-        <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 h-full flex flex-col relative overflow-hidden transition-colors duration-300" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
-            <div className="flex justify-between items-center mb-6 shrink-0">
+        <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 h-full flex flex-col relative overflow-hidden transition-colors duration-300" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
+            <div className="flex justify-between items-center mb-4 shrink-0">
                 <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
                     {user ? "My Watchlist" : "Watchlist"}
                 </h2>
@@ -699,7 +701,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                     </div>
 
                     {/* Stock List */}
-                    <div className="space-y-2 overflow-y-auto pr-2 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
+                    <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
                         {activeWatchlist.stocks.length === 0 ? (
                             <div className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-800 rounded-xl">
                                 <p className="mb-2">This watchlist is empty.</p>
