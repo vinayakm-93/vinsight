@@ -269,62 +269,62 @@ def get_market_regime():
 def get_batch_stock_details(tickers: list):
     """
     Fetch details for multiple stocks in parallel.
-    Optimized for Dashboard Watchlist Summary.
-    Now includes 5D, 1M, 6M, YTD performance and EPS.
+    Optimized: Single API call per stock for all metrics.
+    Calculates: 5D%, 1M%, 6M%, SMA20, SMA50, EPS, P/E
     """
     def fetch_one(ticker):
         try:
-            info = get_stock_info(ticker)
+            # Single yfinance call for ALL data
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            hist = stock.history(period="1y")
             
             def safe_val(val):
                 if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
                     return None
                 return val
             
-            # Get historical data for performance
-            five_day = one_month = six_month = ytd = None
-            try:
-                from datetime import datetime
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period="1y")
+            # Get current price
+            current = safe_val(info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0))
+            
+            # Initialize metrics
+            five_day = one_month = six_month = None
+            sma20 = sma50 = None
+            
+            # Calculate from historical data if available
+            if not hist.empty and current:
+                # Performance metrics
+                def pct_change(days):
+                    if len(hist) > days:
+                        past = hist['Close'].iloc[-days]
+                        if past > 0:
+                            return ((current - past) / past) * 100
+                    return None
                 
-                if not hist.empty:
-                    current = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)
-                    
-                    # Calculate changes
-                    def pct_change(days):
-                        if len(hist) > days and current:
-                            past = hist['Close'].iloc[-days]
-                            if past > 0:
-                                return ((current - past) / past) * 100
-                        return None
-                    
-                    five_day = pct_change(5)
-                    one_month = pct_change(21)
-                    six_month = pct_change(126)
-                    
-                    # YTD
-                    year_start = datetime(datetime.now().year, 1, 1)
-                    ytd_hist = hist[hist.index >= year_start]
-                    if len(ytd_hist) > 0 and current:
-                        ytd_price = ytd_hist['Close'].iloc[0]
-                        if ytd_price > 0:
-                            ytd = ((current - ytd_price) / ytd_price) * 100
-            except:
-                pass
+                five_day = pct_change(5)
+                one_month = pct_change(21)
+                six_month = pct_change(126)
+                
+                # SMA20 and SMA50
+                closes = hist['Close']
+                if len(closes) >= 20:
+                    sma20 = safe_val(closes.rolling(window=20).mean().iloc[-1])
+                if len(closes) >= 50:
+                    sma50 = safe_val(closes.rolling(window=50).mean().iloc[-1])
 
             return {
                 "symbol": ticker,
-                "currentPrice": safe_val(info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)),
+                "currentPrice": current,
                 "regularMarketChange": safe_val(info.get('regularMarketChange') or 0),
                 "regularMarketChangePercent": safe_val(info.get('regularMarketChangePercent') or 0),
                 "previousClose": safe_val(info.get('regularMarketPreviousClose') or info.get('previousClose', 0)),
                 "fiveDayChange": safe_val(five_day),
                 "oneMonthChange": safe_val(one_month),
                 "sixMonthChange": safe_val(six_month),
-                "ytdChange": safe_val(ytd),
+                "sma20": sma20,
+                "sma50": sma50,
                 "trailingEps": safe_val(info.get('trailingEps')),
-                "trailingPE": safe_val(info.get('trailing PE')),
+                "trailingPE": safe_val(info.get('trailingPE')),
                 "fiftyTwoWeekHigh": safe_val(info.get('fiftyTwoWeekHigh'))
             }
         except Exception as e:
