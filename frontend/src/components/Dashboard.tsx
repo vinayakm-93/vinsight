@@ -434,7 +434,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             onClick={() => handleSort('changePct')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                1D %
+                                                1D%
                                                 {sortColumn === 'changePct' ? (
                                                     <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                                                 ) : (
@@ -447,7 +447,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             onClick={() => handleSort('5d')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                5D %
+                                                5D%
                                                 {sortColumn === '5d' ? (
                                                     <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                                                 ) : (
@@ -460,7 +460,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             onClick={() => handleSort('1m')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                1M %
+                                                1M%
                                                 {sortColumn === '1m' ? (
                                                     <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                                                 ) : (
@@ -473,7 +473,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             onClick={() => handleSort('6m')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                6M %
+                                                6M%
                                                 {sortColumn === '6m' ? (
                                                     <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                                                 ) : (
