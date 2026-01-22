@@ -90,11 +90,11 @@ export default function Home() {
       </header>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="max-w-7xl 2xl:max-w-[95%] 3xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr] gap-8">
 
           {/* Sidebar / Watchlist */}
-          <div className="lg:col-span-3 min-h-[500px] h-full overflow-hidden rounded-xl">
+          <div className="min-h-[500px] h-full overflow-hidden rounded-xl">
             <WatchlistComponent
               onSelectStock={setSelectedTicker}
               onWatchlistChange={setWatchlistStocks}
@@ -102,7 +102,7 @@ export default function Home() {
           </div>
 
           {/* Main Dashboard Area */}
-          <div className="lg:col-span-9">
+          <div className="min-w-0">
             <Dashboard
               ticker={selectedTicker}
               watchlistStocks={watchlistStocks}
