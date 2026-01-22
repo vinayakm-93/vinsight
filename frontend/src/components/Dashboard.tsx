@@ -319,9 +319,29 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     bVal = b.regularMarketChangePercent || 0;
                     break;
 
-                case 'marketCap':
-                    aVal = a.marketCap || 0;
-                    bVal = b.marketCap || 0;
+                case '5d':
+                    aVal = a.fiveDayChange || 0;
+                    bVal = b.fiveDayChange || 0;
+                    break;
+
+                case '1m':
+                    aVal = a.oneMonthChange || 0;
+                    bVal = b.oneMonthChange || 0;
+                    break;
+
+                case '6m':
+                    aVal = a.sixMonthChange || 0;
+                    bVal = b.sixMonthChange || 0;
+                    break;
+
+                case 'ytd':
+                    aVal = a.ytdChange || 0;
+                    bVal = b.ytdChange || 0;
+                    break;
+
+                case 'eps':
+                    aVal = a.trailingEps || 0;
+                    bVal = b.trailingEps || 0;
                     break;
 
                 case 'pe':
@@ -419,11 +439,63 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         </th>
                                         <th
                                             className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('marketCap')}
+                                            onClick={() => handleSort('5d')}
                                         >
                                             <div className="flex items-center gap-2">
-                                                Market Cap
-                                                {sortColumn === 'marketCap' ? (
+                                                5D %
+                                                {sortColumn === '5d' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                            onClick={() => handleSort('1m')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                1M %
+                                                {sortColumn === '1m' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                            onClick={() => handleSort('6m')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                6M %
+                                                {sortColumn === '6m' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                            onClick={() => handleSort('ytd')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                YTD %
+                                                {sortColumn === 'ytd' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                            onClick={() => handleSort('eps')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                EPS
+                                                {sortColumn === 'eps' ? (
                                                     <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                                                 ) : (
                                                     <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
@@ -477,8 +549,20 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                 <td className={`py-3 px-4 font-mono font-bold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                                     {pct > 0 ? '+' : ''}{(pct).toFixed(2)}%
                                                 </td>
-                                                <td className="py-3 px-4 font-mono text-gray-400">
-                                                    {stock.marketCap ? (stock.marketCap / 1e9).toFixed(2) + 'B' : '-'}
+                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.fiveDayChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {stock.fiveDayChange != null ? `${stock.fiveDayChange > 0 ? '+' : ''}${stock.fiveDayChange.toFixed(2)}%` : '-'}
+                                                </td>
+                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.oneMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {stock.oneMonthChange != null ? `${stock.oneMonthChange > 0 ? '+' : ''}${stock.oneMonthChange.toFixed(2)}%` : '-'}
+                                                </td>
+                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
+                                                </td>
+                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.ytdChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {stock.ytdChange != null ? `${stock.ytdChange > 0 ? '+' : ''}${stock.ytdChange.toFixed(2)}%` : '-'}
+                                                </td>
+                                                <td className="py-3 px-4 font-mono text-blue-400">
+                                                    {stock.trailingEps != null ? stock.trailingEps.toFixed(2) : '-'}
                                                 </td>
                                                 <td className="py-3 px-4 font-mono text-blue-400">
                                                     {stock.trailingPE?.toFixed(2) || '-'}
