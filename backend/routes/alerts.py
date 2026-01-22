@@ -80,7 +80,15 @@ def create_alert(alert: AlertCreate, db: Session = Depends(get_db), user: User =
             user.last_alert_reset = now
             db.commit() # Save reset state
 
-        # 2. Limit Check
+        # 2. Limit Checks
+        # 2a. Check Monthly Trigger Limit (prevent creating new alerts if limit reached)
+        if user.alerts_triggered_this_month >= user.alert_limit:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Monthly alert limit reached ({user.alerts_triggered_this_month}/{user.alert_limit}). Alerts will reset next month."
+            )
+        
+        # 2b. Check Active Alerts Count
         active_count = db.query(Alert).filter(Alert.user_id == user.id).count()
         if active_count >= 50:
              raise HTTPException(status_code=400, detail="Maximum 50 active alerts allowed.")

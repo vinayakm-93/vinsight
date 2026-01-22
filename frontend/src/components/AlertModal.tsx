@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { X, Bell, TrendingUp, TrendingDown, Loader, Trash2 } from 'lucide-react';
+import { X, Bell, TrendingUp, TrendingDown, Loader, Trash2, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api'; // Use the configured API instance
 
@@ -20,6 +20,8 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
 
     const [existingAlerts, setExistingAlerts] = useState<any[]>([]);
     const [alertsLoading, setAlertsLoading] = useState(false);
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
+    const [userLimits, setUserLimits] = useState<{ triggered: number, limit: number } | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -28,6 +30,7 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
             // Better UX: Don't auto-flip while typing, only on open.
             setCondition('above');
             fetchAlerts();
+            fetchUserLimits();
         }
     }, [isOpen, ticker]);
 
@@ -48,14 +51,34 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
         }
     };
 
+    const fetchUserLimits = async () => {
+        try {
+            const res = await api.get('/api/auth/me');
+            if (res.data) {
+                setUserLimits({
+                    triggered: res.data.alerts_triggered_this_month || 0,
+                    limit: res.data.alert_limit || 10
+                });
+            }
+        } catch (e) {
+            console.error('Failed to fetch user limits', e);
+        }
+    };
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        setToast({ type, message });
+        setTimeout(() => setToast(null), 4000);
+    };
+
     const handleDelete = async (id: number) => {
         if (!confirm("Delete this alert?")) return;
         try {
             await api.delete(`/api/alerts/${id}`);
             setExistingAlerts(prev => prev.filter(a => a.id !== id));
+            showToast('success', 'Alert deleted successfully');
         } catch (e) {
             console.error(e);
-            alert("Failed to delete alert");
+            showToast('error', 'Failed to delete alert');
         }
     };
 
@@ -70,15 +93,16 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
                 target_price: parseFloat(targetPrice),
                 condition: condition
             });
-            alert(`Alert set for ${ticker} ${condition} $${targetPrice}`);
-            fetchAlerts(); // Refresh list instead of closing?
+            showToast('success', `Alert set for ${ticker} ${condition} $${targetPrice}`);
+            fetchAlerts(); // Refresh list
+            fetchUserLimits(); // Refresh limits
             setTargetPrice(currentPrice.toString());
         } catch (error: any) {
             console.error(error);
             if (error.response?.status === 400 && error.response?.data?.detail) {
-                alert(`Error: ${error.response.data.detail}`); // Show limit message
+                showToast('error', error.response.data.detail);
             } else {
-                alert("Failed to create alert.");
+                showToast('error', 'Failed to create alert. Please try again.');
             }
         } finally {
             setLoading(false);
@@ -87,7 +111,21 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 scale-100 transition-all">
+            <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 scale-100 transition-all relative">
+                {/* Toast Notification */}
+                {toast && (
+                    <div className={`absolute top-4 left-4 right-4 z-50 flex items-center gap-2 p-3 rounded-lg shadow-lg animate-in slide-in-from-top-2 duration-300 ${toast.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' :
+                            toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' :
+                                'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                        }`}>
+                        {toast.type === 'success' && <CheckCircle size={18} />}
+                        {toast.type === 'error' && <AlertCircle size={18} />}
+                        {toast.type === 'info' && <Info size={18} />}
+                        <span className="text-sm font-medium flex-1">{toast.message}</span>
+                        <button onClick={() => setToast(null)} className="hover:opacity-70"><X size={14} /></button>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold dark:text-white flex items-center gap-2">
                         <Bell className="text-blue-500" /> Set Agent Alert for {ticker}
@@ -96,6 +134,30 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
                         <X size={20} />
                     </button>
                 </div>
+
+                {/* User Alert Limits Display */}
+                {userLimits && (
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600 dark:text-gray-400">Monthly Alert Triggers</span>
+                            <span className={`font-bold ${userLimits.triggered >= userLimits.limit ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                {userLimits.triggered} / {userLimits.limit} used
+                            </span>
+                        </div>
+                        <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                            <div
+                                className={`h-1.5 rounded-full transition-all ${userLimits.triggered >= userLimits.limit ? 'bg-red-500' : 'bg-blue-500'}`}
+                                style={{ width: `${Math.min((userLimits.triggered / userLimits.limit) * 100, 100)}%` }}
+                            />
+                        </div>
+                        {userLimits.triggered >= userLimits.limit && (
+                            <p className="text-[10px] text-red-600 dark:text-red-400 mt-2 flex items-center gap-1">
+                                <AlertCircle size={10} />
+                                You've reached your monthly alert limit. Alerts will reset next month.
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Current Price</p>
