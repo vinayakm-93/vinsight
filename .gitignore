@@ -4,7 +4,15 @@
 .env.development
 .env.test
 .env.production
+.env.backup*
+backend/.env.backup*
 !.env.example
+
+# Credential test files
+test_*password*.py
+test_*credential*.py
+*_password*.sh
+update_email_password.sh
 
 # Python
 __pycache__/

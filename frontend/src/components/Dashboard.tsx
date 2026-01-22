@@ -54,6 +54,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     // Watchlist Summary State
     const [summaryData, setSummaryData] = useState<any[]>([]);
     const [loadingSummary, setLoadingSummary] = useState(false);
+    const [sortColumn, setSortColumn] = useState<string | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [timeRange, setTimeRange] = useState(TIME_RANGES[6]); // Default 1Y
     const [chartType, setChartType] = useState<'area' | 'candle'>('area');
@@ -277,6 +279,69 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         return { change, pctChange };
     }, [history]);
 
+    // Sort function for overview table
+    const handleSort = (column: string) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('desc');
+        }
+    };
+
+    // Get sorted summary data
+    const sortedSummaryData = useMemo(() => {
+        if (!sortColumn) return summaryData;
+
+        return [...summaryData].sort((a, b) => {
+            let aVal, bVal;
+
+            switch (sortColumn) {
+                case 'symbol':
+                    aVal = a.symbol || '';
+                    bVal = b.symbol || '';
+                    return sortDirection === 'asc'
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+
+                case 'price':
+                    aVal = a.currentPrice || a.regularMarketPrice || a.previousClose || 0;
+                    bVal = b.currentPrice || b.regularMarketPrice || b.previousClose || 0;
+                    break;
+
+                case 'change':
+                    aVal = a.regularMarketChange || 0;
+                    bVal = b.regularMarketChange || 0;
+                    break;
+
+                case 'changePct':
+                    aVal = a.regularMarketChangePercent || 0;
+                    bVal = b.regularMarketChangePercent || 0;
+                    break;
+
+                case 'marketCap':
+                    aVal = a.marketCap || 0;
+                    bVal = b.marketCap || 0;
+                    break;
+
+                case 'pe':
+                    aVal = a.trailingPE || 0;
+                    bVal = b.trailingPE || 0;
+                    break;
+
+                case '52wHigh':
+                    aVal = a.fiftyTwoWeekHigh || 0;
+                    bVal = b.fiftyTwoWeekHigh || 0;
+                    break;
+
+                default:
+                    return 0;
+            }
+
+            return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+    }, [summaryData, sortColumn, sortDirection]);
+
     if (!ticker) {
         return (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -300,17 +365,87 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <table className="w-full text-sm text-left">
                                 <thead className="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 text-xs uppercase tracking-wider">
                                     <tr>
-                                        <th className="py-3 px-4 font-medium">Symbol</th>
-                                        <th className="py-3 px-4 font-medium">Price</th>
-                                        <th className="py-3 px-4 font-medium">Change</th>
-                                        <th className="py-3 px-4 font-medium">Change %</th>
-                                        <th className="py-3 px-4 font-medium">Market Cap</th>
-                                        <th className="py-3 px-4 font-medium">P/E</th>
-                                        <th className="py-3 px-4 font-medium">52W High</th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('symbol')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Symbol
+                                                {sortColumn === 'symbol' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('price')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Price
+                                                {sortColumn === 'price' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('change')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Change
+                                                {sortColumn === 'change' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('changePct')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Change %
+                                                {sortColumn === 'changePct' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('marketCap')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Market Cap
+                                                {sortColumn === 'marketCap' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('pe')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                P/E
+                                                {sortColumn === 'pe' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            onClick={() => handleSort('52wHigh')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                52W High
+                                                {sortColumn === '52wHigh' && (
+                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                )}
+                                            </div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-800/50 text-gray-300">
-                                    {summaryData.map((stock) => {
+                                    {sortedSummaryData.map((stock) => {
                                         const price = stock.currentPrice || stock.regularMarketPrice || stock.previousClose || 0;
                                         const change = stock.regularMarketChange || 0;
                                         const pct = stock.regularMarketChangePercent || 0;
