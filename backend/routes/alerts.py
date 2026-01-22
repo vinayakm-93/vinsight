@@ -118,10 +118,18 @@ def create_alert(alert: AlertCreate, db: Session = Depends(get_db), user: User =
             current_price=None 
         )
     except HTTPException as he:
+        logger.error(f"HTTPException creating alert: {he.status_code} - {he.detail}")
         raise he
     except Exception as e:
-        logger.exception(f"Error creating alert")
-        raise HTTPException(status_code=500, detail="Failed to create alert. Please try again.")
+        logger.exception(f"Unexpected error creating alert for user {user.id}, symbol {alert.symbol}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create alert: {type(e).__name__} - {str(e)}"
+        )
 
 @router.delete("/{alert_id}")
 def delete_alert(alert_id: int, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):

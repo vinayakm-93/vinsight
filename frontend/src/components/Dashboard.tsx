@@ -363,82 +363,96 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 text-xs uppercase tracking-wider">
+                                <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
                                     <tr>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('symbol')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 Symbol
-                                                {sortColumn === 'symbol' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'symbol' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('price')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 Price
-                                                {sortColumn === 'price' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'price' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('change')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 Change
-                                                {sortColumn === 'change' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'change' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('changePct')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 Change %
-                                                {sortColumn === 'changePct' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'changePct' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('marketCap')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 Market Cap
-                                                {sortColumn === 'marketCap' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'marketCap' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('pe')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 P/E
-                                                {sortColumn === 'pe' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === 'pe' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
                                         <th
-                                            className="py-3 px-4 font-medium cursor-pointer hover:text-blue-500 dark:hover:text-blue-400 transition-colors select-none"
+                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                             onClick={() => handleSort('52wHigh')}
                                         >
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-2">
                                                 52W High
-                                                {sortColumn === '52wHigh' && (
-                                                    <span className="text-blue-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                {sortColumn === '52wHigh' ? (
+                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                ) : (
+                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
                                                 )}
                                             </div>
                                         </th>
