@@ -26,7 +26,7 @@ class User(Base):
     
     # Alert Limits & Tracking
     alerts_triggered_this_month = Column(Integer, default=0)
-    alert_limit = Column(Integer, default=10) # Default limit
+    alert_limit = Column(Integer, default=30) # Default limit: 30 alerts per month
     last_alert_reset = Column(DateTime, default=datetime.utcnow)
     
     created_at = Column(DateTime, default=datetime.utcnow)
