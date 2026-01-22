@@ -386,7 +386,14 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <span className="text-blue-500 font-bold animate-pulse">Loading Market Data...</span>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="relative">
+                            {/* Scroll indicator */}
+                            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-gray-900 to-transparent pointer-events-none z-10 flex items-center justify-end pr-2">
+                                <svg className="w-5 h-5 text-gray-400 dark:text-gray-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                            <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
                                 <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
                                     <tr>
@@ -596,6 +603,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     })}
                                 </tbody>
                             </table>
+                        </div>
                         </div>
                     )}
                 </div>
