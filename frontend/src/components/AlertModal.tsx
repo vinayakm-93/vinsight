@@ -104,12 +104,17 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
                 // console.error('Error headers:', error.response.headers);
                 console.error('Error data:', JSON.stringify(error.response.data, null, 2));
             }
-            if (error.response?.status === 400 && error.response?.data?.detail) {
-                showToast('error', error.response.data.detail);
+            if (error.response?.data?.detail) {
+                // Handle Pydantic validation errors (array or string)
+                const detail = error.response.data.detail;
+                const msg = Array.isArray(detail)
+                    ? detail.map((d: any) => d.msg).join(', ')
+                    : detail;
+                showToast('error', `Error: ${msg}`);
             } else if (error.response?.data?.message) {
                 showToast('error', error.response.data.message);
             } else {
-                showToast('error', 'Failed to create alert. Please try again.');
+                showToast('error', `Failed to create alert (${error.response?.status || 'Unknown'}). Check console.`);
             }
         } finally {
             setLoading(false);
