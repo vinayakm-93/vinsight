@@ -1,6 +1,6 @@
 # Vinsight Project Handover
 
-**Date:** December 15, 2025
+**Date:** January 22, 2026
 **Status:** Deployed to Production (Google Cloud Run)
 
 ## 🔗 Quick Links
@@ -19,13 +19,14 @@ This is a monorepo containing both the Frontend and Backend.
 *   **Tech:** Next.js (React), TypeScript, Tailwind CSS.
 *   **Deployment:** Docker container on Cloud Run.
 *   **Configuration:** `NEXT_PUBLIC_API_URL` is baked in at build time via `deploy.sh`.
+*   **Updates (v6.2.2):** Improved error handling and toast notifications.
 
 ### Backend
 *   **Path:** `/backend`
 *   **Tech:** Python (FastAPI), PyTorch (CPU-only), Gunicorn.
-*   **Database:** SQLite (`finance.db`).
-*   **Key Libraries:** `transformers` (AI analysis), `yfinance` (Stock data).
-*   **Deployment:** Docker container on Cloud Run.
+*   **Database:** Cloud SQL (PostgreSQL).
+*   **Key Libraries:** `transformers` (AI analysis), `yfinance` (Stock data), `simplejson` (NaN handling).
+*   **Deployment:** Docker container on Cloud Run (**Requires 2Gi Memory**).
 
 ---
 
@@ -37,12 +38,16 @@ We have automated the deployment process.
     ```bash
     ./deploy.sh
     ```
-    *This script handles enabling APIs, building Docker images, and deploying to Cloud Run.*
+    *This script handles enabling APIs, building images, and deploying with correct memory config.*
 
 ---
 
-## ⚠️ Known Limitations
-### 1. Cold Starts
+## ⚠️ Infrastructure Notes (Jan 22)
+### 1. Memory Requirements
+*   **Critical**: The Backend service now requires **2Gi** of memory (up from 512MiB) due to `torch` and `transformers` usage.
+*   **Configuration**: This is enforced in `./deploy.sh` via the `--memory 2Gi` flag.
+
+### 2. Cold Starts
 *   Since we are on the "Free Tier" (scaling to 0), the first request after a while might take 10-20 seconds to wake up the server.
 
 ---
@@ -50,108 +55,33 @@ We have automated the deployment process.
 ## 📂 Key Files Guide
 | File | Purpose |
 |------|---------|
-| `deploy.sh` | **Master deployment script.** Handles Secrets, Cloud SQL, Jobs, and Cloud Run. |
+| `deploy.sh` | **Master deployment script.** Handles Secrets, Cloud SQL, Memory Config. |
+| `backend/main.py` | Core App. Includes `NaNJSONResponse` for robust serialization. |
+| `backend/services/alert_checker.py` | Auto-deletes triggered alerts to keep queue clean. |
 | `backend/Dockerfile` | Defines backend environment. Optimized for CPU Torch. |
-| `frontend/Dockerfile` | Defines frontend build. Accepts build-args for API URL. |
-| `backend/jobs/` | Contains background job scripts (e.g. `market_watcher_job.py`). |
-| `scripts/` | Database and Secret migration utilities. |
+| `frontend/Dockerfile` | Defines frontend build. |
 
 ---
 
-## 🔮 Future Roadmap
-1.  **Redis Caching**: Use Redis for even faster alerts and user session management.
-2.  **AI Agents**: Upgrade `vinsight-watcher` to use Vertex AI for qualitative analysis (News/Sentiment) instead of just price thresholds.
-3.  **CI/CD**: Connect GitHub Actions to run `deploy.sh` automatically on push.
-
----
-
-
-## 🛡️ Security & Infrastructure (Dec 16 Update)
-### ✅ Completed Upgrades
-*   **Database**: Migrated to **Google Cloud SQL (PostgreSQL)**. Data is now persistent.
-*   **Secrets**: All sensitive keys (`DB_PASS`, `API_KEYS`) are stored in **Google Secret Manager**.
-*   **Background Jobs**: `MarketWatcher` moved to **Cloud Run Jobs** + **Cloud Scheduler**.
-*   **Hardening**:
-    *   `/test` route disabled in production.
-    *   Strict CORS and Rate Limiting enabled.
-
-### 🔄 Architecture Update (Dec 16 - Auth Fix)
-*   **Proxy Layer**: Implemented **Next.js Rewrites** to proxy API requests.
-    *   **Why?** To solve Third-Party Cookie blocking on Chrome/Safari when Frontend and Backend are on different Cloud Run subdomains.
-    *   **Flow**: Browser -> Frontend (`/api/*`) -> Backend (`/api/*`).
-    *   **Benefit**: Cookies are now "First-Party" and secure.
-
-### ✨ Use Experience (Dec 16)
-*   **Favicon**: Updated with custom brand icon.
-*   **Auth Flow**: Verified Login/Signup logic with new Proxy architecture.
-
-## ✅ Deployment Status Report
+## ✅ Deployment Status Report (Jan 22)
 | Component | Status | Verified Date | Notes |
 |-----------|--------|---------------|-------|
-| **Frontend** | 🟢 Stable | Dec 16 | Uses Proxy for API calls. Favicon updated. |
-| **Backend** | 🟢 Stable | Dec 16 | Served via standard port 8080. |
-| **Database** | 🟢 Stable | Dec 16 | Cloud SQL Connection healthy. |
-| **Auth** | 🟢 Stable | Dec 16 | Cookies setting correctly via Proxy. |
-| **Watchlist** | 🟢 Stable | Dec 16 | Self-healing logic added for default lists. |
+| **Frontend** | 🟢 Stable | Jan 22 | New error handling deployed. |
+| **Backend** | 🟢 Stable | Jan 22 | Memory increased to 2Gi. No OOMs. |
+| **Database** | 🟢 Stable | Jan 22 | Alert deletion logic active. |
+| **Alerts** | 🟢 Active | Jan 22 | Creation & Auto-Deletion verified. |
 
-## ⚠️ Known Issues & Workarounds (Dec 16)
-### 1. Hardcoded Proxy URL
-*   **Issue**: `next.config.js` `rewrites()` function was failing to read `API_URL` environment variable at runtime in Cloud Run.
-*   **Workaround**: We have temporarily hardcoded the backend URL (`https://vinsight-backend-wddr2kfz3a-uc.a.run.app`) in `frontend/next.config.js`.
-*   **Future Fix**: Investigate why Cloud Run environment variable injection is delayed or hidden from Next.js build context vs runtime context.
+## ⚠️ Resolved Issues (Jan 22)
+### 1. Alert Creation "Failed"
+*   **Cause**: `NaN` values crashing JSON encoder.
+*   **Fix**: Implemented `NaNJSONResponse`.
 
-### 2. Watchlist Empty State
-*   **Fix**: Added logic in `backend/routes/watchlist.py` to automatically create "My First List" if a user has 0 watchlists. This prevents the UI from entering a broken state.
+### 2. OOM Crashes
+*   **Cause**: 512MiB memory insufficient for ML libs.
+*   **Fix**: Upgraded container to 2Gi RAM.
 
-### 3. Trailing Slash Redirect (Dec 16 Fix)
-*   **Issue**: Watchlists failed to load after login with "Not Found" or "Failed to load watchlists" errors.
-*   **Root Cause**: Next.js proxy strips trailing slashes. FastAPI was redirecting via 307, but cookies were lost during redirect.
-*   **Solution**:
-    1. Added `redirect_slashes=False` to FastAPI in `main.py`
-    2. Added dual route decorators (`@router.get("")` and `@router.get("/")`) in `watchlist.py`
-*   **Status**: ✅ Fixed and deployed.
+### 3. Trailing Slash 404
+*   **Cause**: Frontend proxy stripped slashes, Backend expected them.
+*   **Fix**: Backend routes updated to be slash-agnostic via `@router.post("")`.
 
 ---
-
-## ✨ Recent Features (Dec 16)
-*   **Guest Mode**: Users can explore the app without logging in. Guest watchlist saved to localStorage.
-*   **Improved UI States**: Loading, error, and empty states for better UX.
-
----
-
-## 🧠 VinSight Score v6.1 Update (Dec 17)
-
-### Rebalanced for Retail Investors
-Fundamentals now carry **60%** of the total score.
-
-| Pillar | Points | Key Components |
-|--------|--------|----------------|
-| **Fundamentals** | 60 | Valuation (16), Growth (14), Margins (14), Debt (8), Inst (4), Flow (4) |
-| **Sentiment** | 15 | News (10 pts) + Finnhub MSPR (5 pts) |
-| **Projections** | 15 | Monte Carlo upside (9 pts) + risk/reward (6 pts) |
-| **Technicals** | 10 | SMA distance (4), RSI optimal zone (3), volume (3) |
-
-### Sector Override Feature
-- 29 industry-specific benchmarks with wide variance
-- Dropdown in Recommendation Score header (moved from Fundamentals)
-- P/E median ranges: 8 (Mining) → 80 (EV/Clean Energy)
-
-### Expanded Sector Benchmarks (v6.1)
-| Sector | P/E Median | PEG Fair | Growth % | Margin % |
-|--------|------------|----------|----------|----------|
-| Technology | 30 | 2.0 | 15% | 20% |
-| Cloud/SaaS | 60 | 3.5 | 25% | 15% |
-| EV/Clean Energy | 80 | 4.0 | 35% | 5% |
-| Banks | 12 | 1.2 | 8% | 30% |
-| Mining | 8 | 1.0 | 5% | 15% |
-
-### Outlook Time Horizons
-- **3 Months**: Technical/Momentum (RSI, SMA50, Sentiment, Beta)
-- **6 Months**: Valuation/Growth (PEG, P/E, SMA200, Earnings Growth)
-- **12 Months**: Quality/Fundamentals (Margins, Debt, 52W Range, Dividends)
-
-### New Environment Variable
-```
-FINNHUB_API_KEY=  # Free from finnhub.io
-```
-

@@ -1,5 +1,18 @@
 # Changelog
  
+## v6.2.2 - Stability & Alerts Fix (2026-01-22)
+
+### 🐛 Critical Bug Fixes
+- **Validation Fix**: Resolved `NaN` crash in `backend/main.py`.
+- **Infrastructure Fix**: Increased backend memory limit to 2Gi to handle `torch`/ML dependencies (Fixed OOM crash).
+- **Routing Fix**: Updated `backend/routes/alerts.py` to allow paths without trailing slashes (Fixed `404 Not Found`).
+- **Use Experience**: Added detailed backend error mapping (422/500/401) to frontend toast notifications.
+
+### ⚡ Improvements
+- **Auto-Queue Removal**: Triggered alerts are now automatically deleted from definition, keeping the user's list clean.
+
+---
+
 ## v6.2.1 - Alert System Hotfix (2026-01-22)
 
 ### 🐛 Bug Fixes
