@@ -1,4 +1,27 @@
 # Changelog
+ 
+## v6.2.1 - Alert System Hotfix (2026-01-22)
+
+### 🐛 Bug Fixes
+- **Alert Creation Failure**: Fixed `ValueError` caused by `NaN` values in financial data by implementing a custom `NaNJSONResponse` using `simplejson` to safely handle invalid float values.
+- **Logging**: Added verification logging for alert payloads and enhanced frontend error reporting to browser console.
+
+---
+
+## v6.2.0 - Theme Engine & Localhost Fixes (2026-01-22)
+
+### 🚀 Improvements
+
+#### Theme Toggle Logic (Tailwind v4)
+- Fixed theme toggle (Light/Dark/System) by adding explicit `@variant dark` support in `globals.css`.
+- Enabled manual theme overrides to work independently of system preferences.
+- Ensured `dark:` utility classes respond correctly to the `.dark` class on `<html>`.
+
+### 🐛 Bug Fixes
+- Restored `localhost` accessibility by restarting backend (FastAPI/Uvicorn) and frontend (Next.js) development servers.
+- Fixed issue where Tailwind `dark:` prefixed classes were ignored in Dark Mode.
+
+---
 
 ## v6.1.0 - Sector Expansion & Weight Rebalance (2025-12-17)
 

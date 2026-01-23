@@ -67,6 +67,7 @@ def get_alerts(db: Session = Depends(get_db), user: User = Depends(auth.get_curr
 @router.post("/", response_model=AlertOut)
 def create_alert(alert: AlertCreate, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
     logger.info(f"Creating alert for user {user.id}: {alert.symbol} {alert.condition} {alert.target_price}")
+    logger.debug(f"Alert payload: {alert.dict()}")
     try:
         # 1. Lazy Reset Monthly Limit
         now = datetime.utcnow()

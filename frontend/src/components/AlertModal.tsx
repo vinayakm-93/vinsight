@@ -98,8 +98,12 @@ export default function AlertModal({ isOpen, onClose, ticker, currentPrice }: Al
             fetchUserLimits(); // Refresh limits
             setTargetPrice(currentPrice.toString());
         } catch (error: any) {
-            console.error('Create alert error:', error);
-            console.error('Error response:', error.response?.data);
+            console.error('Create alert error object:', error);
+            if (error.response) {
+                console.error('Error status:', error.response.status);
+                // console.error('Error headers:', error.response.headers);
+                console.error('Error data:', JSON.stringify(error.response.data, null, 2));
+            }
             if (error.response?.status === 400 && error.response?.data?.detail) {
                 showToast('error', error.response.data.detail);
             } else if (error.response?.data?.message) {

@@ -46,6 +46,35 @@ def on_startup():
     # MarketWatcher moved to Cloud Run Job
     logger.info(f"Server started in {ENV} mode with rate limiting enabled")
 
+# --- Custom JSON Encoder for NaN Handling ---
+import simplejson
+from typing import Any
+from starlette.responses import JSONResponse
+
+class NaNJSONResponse(JSONResponse):
+    """
+    Custom JSONResponse that handles NaN values by converting them to null,
+    preventing 500 errors when data providers return gaps or invalid floats.
+    """
+    def render(self, content: Any) -> bytes:
+        return simplejson.dumps(
+            content,
+            ensure_ascii=False,
+            ignore_nan=True, # Critical: Converts NaN/Infinity to null
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+# Register the custom response class globally
+# Note: We must re-instantiate FastAPI to set the default response class if we want it global,
+# OR we can just use the middleware / exception handlers.
+# But since we already instantiated 'app' above, we can just patch it or swap it.
+# Simplest for this existing file structure:
+# We already defined 'app' earlier. Let's just create a new one with the custom class 
+# and re-attach dependencies if we were writing from scratch.
+# But to be safe with existing imports:
+app.router.default_response_class = NaNJSONResponse
+
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "Finance Research Backend Running"}
