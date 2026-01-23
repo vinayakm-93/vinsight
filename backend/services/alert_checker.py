@@ -50,7 +50,7 @@ async def check_alerts(db: Session):
                      continue
 
                  print(f"Alert TRIGGERED: {alert.symbol} {alert.condition} {alert.target_price} (Current: {current})")
-                 alert.is_triggered = True
+                 # alert.is_triggered = True # Old logic
                  triggered_count += 1
                  
                  # Increment Usage
@@ -59,8 +59,9 @@ async def check_alerts(db: Session):
                  # Send Email
                  if user.email:
                       await send_alert_email(user.email, alert.symbol, current, alert.condition, alert.target_price)
-                      # We could pass limit info here if we updated send_alert_email signature to take user obj or counts
-                      # user.alert_limit - user.alerts_triggered_this_month remaining
+                 
+                 # Remove from queue (Delete from DB)
+                 db.delete(alert)
     
     if triggered_count > 0:
         db.commit()
