@@ -38,7 +38,7 @@ class AlertOut(BaseModel):
     class Config:
         from_attributes = True
 
-@router.get("/", response_model=List[AlertOut])
+@router.get("", response_model=List[AlertOut])
 def get_alerts(db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
     alerts = db.query(Alert).filter(Alert.user_id == user.id).all()
     results = []
@@ -64,7 +64,7 @@ def get_alerts(db: Session = Depends(get_db), user: User = Depends(auth.get_curr
         ))
     return results
 
-@router.post("/", response_model=AlertOut)
+@router.post("", response_model=AlertOut)
 def create_alert(alert: AlertCreate, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
     logger.info(f"Creating alert for user {user.id}: {alert.symbol} {alert.condition} {alert.target_price}")
     logger.debug(f"Alert payload: {alert.dict()}")
