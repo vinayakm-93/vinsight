@@ -173,22 +173,24 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         }
     };
 
-    // Initial Load - Full
+    // Initial Load - Full (Optimized)
     useEffect(() => {
         if (!ticker) return;
         const initFetch = async () => {
             setLoading(true);
             try {
-                // Fetch basics first
-                const [analData, newsData] = await Promise.all([
-                    getAnalysis(ticker, selectedSector),
-                    getNews(ticker)
-                ]);
-                setAnalysis(analData);
-                setNews(newsData || []);
+                // Fetch basics (Optimized: single call returns analysis + news + sim + inst)
+                const analData = await getAnalysis(ticker, selectedSector);
 
-                // history is fetched in the other effect, but we can do a preliminary one here if needed
-                // or just let the timeRange effect handle it.
+                setAnalysis(analData);
+
+                // Optimized: Set other states from analData directly
+                // (Fallback to empty array/null if not present)
+                if (analData.news) setNews(analData.news);
+                if (analData.simulation) setSimulation(analData.simulation);
+                if (analData.institutional) setInstitutions(analData.institutional);
+
+                // history is fetched in the other effect for dynamic charts, but analData has it too.
             } catch (e) { console.error(e); }
             finally { setLoading(false); }
         };
@@ -225,18 +227,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     }, [ticker, timeRange, showComparison]);
 
     // Simulation & Institutional - can happen later or parallel
-    useEffect(() => {
-        if (!ticker) return;
-        const fetchExtras = async () => {
-            try {
-                const simRes = await getSimulation(ticker);
-                setSimulation(simRes);
-                const instRes = await getInstitutionalData(ticker);
-                setInstitutions(instRes);
-            } catch (e) { console.error(e); }
-        };
-        fetchExtras();
-    }, [ticker]);
+    // Simulation & Institutional - OPTIMIZED: Loaded via getAnalysis now.
+    // Redundant effect removed to save 2 API calls.
+    // useEffect(() => { ... }, [ticker]);
 
     // Separate effect to fetch static info like 52W High/Low
     useEffect(() => {
@@ -338,7 +331,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     aVal = a.sma20 || 0;
                     bVal = b.sma20 || 0;
                     break;
-                
+
                 case 'sma50':
                     aVal = a.sma50 || 0;
                     bVal = b.sma50 || 0;
@@ -390,216 +383,216 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             {/* Subtle scroll hint - gradient fade on right */}
                             <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-gray-50/80 dark:from-gray-900/80 via-transparent to-transparent pointer-events-none z-10"></div>
                             <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
-                                    <tr>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('symbol')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                Symbol
-                                                {sortColumn === 'symbol' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('price')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                Price
-                                                {sortColumn === 'price' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('change')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                Change
-                                                {sortColumn === 'change' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('changePct')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                1D%
-                                                {sortColumn === 'changePct' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('5d')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                5D%
-                                                {sortColumn === '5d' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('1m')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                1M%
-                                                {sortColumn === '1m' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('6m')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                6M%
-                                                {sortColumn === '6m' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('sma20')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                SMA20
-                                                {sortColumn === 'sma20' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('sma50')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                SMA50
-                                                {sortColumn === 'sma50' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('eps')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                EPS
-                                                {sortColumn === 'eps' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('pe')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                P/E
-                                                {sortColumn === 'pe' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                            onClick={() => handleSort('52wHigh')}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                52W High
-                                                {sortColumn === '52wHigh' ? (
-                                                    <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                ) : (
-                                                    <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                )}
-                                            </div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-800/50 text-gray-300">
-                                    {sortedSummaryData.map((stock) => {
-                                        const price = stock.currentPrice || stock.regularMarketPrice || stock.previousClose || 0;
-                                        const change = stock.regularMarketChange || 0;
-                                        const pct = stock.regularMarketChangePercent || 0;
-                                        return (
-                                            <tr
-                                                key={stock.symbol}
-                                                className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0 cursor-pointer"
-                                                onClick={() => onSelectStock?.(stock.symbol)}
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
+                                        <tr>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('symbol')}
                                             >
-                                                <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400 hover:underline">{stock.symbol}</td>
-                                                <td className="py-3 px-4 font-mono">${price.toFixed(2)}</td>
-                                                <td className={`py-3 px-4 font-mono font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {change > 0 ? '+' : ''}{change.toFixed(2)}
-                                                </td>
-                                                <td className={`py-3 px-4 font-mono font-bold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {pct > 0 ? '+' : ''}{(pct).toFixed(2)}%
-                                                </td>
-                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.fiveDayChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {stock.fiveDayChange != null ? `${stock.fiveDayChange > 0 ? '+' : ''}${stock.fiveDayChange.toFixed(2)}%` : '-'}
-                                                </td>
-                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.oneMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {stock.oneMonthChange != null ? `${stock.oneMonthChange > 0 ? '+' : ''}${stock.oneMonthChange.toFixed(2)}%` : '-'}
-                                                </td>
-                                                <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
-                                                </td>
-                                                <td className="py-3 px-4 font-mono text-gray-300">
-                                                    {stock.sma20 != null ? `$${stock.sma20.toFixed(2)}` : '-'}
-                                                </td>
-                                                <td className="py-3 px-4 font-mono text-gray-300">
-                                                    {stock.sma50 != null ? `$${stock.sma50.toFixed(2)}` : '-'}
-                                                </td>
-                                                <td className="py-3 px-4 font-mono text-blue-400">
-                                                    {stock.trailingEps != null ? stock.trailingEps.toFixed(2) : '-'}
-                                                </td>
-                                                <td className="py-3 px-4 font-mono text-blue-400">
-                                                    {stock.trailingPE?.toFixed(2) || '-'}
-                                                </td>
-                                                <td className="py-3 px-4 font-mono text-gray-400">
-                                                    ${stock.fiftyTwoWeekHigh?.toFixed(2) || '-'}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                                <div className="flex items-center gap-2">
+                                                    Symbol
+                                                    {sortColumn === 'symbol' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('price')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    Price
+                                                    {sortColumn === 'price' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('change')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    Change
+                                                    {sortColumn === 'change' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('changePct')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    1D%
+                                                    {sortColumn === 'changePct' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('5d')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    5D%
+                                                    {sortColumn === '5d' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('1m')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    1M%
+                                                    {sortColumn === '1m' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('6m')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    6M%
+                                                    {sortColumn === '6m' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('sma20')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    SMA20
+                                                    {sortColumn === 'sma20' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('sma50')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    SMA50
+                                                    {sortColumn === 'sma50' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('eps')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    EPS
+                                                    {sortColumn === 'eps' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('pe')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    P/E
+                                                    {sortColumn === 'pe' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('52wHigh')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    52W High
+                                                    {sortColumn === '52wHigh' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-800/50 text-gray-300">
+                                        {sortedSummaryData.map((stock) => {
+                                            const price = stock.currentPrice || stock.regularMarketPrice || stock.previousClose || 0;
+                                            const change = stock.regularMarketChange || 0;
+                                            const pct = stock.regularMarketChangePercent || 0;
+                                            return (
+                                                <tr
+                                                    key={stock.symbol}
+                                                    className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                                                    onClick={() => onSelectStock?.(stock.symbol)}
+                                                >
+                                                    <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400 hover:underline">{stock.symbol}</td>
+                                                    <td className="py-3 px-4 font-mono">${price.toFixed(2)}</td>
+                                                    <td className={`py-3 px-4 font-mono font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {change > 0 ? '+' : ''}{change.toFixed(2)}
+                                                    </td>
+                                                    <td className={`py-3 px-4 font-mono font-bold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {pct > 0 ? '+' : ''}{(pct).toFixed(2)}%
+                                                    </td>
+                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.fiveDayChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {stock.fiveDayChange != null ? `${stock.fiveDayChange > 0 ? '+' : ''}${stock.fiveDayChange.toFixed(2)}%` : '-'}
+                                                    </td>
+                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.oneMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {stock.oneMonthChange != null ? `${stock.oneMonthChange > 0 ? '+' : ''}${stock.oneMonthChange.toFixed(2)}%` : '-'}
+                                                    </td>
+                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-mono text-gray-300">
+                                                        {stock.sma20 != null ? `$${stock.sma20.toFixed(2)}` : '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-mono text-gray-300">
+                                                        {stock.sma50 != null ? `$${stock.sma50.toFixed(2)}` : '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-mono text-blue-400">
+                                                        {stock.trailingEps != null ? stock.trailingEps.toFixed(2) : '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-mono text-blue-400">
+                                                        {stock.trailingPE?.toFixed(2) || '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-mono text-gray-400">
+                                                        ${stock.fiftyTwoWeekHigh?.toFixed(2) || '-'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>

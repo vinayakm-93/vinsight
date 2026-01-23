@@ -111,18 +111,59 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
     sector_override: None (auto-detect), 'Standard' (defaults), or specific sector name
     """
     try:
-        # 1. Fetch Basic Data
-        history = finance.get_stock_history(ticker, period, interval)
+        # Use concurrent.futures to fetch independent data in parallel
+        # 1. History, Info, News, Institutional can be fetched concurrently
+        import concurrent.futures
+        
+        # Define fetch wrappers to handle exceptions gracefully (Graceful Degradation)
+        def fetch_history():
+            try:
+                return finance.get_stock_history(ticker, period, interval)
+            except Exception as e:
+                logger.error(f"Error fetching history: {e}")
+                return []
+                
+        def fetch_info():
+            try:
+                return finance.get_stock_info(ticker)
+            except Exception as e:
+                logger.error(f"Error fetching stock info: {e}")
+                return {}
+
+        def fetch_news():
+            try:
+                return finance.get_news(ticker)
+            except Exception as e:
+                logger.error(f"Error fetching news: {e}")
+                return []
+
+        def fetch_institutional():
+            try:
+                return finance.get_institutional_holders(ticker)
+            except Exception as e:
+                logger.error(f"Error fetching institutional: {e}")
+                return {}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_hist = executor.submit(fetch_history)
+            future_info = executor.submit(fetch_info)
+            future_news = executor.submit(fetch_news)
+            future_inst = executor.submit(fetch_institutional)
+            
+            # Wait for results
+            history = future_hist.result()
+            fundamentals_info = future_info.result()
+            news = future_news.result()
+            institutional = future_inst.result()
+
         if not history:
-            raise HTTPException(status_code=404, detail="No history data found")
+             raise HTTPException(status_code=404, detail="No history data found")
         
         # 2. Calculate Technical Indicators FIRST (needed for VinSight)
         indicators = analysis.calculate_technical_indicators(history)
         risk = analysis.calculate_risk_metrics(history)
         
-        # 3. Fetch Additional Data for VinSight
-        fundamentals_info = finance.get_stock_info(ticker)
-        news = finance.get_news(ticker)
+        # 3. Process additional Data for VinSight
         
         if include_sentiment:
             sentiment_result = analysis.calculate_news_sentiment(news, deep_analysis=True)
@@ -132,10 +173,10 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             sentiment_result = None
             
-        institutional = finance.get_institutional_holders(ticker)
+        # Run Simulation (Ideally distinct from 'analysis' but we are consolidating)
+        # Using a smaller history window for simulation usually sufficient (1y) but 2y is fine
         sim_result = simulation.run_monte_carlo(history, days=90, simulations=10000) # 10k sims for statistical accuracy
         
-        # v5.0 Data Fetching
         # v5.0 Data Fetching
         regime = finance.get_market_regime()
         
@@ -309,7 +350,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             sell_dates = []
             executive_sells = 0
             
-            from datetime import datetime, timedelta
+            from datetime import datetime
             
             for t in txs[:15]:
                 text = t.get('Text', '').lower()
@@ -383,11 +424,6 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         loss_p10 = max(0, current_price - p10_val)
         
         # v5.0 Projections
-        # Need P50, P90, P10
-        # Sim result usually gives a list of paths. We need distribution of FINAL tips.
-        # Actually v4 implementation returned simple p50/p90/p10 lines.
-        # We need the FINAL value of those lines.
-        
         p50_final = sim_result.get('p50', [])[-1] if sim_result.get('p50') else current_price
         p90_final = sim_result.get('p90', [])[-1] if sim_result.get('p90') else current_price
         p10_final = sim_result.get('p10', [])[-1] if sim_result.get('p10') else current_price
@@ -415,12 +451,6 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         score_result = scorer.evaluate(stock_data)
 
         # 5. Format Output for Frontend (Backward Compatible wrapper)
-        # We map v5.0 result to the shape frontend expects
-        
-        # Frontend expects: Use color/rating/score directly.
-        # New field: "narrative" (or repurpose justification to be a narrative summary)
-        
-        # Mapping Verdict to Colors
         rating_color_map = {
             "Strong Buy": "emerald",
             "Buy": "emerald",
@@ -515,8 +545,6 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             
         # VaR
         var_risk = risk.get('var_95', 0)
-        # VaR is percentage drop. Convert to price impact.
-        # VaR_95 = 0.05 -> 5% drop at risk
         var_amt = abs(var_risk * current_price)
         proj_explanation.append(f"Daily Value at Risk (95%): ${var_amt:.2f}")
         
@@ -572,7 +600,12 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 "detected": detected_sector,
                 "active": active_sector,
                 "is_override": sector_override is not None and sector_override != "Auto"
-            }
+            },
+            # CONSOLIDATED DATA (For Frontend Optimization)
+            "simulation": sim_result,
+            "institutional": institutional,
+            "news": news,
+            "history": history # Optionally returned, frontend can use to init chart
         }
     except Exception as e:
         logger.exception(f"Error in technical analysis for {ticker}")
