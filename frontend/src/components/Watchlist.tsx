@@ -12,6 +12,7 @@ import {
     searchStocks,
     importWatchlistFile,
     getStockDetails,
+    getBatchStockDetails,
     reorderWatchlists,
     reorderStocks,
     Watchlist
@@ -160,8 +161,8 @@ function SortableStockRow({
                                 </span>
                                 <div className="flex items-center justify-end mt-0.5">
                                     <span className={`text-[10px] font-bold tabular-nums whitespace-nowrap ${(info?.regularMarketChangePercent || 0) >= 0
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-red-600 dark:text-red-400'
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         {(info?.regularMarketChangePercent || 0) > 0 ? '+' : ''}
                                         {(info?.regularMarketChangePercent || 0).toFixed(2)}%
@@ -433,6 +434,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                 localStorage.setItem(GUEST_WATCHLIST_KEY, JSON.stringify(updatedList));
                 setSearchQuery('');
                 setShowResults(false);
+                fetchStockPrice(symbol); // Fetch data for new stock
             }
             return;
         }
@@ -442,6 +444,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             setWatchlists(watchlists.map(w => w.id === activeWatchlistId ? updated : w));
             setSearchQuery('');
             setShowResults(false);
+            fetchStockPrice(symbol); // Fetch data for new stock
         } catch (e) {
             console.error(e);
             alert("Failed to add stock.");
@@ -496,13 +499,46 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             onWatchlistChange(activeList.stocks);
         }
 
-        activeList.stocks.forEach(ticker => {
-            if (!stockData[ticker] && !loadingData[ticker]) {
-                fetchStockPrice(ticker);
-            }
-        });
+        // Identify stocks that need data (not already loaded or loading)
+        const stocksToFetch = activeList.stocks.filter(ticker => !stockData[ticker] && !loadingData[ticker]);
+
+        if (stocksToFetch.length > 0) {
+            fetchBatchStocks(stocksToFetch);
+        }
     }, [activeWatchlistId, watchlists]);
 
+    const fetchBatchStocks = async (tickers: string[]) => {
+        // Mark all as loading
+        const newLoadingState = { ...loadingData };
+        tickers.forEach(t => newLoadingState[t] = true);
+        setLoadingData(newLoadingState);
+
+        try {
+            const results = await getBatchStockDetails(tickers);
+
+            // Update stock data
+            setStockData(prev => {
+                const updated = { ...prev };
+                results.forEach(item => {
+                    if (item && item.symbol) {
+                        updated[item.symbol] = item;
+                    }
+                });
+                return updated;
+            });
+        } catch (e) {
+            console.error("Failed to fetch batch stock data", e);
+        } finally {
+            // Mark all as not loading
+            setLoadingData(prev => {
+                const updated = { ...prev };
+                tickers.forEach(t => updated[t] = false);
+                return updated;
+            });
+        }
+    };
+
+    // Fallback for individual fetch (e.g. when adding a single stock)
     const fetchStockPrice = async (ticker: string) => {
         setLoadingData(prev => ({ ...prev, [ticker]: true }));
         try {
