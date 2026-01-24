@@ -488,6 +488,19 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             </th>
                                             <th
                                                 className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                onClick={() => handleSort('ytd')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    YTD%
+                                                    {sortColumn === 'ytd' ? (
+                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
                                                 onClick={() => handleSort('sma20')}
                                             >
                                                 <div className="flex items-center gap-2">
@@ -580,6 +593,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     </td>
                                                     <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                                         {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
+                                                    </td>
+                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.ytdChangePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {stock.ytdChangePercent != null ? `${stock.ytdChangePercent > 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%` : '-'}
                                                     </td>
                                                     <td className="py-3 px-4 font-mono text-gray-300">
                                                         {stock.sma20 != null ? `$${stock.sma20.toFixed(2)}` : '-'}

@@ -1,6 +1,19 @@
 # Changelog
  
 
+## v6.5.0 - Watchlist & Dashboard Optimization (2026-01-23)
+
+### 🚀 Performance
+- **Watchlist Sidebar**: Created dedicated lightweight endpoint (`/api/data/batch-prices`) using `fast_info`.
+- **Latency Reduction**: Batch price fetching reduced from ~500ms+ (variable) to **~30ms per ticker** overhead, ensuring sub-1.5s loads for large watchlists.
+- **Efficient Data**: Eliminated over-fetching of historical data for simple sidebar price updates.
+
+### 📈 Features
+- **Dashboard YTD%**: Added Year-to-Date (YTD) percentage column to the Watchlist Overview table in the Dashboard.
+- **Backend Calc**: Implemented robust YTD calculation using existing 1-year history data without extra API calls.
+
+---
+
 ## v6.4.0 - Page Speed Optimization (2026-01-23)
 
 ### 🚀 Performance

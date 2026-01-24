@@ -263,14 +263,52 @@ def get_market_regime():
             "spy_sma200": float(sma200)
         }
     except Exception as e:
-        print(f"Error fetching SPY regime: {e}")
         return {"bull_regime": True, "spy_price": 0, "spy_sma200": 0}
+
+def get_batch_prices(tickers: list):
+    """
+    Lightweight fetch for Watchlist Sidebar.
+    Only fetches price and prev_close to calculate change.
+    Uses yf.Ticker.fast_info which is much faster than .info or .history.
+    """
+    def fetch_fast_price(ticker):
+        try:
+            t = yf.Ticker(ticker)
+            # accessing fast_info constitutes the fetch
+            fi = t.fast_info
+            last_price = fi.last_price
+            prev_close = fi.previous_close
+            
+            change = last_price - prev_close if prev_close else 0
+            change_percent = (change / prev_close * 100) if prev_close else 0
+            
+            return {
+                "symbol": ticker,
+                "currentPrice": last_price,
+                "previousClose": prev_close,
+                "regularMarketChange": change,
+                "regularMarketChangePercent": change_percent,
+                "companyName": ticker # Fallback since we aren't doing the slow Info fetch
+            }
+        except Exception as e:
+            # print(f"Error fetching fast price for {ticker}: {e}")
+            return None
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(fetch_fast_price, t): t for t in tickers}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res:
+                results.append(res)
+                
+    return results
 
 def get_batch_stock_details(tickers: list):
     """
     Fetch details for multiple stocks in parallel.
     Optimized: Single API call per stock for all metrics.
-    Calculates: 5D%, 1M%, 6M%, SMA20, SMA50, EPS, P/E
+    Calculates: 5D%, 1M%, 6M%, SMA20, SMA50, EPS, P/E, YTD%
     """
     def fetch_one(ticker):
         try:
@@ -290,7 +328,8 @@ def get_batch_stock_details(tickers: list):
             # Initialize metrics
             five_day = one_month = six_month = None
             sma20 = sma50 = None
-            
+            ytd_change = None
+
             # Calculate from historical data if available
             if not hist.empty and current:
                 # Performance metrics
@@ -304,6 +343,22 @@ def get_batch_stock_details(tickers: list):
                 five_day = pct_change(5)
                 one_month = pct_change(21)
                 six_month = pct_change(126)
+                
+                # YTD Calculation
+                try:
+                    current_year = pd.Timestamp.now().year
+                    prev_year = current_year - 1
+                    # Ensure index is datetime
+                    if not isinstance(hist.index, pd.DatetimeIndex):
+                         hist.index = pd.to_datetime(hist.index)
+                    
+                    last_year_data = hist[hist.index.year == prev_year]
+                    if not last_year_data.empty:
+                        start_price = last_year_data.iloc[-1]['Close']
+                        if start_price > 0:
+                            ytd_change = ((current - start_price) / start_price) * 100
+                except Exception as e:
+                    print(f"Error calculating YTD for {ticker}: {e}")
                 
                 # SMA20 and SMA50
                 closes = hist['Close']
@@ -321,6 +376,7 @@ def get_batch_stock_details(tickers: list):
                 "fiveDayChange": safe_val(five_day),
                 "oneMonthChange": safe_val(one_month),
                 "sixMonthChange": safe_val(six_month),
+                "ytdChangePercent": safe_val(ytd_change),
                 "sma20": sma20,
                 "sma50": sma50,
                 "trailingEps": safe_val(info.get('trailingEps')),

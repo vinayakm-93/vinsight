@@ -1,72 +1,72 @@
-# Performance Optimization: Single Stock Page (v6.3.0)
+# Performance Optimization Journey (v6.4.0)
 
-## Overview
-**Date:** 2026-01-23
-**Version:** v6.3.0
-**Objective:** Reduce the loading time of the Single Stock Details page (`/stock/{ticker}`) to improve user experience and reduce server compute costs.
+**Date**: January 23, 2026
+**Version**: v6.4.0
 
-## 📉 Results Summary
-| Metric | Legacy Architecture | Optimized Architecture | Improvement |
+## 🚀 Executive Summary
+
+We achieved a **2.5x reduction** in page load latency (1.92s → 0.76s) and a **20x speedup** in Monte Carlo simulations by addressing two critical bottlenecks: inefficient Python looping for math operations and redundant network requests.
+
+| Metric | Before Optimization | After Optimization | Improvement |
 | :--- | :--- | :--- | :--- |
-| **Total Load Time** | ~2.6s - 3.0s | **~1.2s** | **~55% Faster** |
-| **API Calls Details** | 6 Sequential Calls | 1 Consolidated Call | **83% Reduction** |
-| **Reliability** | "All or Nothing" (Fragile) | Graceful Degradation (Robust) | **High** |
+| **Simulation Calculation** | ~400ms | ~20ms | **20x Faster** |
+| **Total API Latency** | ~1.92s | ~0.76s | **2.5x Faster** |
+| **Network Requests** | 3 (Parallel) | 1 (Consolidated) | **66% Reduction** |
 
-## 🏗️ Architectural Change
+---
 
-### Legacy Approach (Waterfall)
-The frontend made multiple independent, often sequential or racing API calls.
-1. `getAnalysis` (Calculated technicals + ran Monte Carlo)
-2. `getSimulation` (Ran Monte Carlo *again*)
-3. `getInstitutional` (Fetched data separately)
-4. `getNews` (Fetched separately)
-5. `getHistory` (Fetched separately)
+## 🛠️ Key Technical Changes
 
-**Issues:**
-- **Redundant Compute**: Monte Carlo simulation (CPU heavy) was executed twice per page load.
-- **Latency**: Network overhead of multiple TCP connections.
-- **Race/Wait**: Visual UI "pop-in" as different sections loaded at different times.
+### 1. Vectorized Monte Carlo Simulation
+The previous implementation calculated 10,000 price paths using nested Python loops, which is computationally expensive. We refactored this to use **NumPy vectorization**, allowing us to generate the entire matrix of 900,000 steps ($10,000 \text{ sims} \times 90 \text{ days}$) in a single operation.
 
-### Optimized Approach (Parallel & Consolidated)
-We consolidated all non-chart data into a single endpoint: `GET /api/data/analysis/{ticker}`.
+**Code Impact (`backend/services/simulation.py`):**
+```python
+# BEFORE (Loop-based)
+for _ in range(simulations):
+    # logic...
 
-```mermaid
-graph TD
-    Client[Frontend Client] -->|GET /analysis/AAPL| Backend[Backend API]
-    
-    subgraph "Backend Parallel Execution (ThreadPoolExecutor)"
-        Backend -->|Thread A| History[Fetch Price History]
-        Backend -->|Thread B| Profile[Fetch Stock Profile]
-        Backend -->|Thread C| News[Fetch News w/ Sentiment]
-        Backend -->|Thread D| Inst[Fetch Institutional Data]
-    end
-    
-    History --> Calc[Run Technical Analysis]
-    History --> Sim[Run Monte Carlo (One Time)]
-    
-    Calc --> Response
-    Sim --> Response
-    Profile --> Response
-    News --> Response
-    Inst --> Response
-    
-    Response -->|Single JSON Payload| Client
+# AFTER (Vectorized)
+shocks = np.random.normal(mu, sigma, (simulations, days))
+path_multipliers = np.cumprod(1 + shocks, axis=1)
 ```
 
-## 🛡️ Robustness & Graceful Degradation
-To prevent the "Single Point of Failure" risk associated with consolidated APIs, we implemented a robust error handling strategy.
+### 2. consolidated API Architecture
+The frontend previously made three simultaneous requests to load a single stock page:
+1.  `/history/{ticker}`
+2.  `/stock/{ticker}` (Details)
+3.  `/analysis/{ticker}` (Technical + Sent + Sim)
 
-- **Wrapper**: Each sub-task (News, Institutional) is wrapped in a `try-except` block within its thread.
-- **Outcome**:
-    - **News API Down?** → Returns `200 OK` with `news: []`. Dashboard shows "No News Found" instead of crashing.
-    - **History API Down?** → Returns `404 Not Found` (Correct, as analysis is impossible without price data).
-- **Verification**: Verified via `backend/tests/test_optimization_robustness.py`.
+This caused "waterfall" loading effects and redundant DB/Network overhead. We unified these into a single optimized endpoint:
+- **Endpoint**: `/api/data/analysis/{ticker}`
+- **Payload**: now returns `history`, `stock_details`, `news`, `institutional`, and `simulation` in one JSON object.
+- **Concurrency**: The backend uses `ThreadPoolExecutor` to fetch independent data sources (History, News, Info) in parallel threads while the main thread waits.
 
-## 💰 Cost & Infrastructure
-- **Compute Efficiency**: Eliminated 50% of Monte Carlo executions.
-- **Memory**: Backend configured with `2Gi` memory on cloud Run, sufficient to handle `ThreadPoolExecutor` overhead.
-- **Billable Time**: Reduced request duration directly lowers Cloud Run billable CPU-seconds.
+### 3. Frontend Optimization
+The `Dashboard.tsx` component was updated to:
+- Dispatch a single request on mount.
+- Populate all state variables (`history`, `fundamentals`, `news`, `simulation`) from the unified response.
+- Eliminate layout shifts caused by components loading at different times.
 
-## 🧪 Verification Scripts
-- `scripts/benchmark_single_stock_optimization.py`: Validates performance and response structure.
-- `backend/tests/test_optimization_robustness.py`: Unit tests for failure scenarios.
+---
+
+## 📊 Benchmarks
+
+Benchmarks were run on a local environment simulating production load.
+
+### Simulation Benchmark
+```bash
+Running Benchmark with 10000 simulations over 90 days...
+Old Implementation Time: 0.3995 seconds
+Vectorized Time: 0.0196 seconds
+```
+
+### Full Flow Benchmark
+```bash
+Benchmarking New State for AAPL...
+New Full Flow Time: 0.7651 seconds
+VERIFICATION: SUCCESS - All consolidated data present.
+```
+
+## ✅ Conclusion
+The application is now significantly more responsive. The specific use of NumPy for financial modeling and the architectural shift to "Composite API Responses" has proven highly effective for this read-heavy workload.

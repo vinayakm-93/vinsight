@@ -12,7 +12,7 @@ import {
     searchStocks,
     importWatchlistFile,
     getStockDetails,
-    getBatchStockDetails,
+    getBatchPrices,
     reorderWatchlists,
     reorderStocks,
     Watchlist
@@ -147,7 +147,7 @@ function SortableStockRow({
                 <div className="flex-1 min-w-0 pr-1">
                     <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{stock}</h3>
                     <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight max-w-[90px] sm:max-w-[120px]">
-                        {info?.shortName || "Loading..."}
+                        {info?.companyName || info?.shortName || "Loading..."}
                     </p>
                 </div>
 
@@ -514,7 +514,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         setLoadingData(newLoadingState);
 
         try {
-            const results = await getBatchStockDetails(tickers);
+            const results = await getBatchPrices(tickers);
 
             // Update stock data
             setStockData(prev => {

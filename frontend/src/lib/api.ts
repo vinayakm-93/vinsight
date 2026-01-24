@@ -103,6 +103,11 @@ export const getBatchStockDetails = async (tickers: string[]): Promise<any[]> =>
   return response.data;
 };
 
+export const getBatchPrices = async (tickers: string[]): Promise<any[]> => {
+  const response = await api.post<any[]>('/api/data/batch-prices', { tickers });
+  return response.data;
+};
+
 export const getQuickQuote = async (ticker: string): Promise<any> => {
   const response = await api.get<any>(`/api/data/quote/${ticker}`);
   return response.data;

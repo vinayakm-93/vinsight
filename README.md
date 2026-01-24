@@ -21,6 +21,7 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 - **Outlooks**: 3m (Technical), 6m (Valuation), 12m (Quality) time horizon analysis.
 - **Monte Carlo Simulation**: 1,000 path projections with P10/P50/P90 percentiles.
 - **Smart Alerts**: Email notifications for price targets and major sentiment shifts.
+- **High Performance**: Vectorized simulation engine & consolidated API (load times < 1s).
 - **Portfolio Tracking**: Watchlist management with daily changelog.
 
 ## 🛠️ Tech Stack
@@ -74,6 +75,7 @@ Visit `http://localhost:3000` to start analyzing!
 - [Setup Guide](docs/SETUP.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Features In-Depth](docs/FEATURES.md)
+- [Performance Optimization](docs/PERFORMANCE_OPTIMIZATION.md)
 - [Deployment](docs/DEPLOY.md)
 
 ## 🤝 Contribution

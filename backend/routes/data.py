@@ -73,6 +73,18 @@ def get_stock_details(ticker: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/batch-prices")
+async def get_batch_prices_endpoint(request: BatchStockRequest):
+    """
+    Get lightweight batch stock prices for Watchlist Sidebar.
+    Optimized for speed.
+    """
+    try:
+        data = finance.get_batch_prices(request.tickers)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/batch-stock")
 def get_batch_stock_details(payload: dict):
     """
