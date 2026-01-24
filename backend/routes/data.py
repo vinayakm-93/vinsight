@@ -144,11 +144,19 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 logger.error(f"Error fetching institutional: {e}")
                 return {}
 
+        def fetch_earnings():
+             try:
+                 return earnings.analyze_earnings(ticker, next(get_db()))
+             except Exception as e:
+                 logger.error(f"Error fetching earnings: {e}")
+                 return {}
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_hist = executor.submit(fetch_history)
             future_info = executor.submit(fetch_info)
             future_news = executor.submit(fetch_news)
             future_inst = executor.submit(fetch_institutional)
+            # future_earn = executor.submit(fetch_earnings) # DB dependency tricky here
             
             # Wait for results
             history = future_hist.result()
@@ -605,7 +613,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "simulation": sim_result,
             "institutional": institutional,
             "news": news,
-            "history": history # Optionally returned, frontend can use to init chart
+            "history": history, # Optionally returned, frontend can use to init chart
+            "stock_details": fundamentals_info # Consolidated: Return raw info too
         }
     except Exception as e:
         logger.exception(f"Error in technical analysis for {ticker}")

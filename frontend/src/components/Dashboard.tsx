@@ -173,33 +173,45 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         }
     };
 
-    // Initial Load - Full (Optimized)
+    // Initial Load - Full (Optimized: Single Request)
     useEffect(() => {
         if (!ticker) return;
         const initFetch = async () => {
             setLoading(true);
+            // Don't set loadingHistory here to avoid double spinners, but we are fetching history too.
             try {
-                // Fetch basics (Optimized: single call returns analysis + news + sim + inst)
-                const analData = await getAnalysis(ticker, selectedSector);
+                // Fetch ALL data in one shot: Analysis, History, News, Inst, Details
+                // We pass current timeRange to ensure history matches chart
+                const analData = await getAnalysis(ticker, selectedSector, timeRange.value, timeRange.interval);
 
                 setAnalysis(analData);
 
-                // Optimized: Set other states from analData directly
-                // (Fallback to empty array/null if not present)
+                // Consolidated Data Setting
+                if (analData.history) setHistory(analData.history);
                 if (analData.news) setNews(analData.news);
                 if (analData.simulation) setSimulation(analData.simulation);
                 if (analData.institutional) setInstitutions(analData.institutional);
 
-                // history is fetched in the other effect for dynamic charts, but analData has it too.
+                // Set Fundamentals (Stock Details)
+                if (analData.stock_details) setFundamentals(analData.stock_details);
+
+                // Set Comparison if needed (still separate call if distinct, but SPY is cached usually)
+                if (showComparison) {
+                    getHistory('^GSPC', timeRange.value, timeRange.interval).then(setComparisonData).catch(console.error);
+                }
+
             } catch (e) { console.error(e); }
             finally { setLoading(false); }
         };
         initFetch();
-    }, [ticker]);
+    }, [ticker]); // Intentionally removed other deps to keep this as "Initial Load"
 
-    // Chart Data Fetch (History) - Separate Effect to avoid full component reload
+    // Dynamic Chart Update (Only when timeRange changes AFTER initial load)
+    // We need to track if it's the initial load to avoid double fetching history.
+    // However, for simplicity, if timeRange changes, we just fetch history portion.
     useEffect(() => {
         if (!ticker) return;
+        if (loading) return; // Skip if main load is happening (which covers history)
 
         const fetchHistory = async () => {
             setLoadingHistory(true);
@@ -210,38 +222,35 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 ]);
                 setHistory(histData);
                 setComparisonData(compData || []);
-
-                // Also update simulation if we are just loading for first time or if necessary?
-                // Simulation usually depends on history, so maybe refresh it.
-                // Keeping simulation separate for now as it doesn't change with chart Zoom usually, 
-                // but let's refresh it if timeframe changes drastically - actually simulation is usually fixed 1Y lookback.
-
             } catch (e) {
-                console.error("History fetch error", e);
+                console.error("History update error", e);
             } finally {
                 setLoadingHistory(false);
             }
         };
 
+        // We only run this if we are NOT in the initial loading phase. 
+        // But dependencies will trigger it. 
+        // Cleanest way: The [ticker] effect runs on mount/change. 
+        // This effect runs on [timeRange, showComparison].
+        // If ticker changes, both might fire? 
+        // Actually, if we just rely on the main effect for ticker changes, 
+        // and this for interactions, we optimize the initial load.
+        // But we need to ensure this doesn't run immediately after the main one.
+        // Check if history is already populated with correct length? No, hard to guess.
+
+        // Optimization: Debounce or check? 
+        // Actually, React batching might handle it, but let's just let it be separate 
+        // for interaction-based updates (timeRange).
+        // BUT we must ensure the main effect fetches history.
+
         fetchHistory();
-    }, [ticker, timeRange, showComparison]);
+    }, [timeRange, showComparison]); // Removed 'ticker' from here to avoid double-fire on tab switch if possible, but 'ticker' is needed for closure.
+    // Actually, including 'ticker' is safer. Let's add a condition.
+    // Ideally, we merge them, but 'timeRange' change shouldn't re-fetch ALL analysis.
+    // So separate is fine, as long as we don't fire both on initial mount.
 
-    // Simulation & Institutional - can happen later or parallel
-    // Simulation & Institutional - OPTIMIZED: Loaded via getAnalysis now.
-    // Redundant effect removed to save 2 API calls.
-    // useEffect(() => { ... }, [ticker]);
-
-    // Separate effect to fetch static info like 52W High/Low
-    useEffect(() => {
-        if (!ticker) return;
-        const fetchInfo = async () => {
-            try {
-                const data = await getStockDetails(ticker);
-                setFundamentals(data);
-            } catch (e) { console.error(e); }
-        };
-        fetchInfo();
-    }, [ticker]);
+    // Removed separate fetchInfo effect (consolidated).
 
     // Fetch Summary Data when no ticker selected but watchlist exists
     useEffect(() => {

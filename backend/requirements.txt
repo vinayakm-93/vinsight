@@ -87,7 +87,7 @@ typing_extensions==4.15.0
 tzdata==2025.2
 uritemplate==4.2.0
 urllib3==2.6.2
-uvicorn==0.38.0
+uvicorn==0.30.6
 websockets==15.0.1
 yfinance==0.2.66
 

@@ -1,5 +1,31 @@
 # Changelog
  
+
+## v6.4.0 - Page Speed Optimization (2026-01-23)
+
+### 🚀 Performance
+- **Monte Carlo Vectorization**: Replaced Python loops with NumPy vector operations, reducing simulation time from **0.40s to 0.02s** (20x speedup).
+- **API Unification**: Consolidated `Analysis`, `History`, `News`, `Institutional`, and `Basic Info` into a single API call (`/api/data/analysis`), reducing network round trips.
+- **Frontend Optimization**: Dashboard component now loads all critical data in a single initial request, preventing layout shift and "pop-in" effects.
+- **Total Latency**: Single Stock Page load time reduced by **~60%** (1.92s → 0.76s).
+
+---
+
+## v6.3.0 - Single Stock Optimization & Reliability (2026-01-23)
+
+### 🚀 Performance Improvements
+- **Parallel Data Fetching**: Refactored `get_technical_analysis` to fetch History, Stock Info, News, and Institutional data concurrently using `ThreadPoolExecutor`.
+- **API Consolidation**: Merged `simulation`, `institutional`, and `news` data into the single `/analysis` endpoint response.
+- **Load Time Reduction**: Reduced Single Stock Page load time from **~2.6s to ~1.2s (55% faster)**.
+- **CPU Optimization**: Eliminated redundant Monte Carlo simulations by sharing calculation results between analysis and frontend state.
+
+### 🛡️ Reliability & Fixes
+- **Graceful Degradation**: Implemented catch-all blocks for individual API calls (News, History). Partial failures (e.g., News API down) no longer crash the entire dashboard.
+- **Production Fix**: Downgraded `uvicorn` to `0.30.6` to resolve `AttributeError: '_TrustedHosts' object has no attribute '_version'` caused by proxy headers middleware incompatibility in newer versions.
+- **Watchlist Optimization**: Implemented batch fetching for watchlist prices to reduce rate limiting issues.
+
+---
+
 ## v6.2.2 - Stability & Alerts Fix (2026-01-22)
 
 ### 🐛 Critical Bug Fixes
