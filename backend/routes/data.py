@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db
 from services import finance, analysis, simulation, search, earnings
@@ -12,6 +13,9 @@ import os
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+class BatchStockRequest(BaseModel):
+    tickers: list[str]
 
 @router.get("/sector-benchmarks")
 def get_sector_benchmarks():
