@@ -1,224 +1,286 @@
 {
-    "version": "2024-Q4",
-    "last_updated": "2024-12-17",
+    "version": "2026-Q1",
+    "last_updated": "2026-01-23",
     "update_frequency": "quarterly",
     "sectors": {
         "Technology": {
             "pe_median": 30,
             "peg_fair": 2.0,
             "growth_strong": 0.15,
-            "margin_healthy": 0.20,
-            "debt_safe": 0.5
+            "margin_healthy": 0.2,
+            "debt_safe": 0.5,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Communication Services": {
             "pe_median": 25,
             "peg_fair": 1.8,
             "growth_strong": 0.12,
             "margin_healthy": 0.15,
-            "debt_safe": 1.0
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Healthcare": {
             "pe_median": 22,
             "peg_fair": 1.7,
             "growth_strong": 0.12,
             "margin_healthy": 0.15,
-            "debt_safe": 0.8
+            "debt_safe": 0.8,
+            "fcf_yield_strong": 0.06,
+            "eps_surprise_huge": 0.08
         },
         "Consumer Cyclical": {
             "pe_median": 20,
             "peg_fair": 1.5,
-            "growth_strong": 0.10,
-            "margin_healthy": 0.10,
-            "debt_safe": 1.0
+            "growth_strong": 0.1,
+            "margin_healthy": 0.1,
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Consumer Defensive": {
             "pe_median": 22,
             "peg_fair": 1.5,
             "growth_strong": 0.08,
-            "margin_healthy": 0.10,
-            "debt_safe": 0.8
+            "margin_healthy": 0.1,
+            "debt_safe": 0.8,
+            "fcf_yield_strong": 0.06,
+            "eps_surprise_huge": 0.08
         },
         "Industrials": {
             "pe_median": 18,
             "peg_fair": 1.5,
-            "growth_strong": 0.10,
-            "margin_healthy": 0.10,
-            "debt_safe": 1.0
+            "growth_strong": 0.1,
+            "margin_healthy": 0.1,
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Financial Services": {
             "pe_median": 12,
             "peg_fair": 1.3,
             "growth_strong": 0.08,
             "margin_healthy": 0.25,
-            "debt_safe": 2.0
+            "debt_safe": 2.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Energy": {
             "pe_median": 10,
             "peg_fair": 1.2,
             "growth_strong": 0.06,
-            "margin_healthy": 0.10,
-            "debt_safe": 0.5
+            "margin_healthy": 0.1,
+            "debt_safe": 0.5,
+            "fcf_yield_strong": 0.07,
+            "eps_surprise_huge": 0.05
         },
         "Utilities": {
             "pe_median": 16,
             "peg_fair": 1.3,
             "growth_strong": 0.05,
             "margin_healthy": 0.12,
-            "debt_safe": 1.5
+            "debt_safe": 1.5,
+            "fcf_yield_strong": 0.07,
+            "eps_surprise_huge": 0.05
         },
         "Real Estate": {
             "pe_median": 35,
             "peg_fair": 2.0,
             "growth_strong": 0.08,
-            "margin_healthy": 0.20,
-            "debt_safe": 1.5
+            "margin_healthy": 0.2,
+            "debt_safe": 1.5,
+            "fcf_yield_strong": 0.07,
+            "eps_surprise_huge": 0.05
         },
         "Basic Materials": {
             "pe_median": 12,
             "peg_fair": 1.3,
             "growth_strong": 0.08,
             "margin_healthy": 0.12,
-            "debt_safe": 0.6
+            "debt_safe": 0.6,
+            "fcf_yield_strong": 0.07,
+            "eps_surprise_huge": 0.05
         },
         "Semiconductors": {
             "pe_median": 25,
             "peg_fair": 1.8,
             "growth_strong": 0.18,
             "margin_healthy": 0.25,
-            "debt_safe": 0.4
+            "debt_safe": 0.4,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Software": {
             "pe_median": 35,
             "peg_fair": 2.5,
-            "growth_strong": 0.20,
+            "growth_strong": 0.2,
             "margin_healthy": 0.25,
-            "debt_safe": 0.3
+            "debt_safe": 0.3,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Biotech": {
             "pe_median": 50,
             "peg_fair": 2.5,
-            "growth_strong": 0.30,
-            "margin_healthy": 0.10,
-            "debt_safe": 0.5
+            "growth_strong": 0.3,
+            "margin_healthy": 0.1,
+            "debt_safe": 0.5,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Retail": {
             "pe_median": 18,
             "peg_fair": 1.4,
             "growth_strong": 0.08,
             "margin_healthy": 0.05,
-            "debt_safe": 1.0
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Cloud/SaaS": {
             "pe_median": 60,
             "peg_fair": 3.5,
             "growth_strong": 0.25,
             "margin_healthy": 0.15,
-            "debt_safe": 0.4
+            "debt_safe": 0.4,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Fintech": {
             "pe_median": 40,
             "peg_fair": 2.5,
-            "growth_strong": 0.20,
+            "growth_strong": 0.2,
             "margin_healthy": 0.18,
-            "debt_safe": 0.6
+            "debt_safe": 0.6,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "EV/Clean Energy": {
             "pe_median": 80,
             "peg_fair": 4.0,
             "growth_strong": 0.35,
             "margin_healthy": 0.05,
-            "debt_safe": 1.0
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "Pharma": {
             "pe_median": 18,
             "peg_fair": 1.5,
             "growth_strong": 0.08,
-            "margin_healthy": 0.20,
-            "debt_safe": 0.6
+            "margin_healthy": 0.2,
+            "debt_safe": 0.6,
+            "fcf_yield_strong": 0.06,
+            "eps_surprise_huge": 0.08
         },
         "Insurance": {
             "pe_median": 10,
             "peg_fair": 1.2,
             "growth_strong": 0.06,
             "margin_healthy": 0.08,
-            "debt_safe": 3.0
+            "debt_safe": 3.0,
+            "fcf_yield_strong": 0.08,
+            "eps_surprise_huge": 0.05
         },
         "Banks": {
             "pe_median": 10,
             "peg_fair": 1.2,
             "growth_strong": 0.06,
-            "margin_healthy": 0.30,
-            "debt_safe": 10.0
+            "margin_healthy": 0.3,
+            "debt_safe": 10.0,
+            "fcf_yield_strong": 0.08,
+            "eps_surprise_huge": 0.05
         },
         "REITs": {
             "pe_median": 40,
             "peg_fair": 2.0,
             "growth_strong": 0.06,
             "margin_healthy": 0.25,
-            "debt_safe": 2.0
+            "debt_safe": 2.0,
+            "fcf_yield_strong": 0.07,
+            "eps_surprise_huge": 0.05
         },
         "Aerospace & Defense": {
             "pe_median": 20,
             "peg_fair": 1.6,
             "growth_strong": 0.08,
             "margin_healthy": 0.12,
-            "debt_safe": 1.2
+            "debt_safe": 1.2,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Mining": {
             "pe_median": 8,
             "peg_fair": 1.0,
             "growth_strong": 0.05,
             "margin_healthy": 0.15,
-            "debt_safe": 0.5
+            "debt_safe": 0.5,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Luxury Goods": {
             "pe_median": 28,
             "peg_fair": 2.0,
             "growth_strong": 0.12,
             "margin_healthy": 0.22,
-            "debt_safe": 0.6
+            "debt_safe": 0.6,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Streaming/Media": {
             "pe_median": 45,
             "peg_fair": 2.8,
             "growth_strong": 0.18,
             "margin_healthy": 0.12,
-            "debt_safe": 1.0
+            "debt_safe": 1.0,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "E-commerce": {
             "pe_median": 50,
             "peg_fair": 3.0,
-            "growth_strong": 0.20,
+            "growth_strong": 0.2,
             "margin_healthy": 0.08,
-            "debt_safe": 0.8
+            "debt_safe": 0.8,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Gaming": {
             "pe_median": 25,
             "peg_fair": 2.0,
             "growth_strong": 0.15,
-            "margin_healthy": 0.20,
-            "debt_safe": 0.5
+            "margin_healthy": 0.2,
+            "debt_safe": 0.5,
+            "fcf_yield_strong": 0.05,
+            "eps_surprise_huge": 0.1
         },
         "Cybersecurity": {
             "pe_median": 55,
             "peg_fair": 3.0,
             "growth_strong": 0.22,
             "margin_healthy": 0.18,
-            "debt_safe": 0.3
+            "debt_safe": 0.3,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         },
         "AI/ML": {
             "pe_median": 70,
             "peg_fair": 4.0,
-            "growth_strong": 0.30,
-            "margin_healthy": 0.20,
-            "debt_safe": 0.4
+            "growth_strong": 0.3,
+            "margin_healthy": 0.2,
+            "debt_safe": 0.4,
+            "fcf_yield_strong": 0.04,
+            "eps_surprise_huge": 0.15
         }
     },
     "defaults": {
         "pe_median": 20,
         "peg_fair": 1.5,
-        "growth_strong": 0.10,
+        "growth_strong": 0.1,
         "margin_healthy": 0.12,
-        "debt_safe": 1.0
+        "debt_safe": 1.0,
+        "fcf_yield_strong": 0.05,
+        "eps_surprise_huge": 0.1
     }
 }

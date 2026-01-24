@@ -30,7 +30,35 @@ def get_stock_info(ticker: str):
     if peg is not None and peg < 1.0:
         cleaned_info['valuation_flag'] = "Undervalued"
         
+    # Calculate FCF Yield
+    fcf = cleaned_info.get('freeCashflow')
+    mkt_cap = cleaned_info.get('marketCap')
+    if fcf and mkt_cap and mkt_cap > 0:
+        cleaned_info['fcf_yield'] = fcf / mkt_cap
+    else:
+        cleaned_info['fcf_yield'] = 0.0
+    
+    # Attempt to get EPS Surprise from info (sometimes available) or Calendar
+    # Since lightweight is preferred, if not in info, we might skip or do a quick fetch
+    # For this implementation, we will try to look up 'earningsHistory' if available in info or separate call logic in data.py
+    
     return cleaned_info
+
+def get_earnings_surprise(ticker: str) -> float:
+    """Fetch recent EPS surprise %."""
+    try:
+        stock = yf.Ticker(ticker)
+        # earnings_history returns DataFrame
+        hist = stock.earnings_history
+        if hist is not None and not hist.empty:
+            # Sort by date desc just in case
+            # Usually indexed by date
+            # It usually has 'Surprise' column
+            recent = hist.iloc[0] # Most recent
+            return recent.get('Surprise', 0)
+    except:
+        return 0.0
+    return 0.0
 
 def get_stock_history(ticker: str, period="1mo", interval="1d"):
     """Fetch historical data."""

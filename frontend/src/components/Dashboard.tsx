@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
-import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText } from 'lucide-react'; // Renamed icon
+import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid } from 'lucide-react'; // Renamed icon
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -695,7 +695,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         onClick={onClearSelection}
                         className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white mb-1.5 flex items-center gap-1 transition-colors"
                     >
-                        ← Back
+                        ← Overview
                     </button>
                     <div className="flex items-center gap-2 mb-2">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{ticker}</h2>
@@ -1052,17 +1052,17 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md transition-all"
                                     onClick={() => setExpandedPillar(expandedPillar === 'fundamentals' ? null : 'fundamentals')}
                                 >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                            <BarChart2 size={16} className="text-blue-500" /> Fundamentals
+                                    <div className="flex justify-between items-center mb-2 gap-4">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
+                                            <BarChart2 size={14} className="text-blue-500" /> Fundamentals
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/60</span></span>
+                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/70</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 60) * 100}%` }}></div>
+                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 70) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Valuation, Growth, Smart Money</span>
+                                        <span>Valuation, Growth, Cash Flow</span>
                                         <span className="text-blue-500 text-[9px] font-medium">{expandedPillar === 'fundamentals' ? '▲ Hide' : '▼ Details'}</span>
                                     </p>
                                     {/* Expanded Details */}
@@ -1093,14 +1093,14 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md transition-all"
                                     onClick={() => setExpandedPillar(expandedPillar === 'sentiment' ? null : 'sentiment')}
                                 >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                            <Newspaper size={16} className="text-purple-500" /> Sentiment
+                                    <div className="flex justify-between items-center mb-2 gap-4">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
+                                            <Newspaper size={14} className="text-purple-500" /> Sentiment
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/15</span></span>
+                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/10</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 15) * 100}%` }}></div>
+                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 10) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Sentiment & Insider</span>
@@ -1111,7 +1111,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                             {/* Score Breakdown Header */}
                                             <div className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">
-                                                Score Breakdown (News 10pts + Insider 5pts)
+                                                Score Breakdown (News 5pts + Insider 5pts)
                                             </div>
 
                                             {/* Backend Factors - Primary Display */}
@@ -1147,14 +1147,14 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-orange-400 dark:hover:border-orange-600 hover:shadow-md transition-all"
                                     onClick={() => setExpandedPillar(expandedPillar === 'projections' ? null : 'projections')}
                                 >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                            <TrendingUp size={16} className="text-orange-500" /> Projections
+                                    <div className="flex justify-between items-center mb-2 gap-4">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
+                                            <TrendingUp size={14} className="text-orange-500" /> Projections
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/15</span></span>
+                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/10</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 15) * 100}%` }}></div>
+                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 10) * 100}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
                                         <span>Upside vs Downside (Monte Carlo)</span>
@@ -1192,11 +1192,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all"
                                     onClick={() => setExpandedPillar(expandedPillar === 'technicals' ? null : 'technicals')}
                                 >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                            <Activity size={16} className="text-emerald-500" /> Technicals
+                                    <div className="flex justify-between items-center mb-2 gap-4">
+                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
+                                            <Activity size={14} className="text-emerald-500" /> Technicals
                                         </h4>
-                                        <span className="font-mono font-bold text-lg text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/10</span></span>
+                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/10</span></span>
                                     </div>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
                                         <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 10) * 100}%` }}></div>
@@ -1223,9 +1223,81 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             </div>
                         )}
 
+                        {/* 2.5 Detailed Breakdown Table (New) */}
+                        {analysis?.ai_analysis?.details && (
+                            <details className="group mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden transition-all">
+                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
+                                    <h4 className="font-bold flex items-center gap-2 text-sm">
+                                        <Grid size={16} className="text-gray-500" /> Detailed Score Breakdown
+                                        <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider ml-2">Target vs Actual</span>
+                                    </h4>
+                                    <span className="flex items-center gap-2 text-gray-400 group-hover:text-blue-500 transition-colors">
+                                        <span className="text-[10px] font-normal group-open:hidden">Click to expand</span>
+                                        <span className="text-[10px] font-normal hidden group-open:inline">Click to collapse</span>
+                                        <span className="transition-transform duration-200 group-open:rotate-180 text-xs">▼</span>
+                                    </span>
+                                </summary>
+                                <div className="border-t border-gray-200 dark:border-gray-700/50">
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
+                                                <tr>
+                                                    <th className="px-4 py-3 font-medium">Metric</th>
+                                                    <th className="px-4 py-3 font-medium">Value</th>
+                                                    <th className="px-4 py-3 font-medium">Benchmark/Target</th>
+                                                    <th className="px-4 py-3 font-medium">Status</th>
+                                                    <th className="px-4 py-3 font-medium text-right">Score</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                {analysis.ai_analysis.details.map((row: any, idx: number) => {
+                                                    // Status Color Logic
+                                                    let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                    const s = row.status.toLowerCase();
+                                                    if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) {
+                                                        statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                    } else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) {
+                                                        statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                    } else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) {
+                                                        statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                    }
+
+                                                    return (
+                                                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                            <td className="px-4 py-3 font-medium text-gray-900 dark:text-white flex flex-col">
+                                                                <span>{row.metric}</span>
+                                                                <span className="text-[10px] text-gray-400 font-normal">{row.category}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                            <td className="px-4 py-3">
+                                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColor}`}>
+                                                                    {row.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">
+                                                                {row.score}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                            <tfoot className="bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-800 font-bold text-xs">
+                                                <tr>
+                                                    <td colSpan={4} className="px-4 py-3 text-right uppercase tracking-wider text-gray-500">Total Score</td>
+                                                    <td className="px-4 py-3 text-right text-lg text-blue-600 dark:text-blue-400">{analysis.ai_analysis.score}/100</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </details>
+                        )}
+
                         {/* 3. Outlooks Accordion (Collapsible) */}
                         {analysis?.ai_analysis && (
-                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors" open>
+                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
                                 <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors">
                                     <span className="flex items-center gap-2 text-sm"><TrendingUp size={16} className="text-blue-500" /> Outlooks</span>
                                     <span className="flex items-center gap-2 text-gray-400 group-hover:text-blue-500 transition-colors">

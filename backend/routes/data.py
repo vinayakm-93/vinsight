@@ -285,22 +285,27 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             active_sector = detected_sector
         
-        # v6.0 NEW: Get profit margin and debt/equity
-        profit_margin = fundamentals_info.get("profitMargins", 0) or 0  # 0.0-1.0
-        debt_to_equity = fundamentals_info.get("debtToEquity", 0) or 0  # Ratio (e.g., 50 = 50%)
-        # yfinance returns D/E as percentage, convert to decimal ratio
-        if debt_to_equity > 10:  # Likely a percentage
+        # v6.3: Get new fields
+        profit_margin = fundamentals_info.get("profitMargins", 0) or 0
+        debt_to_equity = fundamentals_info.get("debtToEquity", 0) or 0
+        if debt_to_equity > 10:
             debt_to_equity = debt_to_equity / 100
+            
+        fcf_yield = fundamentals_info.get("fcf_yield", 0.0)
+        
+        # Fetch EPS Surprise (New helper in finance)
+        eps_surprise = finance.get_earnings_surprise(ticker)
         
         fund_data = Fundamentals(
             inst_ownership=inst_own,
-            inst_changing=inst_changing,
             pe_ratio=pe or 0,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
             sector_name=active_sector,
             profit_margin=profit_margin,
-            debt_to_equity=debt_to_equity
+            debt_to_equity=debt_to_equity,
+            fcf_yield=fcf_yield,
+            eps_surprise_pct=eps_surprise
         )
 
         # --- Technicals ---
@@ -574,15 +579,15 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         score_explanation = {
             "fundamentals": {
-                "score": f"{fund_score}/60",
+                "score": f"{fund_score}/70",
                 "factors": fund_explanation
             },
             "sentiment": {
-                "score": f"{sent_score}/15",
+                "score": f"{sent_score}/10",
                 "factors": sent_explanation
             },
             "projections": {
-                "score": f"{proj_score}/15",
+                "score": f"{proj_score}/10",
                 "factors": proj_explanation
             },
             "technicals": {
@@ -591,19 +596,39 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             }
         }
         
+        # Refined Outlooks
+        short_term_outlook = [
+            f"Momentum is {momentum.lower()}",
+            f"RSI ({rsi:.0f}) is {'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral'}",
+            f"Volume {vol_trend.lower()}"
+        ]
+        
+        medium_term_outlook = [
+            f"VinSight Rating: {score_result.rating}",
+            f"Market Regime: {'Bullish' if regime['bull_regime'] else 'Defensive/Bearish'}",
+            f"Sector: {active_sector}"
+        ]
+        
+        long_term_outlook = [
+            f"Valuation: {'Reasonable' if pe < 25 else 'Premium'}",
+            f"Projected Upside: {upside_pct:.1f}%",
+            f"Institutional Quality: {'High' if inst_own > 60 else 'Low/Moderate'}"
+        ]
+
         ai_analysis_response = {
             "rating": score_result.rating.upper(), # BUY/SELL
             "color": color,
             "score": score_result.total_score,
             "justification": score_result.verdict_narrative,
             "outlooks": {
-                "short_term": [f"Momentum: {momentum}", f"Volume: {vol_trend}"],
-                "medium_term": [f"Rank: {score_result.rating}", f"Regime: {'Bull' if regime['bull_regime'] else 'Bear/Defensive'}"],
-                "long_term": [f"P/E: {pe:.1f}", f"Beta: {beta:.2f}"]
+                "short_term": short_term_outlook,
+                "medium_term": medium_term_outlook,
+                "long_term": long_term_outlook
             },
             "raw_breakdown": score_result.breakdown,
             "modifications": score_result.modifications,
-            "score_explanation": score_explanation
+            "score_explanation": score_explanation,
+            "details": score_result.details # New structured breakdown for UI
         }
 
         # Prepare SMA dict for frontend
