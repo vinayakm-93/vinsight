@@ -6,7 +6,7 @@ import Dashboard from "../components/Dashboard";
 import { AuthModal } from '../components/AuthModal';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { User as UserIcon, LogOut, Sun, Moon, Monitor } from 'lucide-react';
+import { User as UserIcon, LogOut, Sun, Moon, Monitor, PanelLeft } from 'lucide-react';
 
 // import { FeedbackModal } from '../components/FeedbackModal';
 
@@ -16,6 +16,7 @@ export default function Home() {
   const { user, logout } = useAuth();
   const { theme, setTheme, effectiveTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isWatchlistVisible, setIsWatchlistVisible] = useState(true);
   // const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // Assuming handleLogout is a wrapper around logout or directly logout
@@ -31,6 +32,14 @@ export default function Home() {
       {/* Header */}
       <header className="p-4 md:p-6 flex justify-between items-center text-black dark:text-white shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsWatchlistVisible(!isWatchlistVisible)}
+            className={`p-2 rounded-lg transition-colors ${!isWatchlistVisible ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            title={isWatchlistVisible ? "Hide Watchlist" : "Show Watchlist"}
+          >
+            <PanelLeft size={20} />
+          </button>
+
           <img
             src={effectiveTheme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
             alt="Vinsight Logo"
@@ -91,15 +100,17 @@ export default function Home() {
 
       {/* Content */}
       <div className="max-w-7xl 2xl:max-w-[95%] 3xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr] gap-8">
+        <div className={`grid grid-cols-1 ${isWatchlistVisible ? 'lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr]' : ''} gap-8`}>
 
           {/* Sidebar / Watchlist */}
-          <div className="min-h-[500px] h-full overflow-hidden rounded-xl">
-            <WatchlistComponent
-              onSelectStock={setSelectedTicker}
-              onWatchlistChange={setWatchlistStocks}
-            />
-          </div>
+          {isWatchlistVisible && (
+            <div className="min-h-[500px] h-full overflow-hidden rounded-xl animate-in slide-in-from-left-4 duration-300">
+              <WatchlistComponent
+                onSelectStock={setSelectedTicker}
+                onWatchlistChange={setWatchlistStocks}
+              />
+            </div>
+          )}
 
           {/* Main Dashboard Area */}
           <div className="min-w-0">

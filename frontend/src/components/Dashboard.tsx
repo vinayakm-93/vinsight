@@ -12,10 +12,10 @@ import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
 
-const InfoTooltip = ({ text }: { text: string }) => (
+const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
         <Info size={13} className="text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900/95 backdrop-blur text-white text-[10px] leading-tight rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-gray-700">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 bg-gray-900/95 backdrop-blur text-white text-[10px] leading-tight rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-gray-700">
             {text}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
         </div>
@@ -261,6 +261,16 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
             try {
                 // Use new batch endpoint to reduce API calls from N to 1
                 const results = await getBatchStockDetails(watchlistStocks);
+
+                // Sort results to match the order of watchlistStocks
+                if (results && watchlistStocks.length > 0) {
+                    results.sort((a: any, b: any) => {
+                        const indexA = watchlistStocks.indexOf(a.symbol);
+                        const indexB = watchlistStocks.indexOf(b.symbol);
+                        return indexA - indexB;
+                    });
+                }
+
                 setSummaryData(results || []);
             } catch (e) {
                 console.error("Summary fetch error", e);
@@ -289,6 +299,12 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
             setSortColumn(column);
             setSortDirection('desc');
         }
+    };
+
+    // Reset sort to default (watchlist order)
+    const handleResetSort = () => {
+        setSortColumn(null);
+        setSortDirection('desc');
     };
 
     // Get sorted summary data
@@ -336,6 +352,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     bVal = b.sixMonthChange || 0;
                     break;
 
+                case 'ytd':
+                    aVal = a.ytdChangePercent || 0;
+                    bVal = b.ytdChangePercent || 0;
+                    break;
+
                 case 'sma20':
                     aVal = a.sma20 || 0;
                     bVal = b.sma20 || 0;
@@ -377,6 +398,14 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                             <Activity className="text-blue-500" /> Watchlist Overview
                         </h2>
+                        {sortColumn && (
+                            <button
+                                onClick={handleResetSort}
+                                className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors border border-blue-100 dark:border-blue-800"
+                            >
+                                <LayoutTemplate size={14} /> Reset Order
+                            </button>
+                        )}
                     </div>
 
                     {watchlistStocks.length === 0 ? (
@@ -1793,7 +1822,25 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         <div>
                             <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
                                 <Zap className="text-blue-500" /> Monte Carlo Simulation
-                                <InfoTooltip text="Simulates 1,000 possible future price paths based on historical volatility to estimate risk and probability." />
+                                <InfoTooltip text={
+                                    <div className="space-y-1.5">
+                                        <p>Simulates {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility ({simulation?.metadata?.period || '2y'}).</p>
+                                        <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
+                                            <div className="flex justify-between items-center gap-4">
+                                                <span className="text-gray-400">Model</span>
+                                                <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-4">
+                                                <span className="text-gray-400">History</span>
+                                                <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-4">
+                                                <span className="text-gray-400">Paths</span>
+                                                <span className="font-mono font-bold text-purple-400">{simulation?.metadata?.simulations?.toLocaleString() || '10,000'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                } />
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 90 days into the future based on recent volatility.</p>
                         </div>

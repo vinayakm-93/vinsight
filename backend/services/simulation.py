@@ -74,5 +74,10 @@ def run_monte_carlo(history: List[Dict], days: int = 90, simulations: int = 1000
         "p90": p90,
         "mean_price": mean_price,
         "expected_return": expected_return_pct,
-        "risk_var": risk_var
+        "risk_var": risk_var,
+        "metadata": {
+            "model": "GBM",
+            "simulations": simulations,
+            "period": "2y" if len(history) > 400 else "1y" # Approximate based on data length
+        }
     }

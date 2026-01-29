@@ -315,7 +315,7 @@ class VinSightScorer:
         # 7. EPS Surprise (10 pts)
         eps_pts = 0.0
         eps_val = f.eps_surprise_pct
-        if eps_val > eps_surprise_huge:
+        if eps_val >= eps_surprise_huge:
             eps_pts = 10.0
             eps_status = "Huge Beat"
         elif eps_val > 0:
