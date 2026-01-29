@@ -41,3 +41,4 @@ pytest
 httpx
 python-jose[cryptography]
 passlib[bcrypt]
+gunicorn
