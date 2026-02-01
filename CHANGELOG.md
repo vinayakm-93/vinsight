@@ -2,6 +2,22 @@
  
 
 
+## v6.6.1 - Dashboard Refactor & Finnhub News (2026-01-31)
+
+### 🚀 UI & UX Overhaul
+- **Dedicated Projections Tab**: Moved Monte Carlo Simulation to a new top-level tab, removing the dashboard summary card to reduce clutter.
+- **On-Demand Simulation**: Simulation now only runs when the "Projections" tab is active, significantly improving initial dashboard load time. Includes P10/P50/P90 visualization.
+- **News Feed Relocation**: Moved "Global News & Recent Events" to the bottom of the dashboard for a full-width reading experience.
+- **Scorecard Removal**: Removed the rigid Fundamentals/Sentiment/Technicals grid in favor of a cleaner tab-based layout.
+
+### 🔌 Integrations
+- **Finnhub News API**: Replaced legacy news sources with Finnhub's Limited News API for more reliable, real-time market news.
+- **Sentiment Auto-Refresh**: The "Sentiment" tab now automatically refreshes its analysis upon clicking, ensuring the latest data is used.
+
+### 🐛 Fixes
+- **Simulation Graph**: Fixed an issue where the simulation chart height would collapse to 0, making the graph invisible.
+- **Deployment**: Fixed missing `FINNHUB_API_KEY` injection in Cloud Run deployment script.
+
 ## v6.6.0 - UI Optimization & Dynamic Scoring (2026-01-23)
 
 ### 🚀 UI Improvements
