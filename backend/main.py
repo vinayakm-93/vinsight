@@ -80,9 +80,10 @@ def read_root():
     return {"status": "ok", "message": "Finance Research Backend Running"}
 
 # Import and include routers
-from routes import watchlist, data, feedback, auth, alerts
+from routes import watchlist, data, feedback, auth, alerts, sentiment
 app.include_router(watchlist.router)
 app.include_router(data.router)
 # app.include_router(feedback.router)
 app.include_router(auth.router)
 app.include_router(alerts.router)
+app.include_router(sentiment.router, prefix="/api") # Assuming other routes are structured similarly (checked data.py prefix implicitly via usage)

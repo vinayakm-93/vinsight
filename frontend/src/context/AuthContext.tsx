@@ -33,12 +33,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         const checkAuth = async () => {
+            // 1. Try to load from cache first for instant UI
+            const cachedUser = localStorage.getItem("vinsight_user");
+            if (cachedUser) {
+                try {
+                    setUser(JSON.parse(cachedUser));
+                    // Don't set loading to false yet if we want to ensure valid token, 
+                    // BUT for "instant feel" we should set it to false and re-validate silently.
+                    // Let's set it to false so UI shows immediately.
+                    setLoading(false);
+                } catch (e) {
+                    console.error("Failed to parse cached user", e);
+                }
+            }
+
             try {
+                // 2. Silently validate with backend
                 const userData = await getMe();
                 setUser(userData);
+                // Update cache
+                localStorage.setItem("vinsight_user", JSON.stringify(userData));
             } catch (error) {
                 // Not logged in or error
+                // Only clear if we actually failed auth (401), not network error?
+                // For now, if /me fails, we assume session invalid.
+                console.warn("Auth check failed or session expired", error);
+
+                // If we were using cached user, we might want to keep it if it's just a network error (offline support),
+                // but if 401, we must clear. 
+                // Simple approach: Clear on error to be safe, but this might cause "flash of content" if backend is just slow.
+                // Better: If error is 401, clear. If network error, keep cache?
+                // Since this is improving "slow profile", let's assume valid session but slow backend.
+                // We'll trust the error handler in api.ts or just check error status if possible.
+                // For simplicity/robustness: If getMe fails, we clear state.
                 setUser(null);
+                localStorage.removeItem("vinsight_user");
             } finally {
                 setLoading(false);
             }
@@ -48,8 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const login = async (email: string, password: string) => {
         await apiLogin(email, password);
-        const userData = await getMe(); // Re-fetch to ensure sync
+        const userData = await getMe();
         setUser(userData);
+        localStorage.setItem("vinsight_user", JSON.stringify(userData));
     };
 
     const requestVerify = async (email: string) => {
@@ -67,8 +97,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = async () => {
-        await apiLogout();
+        try {
+            await apiLogout();
+        } catch (e) {
+            console.error("Logout failed", e);
+        }
         setUser(null);
+        localStorage.removeItem("vinsight_user");
     };
 
     return (

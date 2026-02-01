@@ -1,8 +1,11 @@
 import pandas as pd
 import ta
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Optional
 from textblob import TextBlob
+from datetime import datetime
+from services import finnhub_news, cache
+from services.groq_sentiment import get_groq_analyzer
 
 def calculate_technical_indicators(history: List[Dict]) -> List[Dict]:
     """
@@ -99,29 +102,18 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
         'source': str ('alpha_vantage' or 'groq')
     }
     """
-    # Try Alpha Vantage first (has built-in sentiment)
-    if ticker:
-        try:
-            from services.alpha_vantage_news import get_alpha_vantage_news, is_available
-            
-            if is_available():
-                av_result = get_alpha_vantage_news(ticker, limit=10)
-                
-                if av_result and av_result.get('articles'):
-                    overall = av_result.get('overall_sentiment', {})
-                    return {
-                        "score": overall.get('score', 0),
-                        "label": overall.get('label', 'Neutral'),
-                        "confidence": 0.85,  # Alpha Vantage is generally reliable
-                        "article_count": av_result.get('article_count', 0),
-                        "source": "Alpha Vantage (Tier 1)",
-                        "articles": av_result.get('articles', [])  # Include article details
-                    }
-        except Exception as e:
-            print(f"[Sentiment] Alpha Vantage failed, falling back to Groq: {e}")
+    # 1. Gather News Data
+    # Priority: yfinance (Title). Alpha Vantage removed.
+    articles_to_analyze = []
+    source_name = "yfinance + Groq"
     
-    # Fallback: Use yfinance news + Groq analysis
-    if not news_items:
+    if news_items:
+        for item in news_items:
+            title = item.get('title', '')
+            if title:
+                articles_to_analyze.append(f"Headline: {title}")
+
+    if not articles_to_analyze:
         return {
             "score": 0,
             "label": "Neutral",
@@ -129,130 +121,28 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "article_count": 0,
             "source": "none"
         }
-    
+
+    # 2. Analyze with Groq (Batch)
     try:
         from services.groq_sentiment import get_groq_analyzer
-        from datetime import datetime, timezone
-        
         groq = get_groq_analyzer()
         
         if not groq.is_available():
             raise Exception("Groq API not available")
+
+        # Context for analysis
+        context = ticker if ticker else "Company"
         
-        # Bearish keywords for spin detection (keep these for safety)
-        BEARISH_KEYWORDS = [
-            'layoff', 'layoffs', 'job cuts', 'firing', 'downsizing',
-            'miss', 'misses', 'missed', 'disappointing', 'shortfall',
-            'decline', 'declines', 'declining', 'drop', 'drops', 'fell',
-            'lower', 'lowers', 'lowering', 'cut', 'cuts', 'cutting',
-            'loss', 'losses', 'losing', 'unprofitable',
-            'bankruptcy', 'bankrupt', 'insolvent',
-            'investigation', 'lawsuit', 'sued', 'fraud',
-            'downgrade', 'downgrades', 'downgraded',
-            'weak', 'weakness', 'softer', 'slowing'
-        ]
-        
-        # Extract headlines and detect bearish content
-        headlines = []
-        dates = []
-        bearish_flags = []
-        
-        for item in news_items:
-            title = item.get('title', '')
-            if title:
-                headlines.append(title)
-                
-                # Check for bearish keywords
-                title_lower = title.lower()
-                has_bearish = any(keyword in title_lower for keyword in BEARISH_KEYWORDS)
-                bearish_flags.append(has_bearish)
-                
-                # Parse date
-                pub_date = item.get('published')
-                if pub_date:
-                    try:
-                        if isinstance(pub_date, str):
-                            date_obj = datetime.fromisoformat(pub_date.replace('Z', '+00:00'))
-                        else:
-                            date_obj = pub_date
-                        dates.append(date_obj)
-                    except:
-                        dates.append(datetime.now(timezone.utc))
-                else:
-                    dates.append(datetime.now(timezone.utc))
-        
-        if not headlines:
-            return {
-                "score": 0,
-                "label": "Neutral",
-                "confidence": 0.0,
-                "article_count": 0,
-                "source": "none"
-            }
-        
-        # Analyze top 10 headlines with Groq
-        top_n = min(10, len(headlines))
-        
-        # Sort by recency
-        headline_data = list(zip(headlines, dates, bearish_flags))
-        headline_data.sort(key=lambda x: x[1], reverse=True)
-        
-        now = datetime.now(timezone.utc)
-        
-        groq_scores = []
-        groq_confidences = []
-        weights = []
-        analyzed_bearish = []
-        
-        for headline, date, is_bearish in headline_data[:top_n]:
-            groq_result = groq.analyze(headline)
-            groq_scores.append(groq_result['score'])
-            groq_confidences.append(groq_result['confidence'])
-            analyzed_bearish.append(is_bearish)
-            
-            # Temporal weight (recent = higher)
-            try:
-                days_ago = (now - date).total_seconds() / 86400
-                weight = 1.0 / (1.0 + 0.1 * days_ago)
-                weights.append(weight)
-            except:
-                weights.append(1.0)
-        
-        # Calculate weighted average
-        total_weight = sum(weights)
-        avg_score = sum(s * w for s, w in zip(groq_scores, weights)) / total_weight if total_weight > 0 else 0
-        avg_confidence = sum(c * w for c, w in zip(groq_confidences, weights)) / total_weight if total_weight > 0 else 0
-        
-        # Apply bearish spin detection penalty
-        bearish_count = sum(analyzed_bearish)
-        if bearish_count > 0 and avg_score > 0:
-            penalty_factor = 1.0 - (bearish_count / len(analyzed_bearish)) * 0.5
-            avg_score *= penalty_factor
-            print(f"[Spin Detection] {bearish_count}/{len(analyzed_bearish)} bearish headlines, penalty {penalty_factor:.2f}x")
-        
-        # Classify with thresholds
-        if avg_score > 0.4:
-            label = "Positive"
-        elif avg_score < -0.25:
-            label = "Negative"
-        else:
-            label = "Neutral"
-        
-        # Low confidence defaults to neutral
-        if avg_confidence < 0.70 and label != "Neutral":
-            label = "Neutral"
-        
-        # Force negative if bearish keywords + weak positive
-        if bearish_count >= 2 and 0 < avg_score < 0.3:
-            label = "Negative"
-            print(f"[Spin Override] Forcing negative due to {bearish_count} bearish keywords")
+        # Batch Analysis
+        result = groq.analyze_batch(articles_to_analyze, context=context)
         
         return {
-            "score": avg_score,
-            "label": label,
-            "confidence": avg_confidence,
-            "article_count": len(headlines),
-            "source": "Groq Llama 3 (Tier 2)"
+            "score": result['score'],
+            "label": result['label'].capitalize(), # "positive" -> "Positive"
+            "confidence": result['confidence'],
+            "article_count": len(articles_to_analyze),
+            "source": f"{source_name} (Deep Analysis)",
+            "reasoning": result.get('reasoning', '')
         }
         
     except Exception as e:
@@ -291,3 +181,83 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "source": "TextBlob (Tier 3)"
         }
 
+
+def analyze_sentiment_ondemand(ticker: str) -> Dict:
+    """
+    On-Demand Sentiment Analysis (v2.5)
+    1. Checks Cache (3-Hour TTL).
+    2. Fetches Finnhub News (Last 7 Days).
+    3. Performs Dual-Period Analysis (Today vs Weekly) via Groq.
+    4. Caches and returns result.
+    """
+    # 1. Check Cache
+    cached_result = cache.get_cached_sentiment(ticker)
+    if cached_result:
+        cached_result['source'] = 'cache'
+        return cached_result
+
+    # 2. Fetch News (Finnhub)
+    news_data = finnhub_news.fetch_company_news(ticker, days=7)
+    latest = news_data.get('latest', [])
+    historical = news_data.get('historical', [])
+    
+    total_articles = len(latest) + len(historical)
+    
+    if total_articles == 0:
+        return {
+            "score_today": 0,
+            "score_weekly": 0,
+            "score_quant": 0,
+            "reasoning": "No recent news found for analysis.",
+            "key_drivers": [],
+            "news_flow": news_data,
+            "timestamp": datetime.now().isoformat(),
+            "source": "finnhub_v2_empty"
+        }
+
+    # 3. Analyze (Groq)
+    start_time = datetime.now()
+    groq = get_groq_analyzer()
+    if groq.is_available():
+        analysis = groq.analyze_dual_period(latest, historical, context=ticker)
+    else:
+        # Fallback if Groq key missing
+        analysis = {
+            "score_today": 0,
+            "score_weekly": 0,
+            "reasoning": "Groq API key missing. Cannot perform deep analysis.",
+            "key_drivers": []
+        }
+    
+    end_time = datetime.now()
+    duration_ms = (end_time - start_time).total_seconds() * 1000
+
+    # 4. Quant Check (TextBlob - Standard "Bag of Words" model)
+    # This acts as a "second opinion" or the "Finnhub Weighted Score" proxy.
+    def calc_quant_score(items):
+        if not items: return 0.0
+        details = [TextBlob(i['title'] + " " + i.get('summary','')).sentiment.polarity for i in items]
+        return sum(details) / len(details) if details else 0.0
+
+    quant_today = calc_quant_score(latest)
+    quant_weekly = calc_quant_score(historical)
+    quant_total = (quant_today * 0.6) + (quant_weekly * 0.4) # Weighted
+
+    # 5. Construct Result
+    result = {
+        "score_today": analysis.get('score_today', 0),
+        "score_weekly": analysis.get('score_weekly', 0),
+        "score_quant": quant_total, # The "Algorithmic" score
+        "reasoning": analysis.get('reasoning', ''),
+        "key_drivers": analysis.get('key_drivers', []),
+        "news_flow": news_data,
+        "article_count": total_articles,
+        "timestamp": datetime.now().isoformat(),
+        "duration_ms": duration_ms,
+        "source": "finnhub_v2"
+    }
+
+    # 6. Cache
+    cache.set_cached_sentiment(ticker, result)
+    
+    return result

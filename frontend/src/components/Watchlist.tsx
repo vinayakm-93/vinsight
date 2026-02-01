@@ -350,23 +350,56 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
     }, [user]);
 
     const fetchWatchlists = async () => {
-        setIsLoading(true);
+        // 1. Try Cache First (if user exists)
+        if (user) {
+            const cacheKey = `vinsight_watchlists_${user.id}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    setWatchlists(parsed);
+                    if (parsed.length > 0 && !activeWatchlistId) {
+                        // Restore active ID if possible, or default to first
+                        setActiveWatchlistId(parsed[0].id);
+                    }
+                    // Optimistically stop loading
+                    setIsLoading(false);
+                } catch (e) { }
+            }
+        } else {
+            setIsLoading(true);
+        }
+
         setError(null);
         try {
             console.log("Fetching watchlists for user:", user?.email);
             const data = await getWatchlists();
             console.log("Fetched watchlists data:", data);
             setWatchlists(data);
+
+            // Update Cache
+            if (user) {
+                localStorage.setItem(`vinsight_watchlists_${user.id}`, JSON.stringify(data));
+            }
+
             // Always select first watchlist if we have any and no valid selection
             if (data.length > 0) {
                 const currentValid = data.some((w: Watchlist) => w.id === activeWatchlistId);
-                if (!currentValid) {
+                // Only override active selection if the current one is invalid (deleted remotely?) 
+                // OR if we didn't have one set from cache yet.
+                // Actually if cache set it, we might want to respect that.
+                if (!currentValid && !activeWatchlistId) {
+                    setActiveWatchlistId(data[0].id);
+                } else if (!currentValid) {
                     setActiveWatchlistId(data[0].id);
                 }
             }
         } catch (error: any) {
             console.error("Failed to fetch watchlists", error);
-            setError(error?.response?.data?.detail || "Failed to load watchlists");
+            // Only show error if we have no data at all
+            if (watchlists.length === 0) {
+                setError(error?.response?.data?.detail || "Failed to load watchlists");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -499,11 +532,25 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             onWatchlistChange(activeList.stocks);
         }
 
-        // Identify stocks that need data (not already loaded or loading)
-        const stocksToFetch = activeList.stocks.filter(ticker => !stockData[ticker] && !loadingData[ticker]);
+        // 1. Try Load from Cache
+        if (user) {
+            const cacheKey = `vinsight_stock_data`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    // Merge with existing, but prioritize existing if not empty
+                    setStockData(prev => ({ ...parsed, ...prev }));
+                } catch (e) { }
+            }
+        }
 
-        if (stocksToFetch.length > 0) {
-            fetchBatchStocks(stocksToFetch);
+        // Identify stocks that need data (not already loaded or loading)
+        // We fetch even if we have cached data, to refresh it silent
+        const needsRefresh = activeList.stocks.filter(ticker => !loadingData[ticker]);
+
+        if (needsRefresh.length > 0) {
+            fetchBatchStocks(needsRefresh);
         }
     }, [activeWatchlistId, watchlists]);
 
@@ -524,6 +571,10 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                         updated[item.symbol] = item;
                     }
                 });
+
+                // Update Cache
+                localStorage.setItem(`vinsight_stock_data`, JSON.stringify(updated));
+
                 return updated;
             });
         } catch (e) {
@@ -543,7 +594,11 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         setLoadingData(prev => ({ ...prev, [ticker]: true }));
         try {
             const data = await getStockDetails(ticker);
-            setStockData(prev => ({ ...prev, [ticker]: data }));
+            setStockData(prev => {
+                const updated = { ...prev, [ticker]: data };
+                localStorage.setItem(`vinsight_stock_data`, JSON.stringify(updated));
+                return updated;
+            });
         } catch (e) {
             // console.error(`Failed to load data for ${ticker}`);
         } finally {

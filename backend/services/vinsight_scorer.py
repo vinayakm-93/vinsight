@@ -83,7 +83,7 @@ def _load_sector_benchmarks() -> Dict:
 # --- Scoring Engine v6.3 ---
 
 class VinSightScorer:
-    VERSION = "v6.3"
+    VERSION = "v6.4"
     
     # v6.3 Weight Distribution (100 pts total)
     WEIGHT_FUNDAMENTALS = 70
@@ -391,10 +391,13 @@ class VinSightScorer:
         # News (5 pts)
         news_pts = 0.0
         raw = s.news_sentiment_score
-        if raw > 0.2:
+        
+        # v6.4 Update: Stricter Alignment with LLM Analysis
+        # LLM uses -1 to 1 scale where > 0.5 is Strong Buy
+        if raw > 0.4 or s.news_sentiment_label == "Positive":
             news_pts = 5.0
             news_status = "Positive"
-        elif raw < -0.2:
+        elif raw < -0.3 or s.news_sentiment_label == "Negative":
             news_pts = 0.0
             news_status = "Negative"
         else:
@@ -402,7 +405,7 @@ class VinSightScorer:
             news_status = "Neutral"
         
         score += news_pts
-        self._add_detail("Sentiment", "News", s.news_sentiment_label, "> 0.2", news_pts, 5, news_status)
+        self._add_detail("Sentiment", "News", s.news_sentiment_label, "> 0.4", news_pts, 5, news_status)
         
         # Insiders (5 pts)
         ins_pts = 0.0

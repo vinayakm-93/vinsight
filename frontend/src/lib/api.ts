@@ -65,7 +65,7 @@ export const getHistory = async (ticker: string, period = "1mo", interval = "1d"
 };
 
 export const getAnalysis = async (ticker: string, sectorOverride?: string, period: string = "1y", interval: string = "1d"): Promise<any> => {
-  const params: any = { period, interval };
+  const params: any = { period, interval, include_simulation: false };
   if (sectorOverride && sectorOverride !== 'Auto') {
     params.sector_override = sectorOverride;
   }
@@ -115,6 +115,11 @@ export const getQuickQuote = async (ticker: string): Promise<any> => {
 
 export const getSentiment = async (ticker: string): Promise<any> => {
   const response = await api.get<any>(`/api/data/sentiment/${ticker}`);
+  return response.data;
+};
+
+export const analyzeSentiment = async (ticker: string): Promise<any> => {
+  const response = await api.get<any>(`/api/analyze`, { params: { ticker } });
   return response.data;
 };
 

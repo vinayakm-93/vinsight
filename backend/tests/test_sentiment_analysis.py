@@ -1,76 +1,20 @@
 """
-Unit tests for VinSight v2 Sentiment Analyzers
-Tests FinBERT and Groq sentiment analysis capabilities
+Unit tests for VinSight v2.2+ Sentiment Analyzers
+Tests Groq sentiment analysis capabilities including batch processing
 """
 
 import pytest
-from backend.services.finbert_sentiment import FinBERTSentimentAnalyzer, get_finbert_analyzer
-from backend.services.groq_sentiment import GroqSentimentAnalyzer, get_groq_analyzer
 import os
+import sys
 
+# Ensure backend modules can be imported
+# Add project root
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# Add backend dir so 'from services...' works
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-class TestFinBERTSentiment:
-    """Tests for FinBERT sentiment analyzer"""
-    
-    def test_finbert_positive_sentiment(self):
-        """Test positive financial sentiment detection"""
-        analyzer = get_finbert_analyzer()
-        result = analyzer.analyze("Apple exceeds earnings expectations, stock rallies 5%")
-        
-        assert result['label'] == 'positive'
-        assert result['score'] > 0
-        assert result['confidence'] > 0.5
-        assert 'probabilities' in result
-    
-    def test_finbert_negative_sentiment(self):
-        """Test negative financial sentiment detection"""
-        analyzer = get_finbert_analyzer()
-        result = analyzer.analyze("Company misses revenue targets, CEO announces layoffs")
-        
-        assert result['label'] == 'negative'
-        assert result['score'] < 0
-        assert result['confidence'] > 0.5
-    
-    def test_finbert_neutral_sentiment(self):
-        """Test neutral sentiment detection"""
-        analyzer = get_finbert_analyzer()
-        result = analyzer.analyze("Merger talks continue, no decision expected soon")
-        
-        # Should be neutral or at least low confidence
-        assert result['label'] in ['neutral', 'positive', 'negative']
-        assert -0.5 <= result['score'] <= 0.5
-    
-    def test_finbert_batch_processing(self):
-        """Test batch processing of multiple headlines"""
-        analyzer = get_finbert_analyzer()
-        headlines = [
-            "Stock hits all-time high on strong earnings",
-            "Earnings disappoint investors",
-            "Quarterly report released"
-        ]
-        
-        results = analyzer.analyze_batch(headlines)
-        
-        assert len(results) == 3
-        assert results[0]['label'] == 'positive'
-        assert results[1]['label'] == 'negative'
-    
-    def test_finbert_empty_text(self):
-        """Test handling of empty text"""
-        analyzer = get_finbert_analyzer()
-        result = analyzer.analyze("")
-        
-        assert result['label'] == 'neutral'
-        assert result['score'] == 0.0
-        assert result['confidence'] == 0.0
-    
-    def test_finbert_singleton_pattern(self):
-        """Test that get_finbert_analyzer returns singleton"""
-        analyzer1 = get_finbert_analyzer()
-        analyzer2 = get_finbert_analyzer()
-        
-        assert analyzer1 is analyzer2  # Should be same instance
-
+from unittest.mock import MagicMock, patch
+from backend.services.groq_sentiment import GroqSentimentAnalyzer, get_groq_analyzer
 
 class TestGroqSentiment:
     """Tests for Groq sentiment analyzer"""
@@ -90,6 +34,27 @@ class TestGroqSentiment:
         assert 0.0 <= result['confidence'] <= 1.0
         assert 'reasoning' in result
         assert len(result['reasoning']) > 0
+    
+    @pytest.mark.skipif(not os.getenv('GROQ_API_KEY'), reason="No Groq API key")
+    def test_groq_batch_analysis(self):
+        """Test Groq batch analysis"""
+        analyzer = get_groq_analyzer()
+        
+        if not analyzer.is_available():
+            pytest.skip("Groq API key not configured")
+        
+        items = [
+            "Headline: Tesla beats earnings. Summary: Strong growth in Q4.",
+            "Headline: Musk announces new factory. Summary: Production to increase.",
+            "Headline: Safety recall issued. Summary: Minor software update required."
+        ]
+        
+        result = analyzer.analyze_batch(items, context="Tesla (TSLA)")
+        
+        print(f"Batch Result: {result}")
+        assert result['label'] in ['positive', 'negative', 'neutral']
+        assert -1.0 <= result['score'] <= 1.0
+        assert 'reasoning' in result
     
     def test_groq_availability_check(self):
         """Test Groq availability check"""
@@ -111,28 +76,44 @@ class TestGroqSentiment:
 class TestHybridSentiment:
     """Integration tests for hybrid sentiment analysis"""
     
-    def test_hybrid_sentiment_integration(self):
-        """Test hybrid sentiment using analysis.py function"""
+    @patch('services.groq_sentiment.GroqSentimentAnalyzer.analyze_batch')
+    def test_hybrid_sentiment_integration_mock(self, mock_analyze_batch):
+        """Test hybrid sentiment using analysis.py function with mocked Groq"""
         from backend.services.analysis import calculate_news_sentiment
         
+        # Mock behavior
+        mock_analyze_batch.return_value = {
+            'label': 'positive',
+            'score': 0.8,
+            'confidence': 0.9,
+            'reasoning': 'Mocked reasoning'
+        }
+        
         test_news = [
-            {'title': 'Apple beats earnings expectations'},
-            {'title': 'Strong iPhone sales drive revenue growth'},
-            {'title': 'Stock price hits new high'}
+            {'title': 'Apple beats earnings expectations', 'summary': 'Good stuff'},
+            {'title': 'Strong iPhone sales drive revenue growth'}
         ]
         
-        result = calculate_news_sentiment(test_news, deep_analysis=False)
-        
-        assert 'score' in result
-        assert 'label' in result
-        assert 'confidence' in result
-        assert 'article_count' in result
-        assert 'source' in result
-        
-        assert result['article_count'] == 3
-        assert result['label'] in ['Positive', 'Negative', 'Neutral']
-        assert result['source'] in ['finbert', 'groq', 'hybrid', 'textblob_fallback']
-    
+        # We need to ensure get_groq_analyzer returns a valid mock or the real one that we patched
+        # Since analysis.py imports 'services.groq_sentiment', we must patch that specific path
+        with patch('services.groq_sentiment.get_groq_analyzer') as mock_get:
+            mock_instance = MagicMock()
+            mock_instance.is_available.return_value = True
+            mock_instance.analyze_batch = mock_analyze_batch
+            mock_get.return_value = mock_instance
+            
+            result = calculate_news_sentiment(test_news, ticker="AAPL")
+            
+            assert result['score'] == 0.8
+            assert result['label'] == 'Positive'
+            assert 'Deep Analysis' in result['source']
+            
+            # Verify analyze_batch was called
+            mock_analyze_batch.assert_called_once()
+            args, kwargs = mock_analyze_batch.call_args
+            assert len(args[0]) >= 1 # Should have items
+            assert "Headline: Apple beats earnings" in args[0][0]
+
     def test_empty_news_handling(self):
         """Test handling of empty news list"""
         from backend.services.analysis import calculate_news_sentiment

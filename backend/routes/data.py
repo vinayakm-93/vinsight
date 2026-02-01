@@ -121,7 +121,7 @@ def get_stock_news(ticker: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/analysis/{ticker}")
-def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, sector_override: str = None):
+def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, include_simulation: bool = False, sector_override: str = None):
     """
     Technical analysis with optional sector override.
     sector_override: None (auto-detect), 'Standard' (defaults), or specific sector name
@@ -199,7 +199,10 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             
         # Run Simulation (Ideally distinct from 'analysis' but we are consolidating)
         # Using a smaller history window for simulation usually sufficient (1y) but 2y is fine
-        sim_result = simulation.run_monte_carlo(history, days=90, simulations=10000) # 10k sims for statistical accuracy
+        if include_simulation:
+            sim_result = simulation.run_monte_carlo(history, days=90, simulations=10000) # 10k sims for statistical accuracy
+        else:
+            sim_result = {}
         
         # v5.0 Data Fetching
         regime = finance.get_market_regime()
@@ -545,7 +548,6 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         if sentiment_result:
             raw_source = sentiment_result.get('source', 'Unknown')
             source_display = {
-                "alpha_vantage": "Alpha Vantage (Tier 1)",
                 "finnhub": "Finnhub (Tier 1)",
                 "yfinance": "Yahoo Finance (Tier 2)",
                 "textblob": "TextBlob (Fallback)"

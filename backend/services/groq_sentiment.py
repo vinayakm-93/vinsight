@@ -139,6 +139,163 @@ Now analyze the given text and respond ONLY with the JSON, no other text:"""
         
         return prompt
     
+    def analyze_batch(self, items: list[str], context: str = "") -> Dict:
+        """
+        Analyze multiple news items together for a holistic sentiment.
+        
+        Args:
+            items: List of text items (headlines + summaries)
+            context: Context (e.g. "Apple Inc. (AAPL)")
+            
+        Returns:
+            Dict with label, score, confidence, reasoning
+        """
+        if not self.client:
+            return self._empty_result()
+            
+        if not items:
+            return self._empty_result()
+            
+        # Limit to top 15 items to fit in context window and avoid noise
+        items = items[:15]
+        
+        joined_text = "\n\n".join([f"- {item}" for item in items])
+        
+        prompt = f"""You are a cynical, sophisticated financial analyst. Analyze the sentiment of these news items for {context}:
+
+{joined_text}
+
+Instructions:
+1. Ignore generic PR fluff (e.g. "Company announces new vice president", "Stock alerts").
+2. Focus on MATERIAL impact: Earnings, Guidance, Lawsuits, Layoffs, Product Launches, Regulatory issues.
+3. Be skeptical. "Restructuring" often means problems. "Strategic alternatives" means for sale.
+4. "Beat earnings" is good, but check the guidance. If guidance is weak, sentiment is NEGATIVE.
+5. If news is mixed, weigh the most recent and most material news heavier.
+6. If the news is old or irrelevant, return NEUTRAL.
+
+Classify sentiment as:
+- positive (clear bullish signal, material good news)
+- negative (clear bearish signal, material bad news, lawsuits, poor guidance)
+- neutral (noise, mixed signals, or no material information)
+
+Provide analysis in this EXACT JSON format:
+{{
+  "label": "positive|negative|neutral",
+  "score": <float between -1.0 and 1.0 (0.0 is neutral, >0.5 is strong buy, <-0.5 is strong sell)>,
+  "confidence": <float 0.0 to 1.0>,
+  "reasoning": "<concise explanation of the verdict>"
+}}
+
+Respond ONLY with the JSON.
+"""
+        try:
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a senior financial analyst. You are skeptical, fact-based, and immune to corporate spin. You analyze aggregate news to determine true market sentiment."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=self.model,
+                temperature=0.2, # Lower, more deterministic
+                max_tokens=300
+            )
+            
+            # Extract JSON from response (handling potential markdown blocks)
+            content = chat_completion.choices[0].message.content
+            return self._parse_response(content)
+            
+        except Exception as e:
+            logger.error(f"Error in batch analysis: {e}")
+            return self._empty_result()
+
+    def analyze_dual_period(self, latest_items: list, historical_items: list, context: str = "") -> Dict:
+        """
+        Analyze 'Today' vs 'Weekly' news separately in one prompt.
+        
+        Args:
+            latest_items: List of news items from last 24h
+            historical_items: List of news items from last 7 days (excluding last 24h)
+            context: Ticker/Company name
+            
+        Returns:
+            Dict with 'score_today', 'score_weekly', 'reasoning', 'key_drivers'
+        """
+        if not self.client:
+            return self._empty_result()
+            
+        # Format lists
+        latest_text = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in latest_items[:10]])
+        if not latest_text:
+            latest_text = "No significant news in the last 24 hours."
+            
+        historical_text = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in historical_items[:15]])
+        if not historical_text:
+            historical_text = "No significant news in the last week."
+            
+        prompt = f"""You are a sophisticated financial analyst. Analyze the dual-period sentiment for {context}.
+
+PERIOD 1: LAST 24 HOURS (Immediate Pulse)
+{latest_text}
+
+PERIOD 2: LAST 7 DAYS (Weekly Context)
+{historical_text}
+
+Analyze the sentiment for BOTH periods separately.
+- "Today's Score": Reaction to the immediate news.
+- "Weekly Score": The broader trend including the context.
+
+Instructions:
+1. If "No news", semtiment is NEUTRAL (0.0).
+2. Weight MATERIAL news (Earnings, Regulatory, M&A) heavily.
+3. Be skeptical of PR fluff.
+
+Provide specific "Key Drivers" (bullet points) that justify your scores.
+
+Output EXACT JSON:
+{{
+  "score_today": <float -1.0 to 1.0>,
+  "score_weekly": <float -1.0 to 1.0>,
+  "reasoning": "<Concise explanation merging both periods>",
+  "key_drivers": ["<Driver 1>", "<Driver 2>", "<Driver 3>"]
+}}
+"""
+        try:
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are a hedge fund signal analyst. JSON output only."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.model,
+                temperature=0.2, # Deterministic
+                max_tokens=400
+            )
+            
+            content = chat_completion.choices[0].message.content
+            
+            # Parse
+            import json
+            start = content.find('{')
+            end = content.rfind('}') + 1
+            if start >= 0 and end > start:
+                data = json.loads(content[start:end])
+                return {
+                    "score_today": max(-1.0, min(1.0, float(data.get('score_today', 0)))),
+                    "score_weekly": max(-1.0, min(1.0, float(data.get('score_weekly', 0)))),
+                    "reasoning": data.get('reasoning', "Analysis unavailble."),
+                    "key_drivers": data.get('key_drivers', [])
+                }
+            else:
+                return self._empty_result()
+                
+        except Exception as e:
+            logger.error(f"Error in dual analysis: {e}")
+            return self._empty_result()
+    
     def _parse_response(self, response: str) -> Dict:
         """Parse Groq API response."""
         import json

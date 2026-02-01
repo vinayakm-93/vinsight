@@ -5,9 +5,9 @@ import axios from 'axios';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar
 } from 'recharts';
-import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
+import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
-import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid } from 'lucide-react'; // Renamed icon
+import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock } from 'lucide-react'; // Renamed icon
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -50,6 +50,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [institutions, setInstitutions] = useState<any>(null); // New state for institutional data
     const [loading, setLoading] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false); // New state for chart data updates only
+    const [loadingSimulation, setLoadingSimulation] = useState(false);
 
     // Watchlist Summary State
     const [summaryData, setSummaryData] = useState<any[]>([]);
@@ -70,13 +71,17 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [showAlertModal, setShowAlertModal] = useState(false);
     const { user } = useAuth();
 
-    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment'>('ai');
+
+
+    // Updated Active Tab Type
+    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment' | 'projections'>('ai');
     const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
 
 
     // Sentiment State (lazy-loaded)
     const [sentimentData, setSentimentData] = useState<any>(null);
     const [loadingSentiment, setLoadingSentiment] = useState(false);
+    const [showEvidence, setShowEvidence] = useState(false); // Collapsible Evidence State
 
     // Earnings State
     const [earningsData, setEarningsData] = useState<any>(null);
@@ -141,12 +146,26 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         setSelectedSector('Auto'); // Reset sector override on ticker change
     }, [ticker]);
 
+    // Sentiment Analysis Handler (On-Demand)
+    const handleAnalyzeSentiment = async () => {
+        if (!ticker) return;
+        setLoadingSentiment(true);
+        try {
+            const data = await analyzeSentiment(ticker);
+            setSentimentData(data);
+        } catch (error) {
+            console.error("Sentiment analysis failed", error);
+        } finally {
+            setLoadingSentiment(false);
+        }
+    };
+
     // Fetch sector benchmarks once on mount
     useEffect(() => {
         getSectorBenchmarks().then(setSectorBenchmarks).catch(console.error);
     }, []);
 
-    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment') => {
+    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment' | 'projections') => {
         setActiveTab(tab);
         if (tab === 'earnings' && !earningsData && !loadingEarnings && ticker) {
             setLoadingEarnings(true);
@@ -170,6 +189,26 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
             } finally {
                 setLoadingSentiment(false);
             }
+        }
+        // Auto-run simulation when tab is clicked
+        if (tab === 'projections' && !simulation && !loadingSimulation && ticker) {
+            // We need to call this asynchronously or ensure handleRunSimulation is accessible
+            // Since they are in the same scope, it works at execution time.
+            handleRunSimulation();
+        }
+    };
+
+    const handleRunSimulation = async () => {
+        if (!ticker) return;
+        setLoadingSimulation(true);
+        try {
+            // Fetch simulation data from specialized endpoint
+            const simData = await getSimulation(ticker);
+            setSimulation(simData);
+        } catch (e) {
+            console.error("Simulation fetch error", e);
+        } finally {
+            setLoadingSimulation(false);
         }
     };
 
@@ -939,6 +978,12 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     >
                         Sentiment
                     </button>
+                    <button
+                        className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'projections' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                        onClick={() => handleTabChange('projections')}
+                    >
+                        Projections
+                    </button>
                 </div>
 
                 {activeTab === 'ai' && (
@@ -1073,184 +1118,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             </div>
                         )}
 
-                        {/* 2. The Scorecard (4 Pillars) - Clickable with Details */}
-                        {analysis?.ai_analysis?.raw_breakdown && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {/* Fundamentals - Clickable */}
-                                <div
-                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md transition-all"
-                                    onClick={() => setExpandedPillar(expandedPillar === 'fundamentals' ? null : 'fundamentals')}
-                                >
-                                    <div className="flex justify-between items-center mb-2 gap-4">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
-                                            <BarChart2 size={14} className="text-blue-500" /> Fundamentals
-                                        </h4>
-                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Fundamentals}<span className="text-xs text-gray-400">/70</span></span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Fundamentals / 70) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Valuation, Growth, Cash Flow</span>
-                                        <span className="text-blue-500 text-[9px] font-medium">{expandedPillar === 'fundamentals' ? '▲ Hide' : '▼ Details'}</span>
-                                    </p>
-                                    {/* Expanded Details */}
-                                    {expandedPillar === 'fundamentals' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {/* Backend Factors - Primary Display */}
-                                            {analysis.ai_analysis?.score_explanation?.fundamentals?.factors ? (
-                                                <div className="space-y-2 bg-blue-50/50 dark:bg-blue-900/10 p-2.5 rounded-lg border border-blue-100 dark:border-blue-800/30">
-                                                    {analysis.ai_analysis.score_explanation.fundamentals.factors.map((factor: string, idx: number) => (
-                                                        <div key={idx} className="flex items-center gap-2 text-xs">
-                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.toLowerCase().includes('undervalued') || factor.toLowerCase().includes('strong') || factor.toLowerCase().includes('healthy') || factor.toLowerCase().includes('prudent') ? 'bg-emerald-500' :
-                                                                factor.toLowerCase().includes('premium') || factor.toLowerCase().includes('trail') || factor.toLowerCase().includes('elevated') || factor.toLowerCase().includes('exceeds') ? 'bg-red-500' :
-                                                                    'bg-yellow-500'
-                                                                }`}></span>
-                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
 
-                                {/* Sentiment - Clickable */}
-                                <div
-                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md transition-all"
-                                    onClick={() => setExpandedPillar(expandedPillar === 'sentiment' ? null : 'sentiment')}
-                                >
-                                    <div className="flex justify-between items-center mb-2 gap-4">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
-                                            <Newspaper size={14} className="text-purple-500" /> Sentiment
-                                        </h4>
-                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Sentiment}<span className="text-xs text-gray-400">/10</span></span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-purple-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Sentiment / 10) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Sentiment & Insider</span>
-                                        <span className="text-purple-500 text-[9px] font-medium">{expandedPillar === 'sentiment' ? '▲ Hide' : '▼ Details'}</span>
-                                    </p>
-                                    {/* Expanded Details */}
-                                    {expandedPillar === 'sentiment' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {/* Score Breakdown Header */}
-                                            <div className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">
-                                                Score Breakdown (News 5pts + Insider 5pts)
-                                            </div>
-
-                                            {/* Backend Factors - Primary Display */}
-                                            {analysis.ai_analysis?.score_explanation?.sentiment?.factors ? (
-                                                <div className="space-y-2 bg-purple-50/50 dark:bg-purple-900/10 p-2.5 rounded-lg border border-purple-100 dark:border-purple-800/30">
-                                                    {analysis.ai_analysis.score_explanation.sentiment.factors.map((factor: string, idx: number) => (
-                                                        <div key={idx} className="flex items-center gap-2 text-xs">
-                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.toLowerCase().includes('positive') || factor.toLowerCase().includes('buying') ? 'bg-emerald-500' :
-                                                                factor.toLowerCase().includes('negative') || factor.toLowerCase().includes('selling') ? 'bg-red-500' :
-                                                                    'bg-yellow-500'
-                                                                }`}></span>
-                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
-                                            )}
-
-                                            {/* Articles Analyzed */}
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-gray-500">Articles Analyzed</span>
-                                                <span className="text-gray-900 dark:text-white font-mono">
-                                                    {news?.length || 0}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Projections - Clickable */}
-                                <div
-                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-orange-400 dark:hover:border-orange-600 hover:shadow-md transition-all"
-                                    onClick={() => setExpandedPillar(expandedPillar === 'projections' ? null : 'projections')}
-                                >
-                                    <div className="flex justify-between items-center mb-2 gap-4">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
-                                            <TrendingUp size={14} className="text-orange-500" /> Projections
-                                        </h4>
-                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Projections}<span className="text-xs text-gray-400">/10</span></span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-orange-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Projections / 10) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Upside vs Downside (Monte Carlo)</span>
-                                        <span className="text-orange-500 text-[9px] font-medium">{expandedPillar === 'projections' ? '▲ Hide' : '▼ Details'}</span>
-                                    </p>
-                                    {/* Expanded Details */}
-                                    {expandedPillar === 'projections' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {/* Backend Factors - Primary Display */}
-                                            {analysis.ai_analysis?.score_explanation?.projections?.factors ? (
-                                                <div className="space-y-2 bg-orange-50/50 dark:bg-orange-900/10 p-2.5 rounded-lg border border-orange-100 dark:border-orange-800/30">
-                                                    {analysis.ai_analysis.score_explanation.projections.factors.map((factor: string, idx: number) => (
-                                                        <div key={idx} className="flex items-center gap-2 text-xs">
-                                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${factor.includes('+') ? 'bg-emerald-500' :
-                                                                factor.includes('-') ? 'bg-red-500' :
-                                                                    'bg-orange-500'
-                                                                }`}></span>
-                                                            <span className="text-gray-700 dark:text-gray-300">{factor}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="text-[10px] text-gray-400 italic">Score details not available</div>
-                                            )}
-
-                                            <p className="text-[9px] text-gray-400 italic leading-tight">
-                                                Monte Carlo simulation (1,000 runs) based on historical volatility and drift.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Technicals - Clickable (Now Last) */}
-                                <div
-                                    className="bg-white dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all"
-                                    onClick={() => setExpandedPillar(expandedPillar === 'technicals' ? null : 'technicals')}
-                                >
-                                    <div className="flex justify-between items-center mb-2 gap-4">
-                                        <h4 className="font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2 text-sm">
-                                            <Activity size={14} className="text-emerald-500" /> Technicals
-                                        </h4>
-                                        <span className="font-mono font-bold text-base text-gray-900 dark:text-white">{analysis.ai_analysis.raw_breakdown.Technicals}<span className="text-xs text-gray-400">/10</span></span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-3">
-                                        <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${(analysis.ai_analysis.raw_breakdown.Technicals / 10) * 100}%` }}></div>
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                        <span>Trend, Momentum, Volume</span>
-                                        <span className="text-emerald-500 text-[9px] font-medium">{expandedPillar === 'technicals' ? '▲ Hide' : '▼ Details'}</span>
-                                    </p>
-                                    {/* Expanded Details */}
-                                    {expandedPillar === 'technicals' && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {analysis.ai_analysis.score_explanation?.technicals?.factors ? (
-                                                analysis.ai_analysis.score_explanation.technicals.factors.map((factor: string, idx: number) => (
-                                                    <div key={idx} className="flex justify-between text-xs">
-                                                        <span className="text-gray-900 dark:text-white font-mono break-all">{factor}</span>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="text-xs text-gray-400">Analysis details unavailable</p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
                         {/* 2.5 Detailed Breakdown Table (New) */}
                         {analysis?.ai_analysis?.details && (
@@ -1551,75 +1419,350 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     <div className="space-y-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Activity className="text-purple-500" size={20} /> Sentiment Analysis
-                                <InfoTooltip text="AI-powered sentiment analysis using Groq (Llama 3.3 70B) with bearish keyword detection and temporal weighting." />
+                                <Activity className="text-purple-500" size={20} /> AI News Analysis
+                                <InfoTooltip text="Dual-period analysis powered by Finnhub (News) + Groq (Reasoning). Scores range from -1 (Bearish) to +1 (Bullish)." />
                             </h3>
+                            {sentimentData && (
+                                <div className="flex items-center gap-3">
+                                    {sentimentData.duration_ms && (
+                                        <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1">
+                                            <Clock size={10} /> {(sentimentData.duration_ms / 1000).toFixed(2)}s
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={handleAnalyzeSentiment}
+                                        className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 dark:text-purple-400 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 rounded-lg transition-colors flex items-center gap-2"
+                                    >
+                                        <Zap size={14} /> Refresh Analysis
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
-                        {loadingSentiment ? (
-                            <div className="flex items-center gap-2 text-gray-500 italic text-sm py-4">
-                                <Loader className="animate-spin" size={16} /> Analyzing news sentiment...
+                        {!sentimentData && !loadingSentiment ? (
+                            <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                <Newspaper className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
+                                <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to Analyze</h4>
+                                <p className="text-gray-500 text-center max-w-md mb-6">
+                                    Analyze the last 7 days of news for {ticker} using Groq AI.
+                                    <br /> This will generate a "Today's Pulse" and "Weekly Trend" score.
+                                </p>
+                                <button
+                                    onClick={handleAnalyzeSentiment}
+                                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <Zap size={18} /> Run Deep Analysis
+                                </button>
                             </div>
-                        ) : sentimentData ? (
-                            <div className="space-y-6">
-                                {/* Overall Sentiment Card */}
-                                <div className={`p-6 rounded-xl border-2 ${sentimentData.label === 'Positive'
-                                    ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                                    : sentimentData.label === 'Negative'
-                                        ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                                        : 'bg-gray-50/50 dark:bg-gray-800/10 border-gray-200 dark:border-gray-700'
-                                    }`}>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div>
-                                            <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                                                Overall Sentiment: <span className={`${sentimentData.label === 'Positive' ? 'text-emerald-600 dark:text-emerald-400' :
-                                                    sentimentData.label === 'Negative' ? 'text-red-600 dark:text-red-400' :
-                                                        'text-gray-600 dark:text-gray-400'
-                                                    }`}>{sentimentData.label}</span>
-                                            </h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Analyzed {sentimentData.article_count} recent news articles
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-4xl font-bold font-mono text-gray-900 dark:text-white">
-                                                {(sentimentData.score * 100).toFixed(0)}
-                                            </div>
-                                            <div className="text-xs text-gray-500">Score (-100 to +100)</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Confidence Bar */}
-                                    <div className="mt-4">
-                                        <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                            <span>Confidence</span>
-                                            <span className="font-mono font-bold">{(sentimentData.confidence * 100).toFixed(0)}%</span>
-                                        </div>
-                                        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full ${sentimentData.confidence > 0.8 ? 'bg-emerald-500' :
-                                                    sentimentData.confidence > 0.6 ? 'bg-yellow-500' :
-                                                        'bg-orange-500'
-                                                    }`}
-                                                style={{ width: `${sentimentData.confidence * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-
-
-                                {/* Source Badge */}
-                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                    <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-md font-mono font-bold">
-                                        Source: {sentimentData.source.toUpperCase()}
-                                    </span>
-                                    <span>• VinSight v2.3 (Groq-only)</span>
-                                </div>
+                        ) : loadingSentiment ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
+                                <Loader className="animate-spin mb-4 text-purple-500" size={32} />
+                                <p className="font-medium text-gray-700 dark:text-gray-300">analyzing 7 days of news...</p>
+                                <p className="text-xs mt-2 text-gray-400">Fetching Finnhub • running Groq Llama 3 • calculating scores</p>
                             </div>
                         ) : (
-                            <div className="text-gray-500 italic text-sm">Click to load sentiment analysis.</div>
+                            <div className="space-y-6">
+                                {/* Dual Score Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Today's Pulse */}
+                                    <div className="p-5 rounded-xl border bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Today's Pulse</h5>
+                                            <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full font-bold">Last 24h</span>
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className={`text-4xl font-black font-mono tracking-tight ${sentimentData.score_today > 0.3 ? 'text-emerald-500' : sentimentData.score_today < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                {sentimentData.score_today > 0 ? '+' : ''}{sentimentData.score_today?.toFixed(2)}
+                                            </span>
+                                            <span className="text-xs text-gray-400 font-medium">scale: -1 to +1</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            {sentimentData.news_flow?.latest?.length || 0} articles analyzed. Immediate reaction.
+                                        </p>
+                                    </div>
+
+                                    {/* Weekly Trend */}
+                                    <div className="p-5 rounded-xl border bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Weekly Trend</h5>
+                                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold">Last 7 Days</span>
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className={`text-4xl font-black font-mono tracking-tight ${sentimentData.score_weekly > 0.3 ? 'text-emerald-500' : sentimentData.score_weekly < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                {sentimentData.score_weekly > 0 ? '+' : ''}{sentimentData.score_weekly?.toFixed(2)}
+                                            </span>
+                                            <span className="text-xs text-gray-400 font-medium">scale: -1 to +1</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            {sentimentData.news_flow?.historical?.length || 0} articles analyzed. Sustained narrative.
+                                        </p>
+                                    </div>
+                                </div>
+
+
+                                {/* Reasoning Block */}
+                                <div className="p-6 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 mb-6 relative">
+                                    <div className="absolute top-4 right-4 text-[10px] text-gray-400 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">
+                                        Hybrid Analysis: LLM Reasoning + Lexicon Validation
+                                    </div>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                            <MousePointer size={14} /> AI Reasoning ({sentimentData.article_count} articles)
+                                        </h5>
+                                    </div>
+                                    <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed italic border-l-4 border-purple-400 pl-4 py-1">
+                                        "{sentimentData.reasoning}"
+                                    </p>
+                                    {sentimentData.key_drivers && sentimentData.key_drivers.length > 0 && (
+                                        <div className="mt-4 pl-4">
+                                            <h6 className="text-xs font-semibold text-gray-500 mb-2">Key Drivers:</h6>
+                                            <ul className="list-disc list-outside text-xs text-gray-600 dark:text-gray-400 space-y-1 ml-4">
+                                                {sentimentData.key_drivers.map((driver: string, i: number) => (
+                                                    <li key={i}>{driver}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Merged Footer: Algo Check (Left) + Metadata (Right) */}
+                                <div className="mt-4 p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 mb-6">
+                                    <div className="flex items-center gap-2" title="Mathematical baseline validation using TextBlob (No AI)">
+                                        <span className="font-medium text-gray-600 dark:text-gray-400">TextBlob Check:</span>
+                                        <span className={`font-mono font-bold ${sentimentData.score_quant > 0.1 ? 'text-emerald-600' : sentimentData.score_quant < -0.1 ? 'text-red-600' : 'text-gray-600'}`}>
+                                            {typeof sentimentData.score_quant === 'number' ? sentimentData.score_quant.toFixed(2) : '0.00'}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-2">
+                                            <span>Analyzed at: {sentimentData.timestamp ? new Date(sentimentData.timestamp).toLocaleTimeString() : 'Just now'}</span>
+                                        </div>
+                                        <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
+                                        <div className="flex items-center gap-2 text-gray-400">
+                                            <span>Cache active (3h)</span>
+                                        </div>
+                                        <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
+                                        <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-medium">
+                                            <span>Llama 3.3 (Reasoning)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* News Feed (Collapsible) - Moved to Bottom */}
+                                <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mt-6">
+                                    <button
+                                        onClick={() => setShowEvidence(!showEvidence)}
+                                        className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+                                    >
+                                        <h5 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <Newspaper size={16} /> Evidence ({sentimentData.article_count} articles)
+                                        </h5>
+                                        {showEvidence ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+                                    </button>
+
+                                    {showEvidence && (
+                                        <div className="p-6 bg-white dark:bg-gray-900/20 border-t border-gray-200 dark:border-gray-700">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                {/* Latest News */}
+                                                <div className="space-y-4">
+                                                    <h6 className="text-xs font-bold text-yellow-600 dark:text-yellow-400 uppercase border-b border-yellow-200 pb-1 mb-2">
+                                                        Latest (Today)
+                                                    </h6>
+                                                    {sentimentData.news_flow?.latest?.length > 0 ? (
+                                                        sentimentData.news_flow.latest.map((item: any, i: number) => (
+                                                            <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 hover:border-yellow-300 transition-colors group">
+                                                                <div className="flex justify-between items-start gap-2 mb-1">
+                                                                    <span className="text-[10px] font-mono text-yellow-700 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded">
+                                                                        {item.datetime ? new Date(item.datetime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-gray-400">{item.source}</span>
+                                                                </div>
+                                                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
+                                                                    {item.title}
+                                                                </h4>
+                                                                <p className="text-xs text-gray-500 line-clamp-2">
+                                                                    {item.summary}
+                                                                </p>
+                                                            </a>
+                                                        ))
+                                                    ) : (
+                                                        <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No breaking news in last 24h</div>
+                                                    )}
+                                                </div>
+
+                                                {/* Historical News */}
+                                                <div className="space-y-4">
+                                                    <h6 className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-1 mb-2">
+                                                        Previous 6 Days
+                                                    </h6>
+                                                    {sentimentData.news_flow?.historical?.length > 0 ? (
+                                                        sentimentData.news_flow.historical.map((item: any, i: number) => (
+                                                            <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-gray-300 transition-colors group">
+                                                                <div className="flex justify-between items-start gap-2 mb-1">
+                                                                    <span className="text-[10px] font-mono text-gray-400">
+                                                                        {item.datetime ? new Date(item.datetime * 1000).toLocaleDateString() : 'N/A'}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-gray-400">{item.source}</span>
+                                                                </div>
+                                                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
+                                                                    {item.title}
+                                                                </h4>
+                                                            </a>
+                                                        ))
+                                                    ) : (
+                                                        <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No older news found</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'projections' && (
+                    <div className="space-y-6">
+                        {/* Simulation Tab Content - On Demand */}
+                        <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl min-h-[500px] flex flex-col justify-center items-center relative overflow-hidden">
+                            {loadingSimulation || !simulation ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse z-10">
+                                    <Loader className="animate-spin mb-4 text-blue-500" size={48} />
+                                    <p className="font-medium text-gray-700 dark:text-gray-300 text-lg">Running 10,000 Simulations...</p>
+                                    <p className="text-sm mt-2 text-gray-400">Modeling volatility • calculating scenarios • aggregating paths</p>
+                                </div>
+                            ) : (
+                                /* Chart Display */
+                                <div className="w-full h-full flex flex-col">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
+                                                <Zap className="text-blue-500" /> Monte Carlo Simulation
+                                                <InfoTooltip text={
+                                                    <div className="space-y-1.5">
+                                                        <p>Simulates {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility ({simulation?.metadata?.period || '2y'}).</p>
+                                                        <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
+                                                            <div className="flex justify-between items-center gap-4">
+                                                                <span className="text-gray-400">Model</span>
+                                                                <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center gap-4">
+                                                                <span className="text-gray-400">History</span>
+                                                                <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center gap-4">
+                                                                <span className="text-gray-400">Paths</span>
+                                                                <span className="font-mono font-bold text-purple-400">{simulation?.metadata?.simulations?.toLocaleString() || '10,000'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                } />
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 90 days into the future based on recent volatility.</p>
+                                        </div>
+                                        <button onClick={handleRunSimulation} className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1">
+                                            <Clock size={12} /> Rerun
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 w-full min-h-[400px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart
+                                                data={(() => {
+                                                    if (!simulation?.paths || simulation.paths.length === 0) return [];
+                                                    const pathsToDisplay = simulation.paths.slice(0, 20); // Limit to 20 paths
+                                                    const numSteps = pathsToDisplay[0].length;
+                                                    const data = [];
+                                                    for (let i = 0; i < numSteps; i++) {
+                                                        const point: any = { step: i };
+                                                        pathsToDisplay.forEach((path: number[], pIdx: number) => {
+                                                            point[`path${pIdx}`] = path[i];
+                                                        });
+                                                        // Add Percentiles
+                                                        if (simulation.p10) point.p10 = simulation.p10[i];
+                                                        if (simulation.p50) point.p50 = simulation.p50[i];
+                                                        if (simulation.p90) point.p90 = simulation.p90[i];
+                                                        data.push(point);
+                                                    }
+                                                    return data;
+                                                })()}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
+                                                <XAxis dataKey="step" hide />
+                                                <YAxis domain={['auto', 'auto']} stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `$${val.toFixed(0)}`} />
+                                                <RechartsTooltip
+                                                    contentStyle={{
+                                                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                                                        borderColor: '#374151',
+                                                        borderRadius: '12px',
+                                                        padding: '12px 16px',
+                                                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+                                                    }}
+                                                    itemStyle={{ color: '#fff', padding: '4px 0' }}
+                                                    labelFormatter={(label) => `Day ${label} of 90`}
+                                                    labelStyle={{ color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold', fontSize: '12px' }}
+                                                    formatter={(value: number, name: string) => {
+                                                        if (name === 'p10') return [`$${value.toFixed(2)}`, '🔴 Worst Case (10%)'];
+                                                        if (name === 'p50') return [`$${value.toFixed(2)}`, '🔵 Most Likely (50%)'];
+                                                        if (name === 'p90') return [`$${value.toFixed(2)}`, '🟢 Best Case (90%)'];
+                                                        return [null, null]; // Hide individual path values
+                                                    }}
+                                                    filterNull={true}
+                                                />
+                                                {simulation?.paths ? (
+                                                    simulation.paths.slice(0, 20).map((_: any, i: number) => (
+                                                        <Line
+                                                            key={i}
+                                                            type="monotone"
+                                                            dataKey={`path${i}`}
+                                                            stroke="#10b981"
+                                                            strokeWidth={1}
+                                                            strokeOpacity={0.15}
+                                                            dot={false}
+                                                            isAnimationActive={false}
+                                                        />
+                                                    ))
+                                                ) : null}
+                                                {/* Percentile Lines */}
+                                                <Line type="monotone" dataKey="p10" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p10" />
+                                                <Line type="monotone" dataKey="p50" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p50" />
+                                                <Line type="monotone" dataKey="p90" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p90" />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="mt-6 flex justify-around items-center text-xs border-t border-gray-100 dark:border-gray-800 pt-3 flex-shrink-0">
+                                        <div className="text-center group relative cursor-default">
+                                            <div className="text-red-600 dark:text-red-400 font-bold mb-0.5 flex items-center justify-center gap-1">
+                                                P10 (Worst) <InfoTooltip text="Worst Case (10th Percentile): The value where 90% of outcomes were better." />
+                                            </div>
+                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
+                                                ${simulation?.p10?.[simulation.p10.length - 1]?.toFixed(2) || 'N/A'}
+                                            </div>
+                                        </div>
+
+                                        <div className="text-center group relative cursor-default">
+                                            <div className="text-blue-600 dark:text-blue-400 font-bold mb-0.5 flex items-center justify-center gap-1">
+                                                P50 (Likely) <InfoTooltip text="Most Likely (50th Percentile): The median outcome." />
+                                            </div>
+                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
+                                                ${simulation?.p50?.[simulation.p50.length - 1]?.toFixed(2) || 'N/A'}
+                                            </div>
+                                        </div>
+
+                                        <div className="text-center group relative cursor-default">
+                                            <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-0.5 flex items-center justify-center gap-1">
+                                                P90 (Best) <InfoTooltip text="Best Case (90th Percentile): The value where only 10% of outcomes were better." />
+                                            </div>
+                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
+                                                ${simulation?.p90?.[simulation.p90.length - 1]?.toFixed(2) || 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -1815,156 +1958,29 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 }
             </div >
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Simulation Chart */}
-                <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl relative overflow-hidden h-[380px] flex flex-col">
-                    <div className="flex justify-between items-start mb-2">
-                        <div>
-                            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
-                                <Zap className="text-blue-500" /> Monte Carlo Simulation
-                                <InfoTooltip text={
-                                    <div className="space-y-1.5">
-                                        <p>Simulates {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility ({simulation?.metadata?.period || '2y'}).</p>
-                                        <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-gray-400">Model</span>
-                                                <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-gray-400">History</span>
-                                                <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                                <span className="text-gray-400">Paths</span>
-                                                <span className="font-mono font-bold text-purple-400">{simulation?.metadata?.simulations?.toLocaleString() || '10,000'}</span>
-                                            </div>
-                                        </div>
+            {/* Full Width Recent News Feed - At Bottom */}
+            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 h-[380px] w-full mt-6">
+                <h3 className="text-gray-500 dark:text-gray-400 font-medium mb-4 flex items-center gap-2 flex-shrink-0">
+                    <Newspaper size={18} /> Global News & Recent Events
+                </h3>
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800 min-h-0">
+                    {news.length === 0 ? (
+                        <p className="text-gray-500 italic text-center py-10">No recent news found.</p>
+                    ) : (
+                        news.map((item, idx) => (
+                            <a key={idx} href={item.link} target="_blank" rel="noopener noreferrer" className="block group">
+                                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
+                                    <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-tight mb-1">
+                                        {item.title}
+                                    </h4>
+                                    <div className="flex justify-between items-center text-xs text-gray-500">
+                                        <span>{item.publisher}</span>
+                                        <span>{new Date(item.providerPublishTime * 1000).toString() !== 'Invalid Date' ? new Date(item.providerPublishTime * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Recent"}</span>
                                     </div>
-                                } />
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 90 days into the future based on recent volatility.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 w-full min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
-                                data={(() => {
-                                    if (!simulation?.paths || simulation.paths.length === 0) return [];
-                                    const pathsToDisplay = simulation.paths.slice(0, 20); // Limit to 20 paths
-                                    const numSteps = pathsToDisplay[0].length;
-                                    const data = [];
-                                    for (let i = 0; i < numSteps; i++) {
-                                        const point: any = { step: i };
-                                        pathsToDisplay.forEach((path: number[], pIdx: number) => {
-                                            point[`path${pIdx}`] = path[i];
-                                        });
-                                        // Add Percentiles
-                                        if (simulation.p10) point.p10 = simulation.p10[i];
-                                        if (simulation.p50) point.p50 = simulation.p50[i];
-                                        if (simulation.p90) point.p90 = simulation.p90[i];
-                                        data.push(point);
-                                    }
-                                    return data;
-                                })()}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
-                                <XAxis dataKey="step" hide />
-                                <YAxis domain={['auto', 'auto']} stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `$${val.toFixed(0)}`} />
-                                <RechartsTooltip
-                                    contentStyle={{
-                                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                                        borderColor: '#374151',
-                                        borderRadius: '12px',
-                                        padding: '12px 16px',
-                                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
-                                    }}
-                                    itemStyle={{ color: '#fff', padding: '4px 0' }}
-                                    labelFormatter={(label) => `Day ${label} of 90`}
-                                    labelStyle={{ color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold', fontSize: '12px' }}
-                                    formatter={(value: number, name: string) => {
-                                        if (name === 'p10') return [`$${value.toFixed(2)}`, '🔴 Worst Case (10%)'];
-                                        if (name === 'p50') return [`$${value.toFixed(2)}`, '🔵 Most Likely (50%)'];
-                                        if (name === 'p90') return [`$${value.toFixed(2)}`, '🟢 Best Case (90%)'];
-                                        return [null, null]; // Hide individual path values
-                                    }}
-                                    filterNull={true}
-                                />
-                                {simulation?.paths ? (
-                                    simulation.paths.slice(0, 20).map((_: any, i: number) => (
-                                        <Line
-                                            key={i}
-                                            type="monotone"
-                                            dataKey={`path${i}`}
-                                            stroke="#10b981"
-                                            strokeWidth={1}
-                                            strokeOpacity={0.15} // Reduced further to make percentiles pop
-                                            dot={false}
-                                            isAnimationActive={false}
-                                        />
-                                    ))
-                                ) : null}
-                                {/* Percentile Lines */}
-                                <Line type="monotone" dataKey="p10" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p10" />
-                                <Line type="monotone" dataKey="p50" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p50" />
-                                <Line type="monotone" dataKey="p90" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p90" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="mt-3 flex justify-around items-center text-xs border-t border-gray-100 dark:border-gray-800 pt-3 flex-shrink-0">
-                        <div className="text-center group relative cursor-default">
-                            <div className="text-red-600 dark:text-red-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                P10 (Worst) <InfoTooltip text="Worst Case (10th Percentile): The value where 90% of outcomes were better." />
-                            </div>
-                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                ${simulation?.p10?.[simulation.p10.length - 1]?.toFixed(2) || 'N/A'}
-                            </div>
-                        </div>
-
-                        <div className="text-center group relative cursor-default">
-                            <div className="text-blue-600 dark:text-blue-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                P50 (Likely) <InfoTooltip text="Most Likely (50th Percentile): The median outcome." />
-                            </div>
-                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                ${simulation?.p50?.[simulation.p50.length - 1]?.toFixed(2) || 'N/A'}
-                            </div>
-                        </div>
-
-                        <div className="text-center group relative cursor-default">
-                            <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                P90 (Best) <InfoTooltip text="Best Case (90th Percentile): The value where only 10% of outcomes were better." />
-                            </div>
-                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                ${simulation?.p90?.[simulation.p90.length - 1]?.toFixed(2) || 'N/A'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Recent News Feed - Next to Monte Carlo */}
-                <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 h-[380px]">
-                    <h3 className="text-gray-500 dark:text-gray-400 font-medium mb-4 flex items-center gap-2 flex-shrink-0">
-                        <Newspaper size={18} /> Recent News
-                    </h3>
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800 min-h-0">
-                        {news.length === 0 ? (
-                            <p className="text-gray-500 italic text-center py-10">No recent news found.</p>
-                        ) : (
-                            news.map((item, idx) => (
-                                <a key={idx} href={item.link} target="_blank" rel="noopener noreferrer" className="block group">
-                                    <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
-                                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-tight mb-1">
-                                            {item.title}
-                                        </h4>
-                                        <div className="flex justify-between items-center text-xs text-gray-500">
-                                            <span>{item.publisher}</span>
-                                            <span>{new Date(item.providerPublishTime * 1000).toString() !== 'Invalid Date' ? new Date(item.providerPublishTime * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Recent"}</span>
-                                        </div>
-                                    </div>
-                                </a>
-                            ))
-                        )}
-                    </div>
+                                </div>
+                            </a>
+                        ))
+                    )}
                 </div>
             </div>
 
