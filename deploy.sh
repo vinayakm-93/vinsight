@@ -88,7 +88,7 @@ gcloud run deploy $BACKEND_SERVICE \
     --allow-unauthenticated \
     --memory 2Gi \
     --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT" \
-    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
+    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest" \
     $CLOUD_SQL_FLAG
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --platform managed --region $REGION --format 'value(status.url)')
@@ -106,7 +106,7 @@ gcloud run jobs deploy vinsight-watcher \
     --command "python" \
     --args "jobs/market_watcher_job.py" \
     --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT" \
-    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest" \
+    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest" \
     --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
 
 cd ..
