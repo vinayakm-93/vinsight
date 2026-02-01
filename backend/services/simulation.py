@@ -38,12 +38,13 @@ def run_monte_carlo(history: List[Dict], days: int = 90, simulations: int = 1000
     # 5. Extract statistics
     
     # Days array for X-axis
-    future_days = list(range(1, days + 1))
+    future_days = [0] + list(range(1, days + 1))
     
     # Calculate percentiles across all simulations for each day (axis=0 is column-wise, i.e., per day)
-    p10 = np.percentile(final_paths, 10, axis=0).tolist()
-    p50 = np.percentile(final_paths, 50, axis=0).tolist()
-    p90 = np.percentile(final_paths, 90, axis=0).tolist()
+    # Prepend last_price to maintain alignment with paths which also start at last_price
+    p10 = [last_price] + np.percentile(final_paths, 10, axis=0).tolist()
+    p50 = [last_price] + np.percentile(final_paths, 50, axis=0).tolist()
+    p90 = [last_price] + np.percentile(final_paths, 90, axis=0).tolist()
     
     # paths for visualization - take first 50
     # Add initial price to strictly start from current
@@ -66,6 +67,31 @@ def run_monte_carlo(history: List[Dict], days: int = 90, simulations: int = 1000
     p05 = float(np.percentile(final_day_prices, 5))
     risk_var = max(0, last_price - p05)
     
+    # --- NEW: Probability Calculations ---
+    # Calculate probability of reaching various price targets
+    prob_breakeven = float(np.sum(final_day_prices >= last_price) / simulations * 100)
+    prob_gain_5 = float(np.sum(final_day_prices >= last_price * 1.05) / simulations * 100)
+    prob_gain_10 = float(np.sum(final_day_prices >= last_price * 1.10) / simulations * 100)
+    prob_gain_25 = float(np.sum(final_day_prices >= last_price * 1.25) / simulations * 100)
+    prob_loss_10 = float(np.sum(final_day_prices <= last_price * 0.90) / simulations * 100)
+    prob_loss_25 = float(np.sum(final_day_prices <= last_price * 0.75) / simulations * 100)
+    
+    # --- NEW: Histogram Data ---
+    # Create 20 bins for the return distribution
+    final_returns = (final_day_prices - last_price) / last_price * 100  # Convert to percentage
+    hist_counts, hist_edges = np.histogram(final_returns, bins=20)
+    histogram_data = []
+    for i in range(len(hist_counts)):
+        bin_center = (hist_edges[i] + hist_edges[i+1]) / 2
+        histogram_data.append({
+            "return_pct": round(bin_center, 1),
+            "frequency": int(hist_counts[i]),
+            "percentage": round(hist_counts[i] / simulations * 100, 1)
+        })
+    
+    # --- NEW: Annualized Volatility ---
+    annualized_volatility = float(sigma * np.sqrt(252) * 100)  # 252 trading days
+    
     return {
         "days": future_days,
         "paths": vis_paths, 
@@ -75,6 +101,19 @@ def run_monte_carlo(history: List[Dict], days: int = 90, simulations: int = 1000
         "mean_price": mean_price,
         "expected_return": expected_return_pct,
         "risk_var": risk_var,
+        # NEW: Probability data
+        "probabilities": {
+            "breakeven": prob_breakeven,
+            "gain_5": prob_gain_5,
+            "gain_10": prob_gain_10,
+            "gain_25": prob_gain_25,
+            "loss_10": prob_loss_10,
+            "loss_25": prob_loss_25
+        },
+        # NEW: Histogram for return distribution
+        "histogram": histogram_data,
+        # NEW: Volatility metrics
+        "volatility": annualized_volatility,
         "metadata": {
             "model": "GBM",
             "simulations": simulations,

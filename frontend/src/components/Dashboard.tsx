@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
-import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock } from 'lucide-react'; // Renamed icon
+import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List } from 'lucide-react'; // Renamed icon
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -74,7 +74,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
 
     // Updated Active Tab Type
-    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment' | 'projections'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections'>('ai');
     const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
 
 
@@ -87,6 +87,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [earningsData, setEarningsData] = useState<any>(null);
     const [loadingEarnings, setLoadingEarnings] = useState(false);
 
+    // Institutional State
+    const [loadingInstitutions, setLoadingInstitutions] = useState(false);
+
     // Sector Benchmarks (for industry peer values)
     const [sectorBenchmarks, setSectorBenchmarks] = useState<any>(null);
 
@@ -94,46 +97,31 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [selectedSector, setSelectedSector] = useState<string>('Auto');
     const [isRecalculating, setIsRecalculating] = useState(false);
 
-    // Available sectors for dropdown (matches backend sector_benchmarks.json)
+    // Available sectors for dropdown (matches backend sector_benchmarks.json v7.4)
     const SECTOR_OPTIONS = [
         'Auto',
         'Standard',
-        // Traditional Sectors
-        'Technology',
-        'Communication Services',
+        // 10 Wealth Manager Themes
+        'High Growth Tech',
+        'Mature Tech',
+        'Financials',
         'Healthcare',
         'Consumer Cyclical',
         'Consumer Defensive',
+        'Energy & Materials',
         'Industrials',
-        'Financial Services',
-        'Energy',
-        'Utilities',
         'Real Estate',
-        'Basic Materials',
-        // Sub-Industries
-        'Semiconductors',
-        'Software',
-        'Biotech',
-        'Retail',
-        'Cloud/SaaS',
-        'Fintech',
-        'EV/Clean Energy',
-        'Pharma',
-        'Insurance',
-        'Banks',
-        'REITs',
-        'Aerospace & Defense',
-        'Mining',
-        'Luxury Goods',
-        'Streaming/Media',
-        'E-commerce',
-        'Gaming',
-        'Cybersecurity',
-        'AI/ML'
+        'Utilities'
     ];
+    const [showAllInsider, setShowAllInsider] = useState(false);
+
+    // Smart Money Interaction State
+    const [instFilter, setInstFilter] = useState<'holders' | 'recent'>('holders');
+    const [insiderFilter, setInsiderFilter] = useState<'all' | 'buy' | 'sell'>('all');
+    const [showAllInstitutions, setShowAllInstitutions] = useState(false);
 
     // Real-time price updates with smart polling
-    const { quote: realtimeQuote } = useRealtimePrice(ticker, {
+    const { quote: realtimeQuote } = useRealtimePrice(ticker || '', {
         enabled: Boolean(ticker), // Only poll when a ticker is selected
     });
 
@@ -143,6 +131,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         setLoadingEarnings(false);
         setSentimentData(null);
         setLoadingSentiment(false);
+        setLoadingInstitutions(false);
         setSelectedSector('Auto'); // Reset sector override on ticker change
     }, [ticker]);
 
@@ -165,9 +154,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
         getSectorBenchmarks().then(setSectorBenchmarks).catch(console.error);
     }, []);
 
-    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'institutional' | 'sentiment' | 'projections') => {
+    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections') => {
         setActiveTab(tab);
-        if (tab === 'earnings' && !earningsData && !loadingEarnings && ticker) {
+
+        // Refresh Earnings
+        if (tab === 'earnings' && !loadingEarnings && ticker) {
             setLoadingEarnings(true);
             try {
                 const data = await getEarnings(ticker);
@@ -178,11 +169,12 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 setLoadingEarnings(false);
             }
         }
-        // Lazy load sentiment when user clicks the sentiment tab
-        if (tab === 'sentiment' && !sentimentData && !loadingSentiment && ticker) {
+
+        // Refresh Sentiment (Run deep analysis on-demand)
+        if (tab === 'sentiment' && !loadingSentiment && ticker) {
             setLoadingSentiment(true);
             try {
-                const data = await getSentiment(ticker);
+                const data = await analyzeSentiment(ticker);
                 setSentimentData(data);
             } catch (e) {
                 console.error("Sentiment fetch error", e);
@@ -190,10 +182,22 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 setLoadingSentiment(false);
             }
         }
-        // Auto-run simulation when tab is clicked
-        if (tab === 'projections' && !simulation && !loadingSimulation && ticker) {
-            // We need to call this asynchronously or ensure handleRunSimulation is accessible
-            // Since they are in the same scope, it works at execution time.
+
+        // Refresh Institutional Data
+        if (tab === 'smart_money' && !loadingInstitutions && ticker) {
+            setLoadingInstitutions(true);
+            try {
+                const data = await getInstitutionalData(ticker);
+                setInstitutions(data);
+            } catch (e) {
+                console.error("Institutional fetch error", e);
+            } finally {
+                setLoadingInstitutions(false);
+            }
+        }
+
+        // Auto-refresh simulation when tab is clicked
+        if (tab === 'projections' && !loadingSimulation && ticker) {
             handleRunSimulation();
         }
     };
@@ -960,10 +964,10 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         Key Stats
                     </button>
                     <button
-                        className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'institutional' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
-                        onClick={() => handleTabChange('institutional')}
+                        className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'smart_money' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                        onClick={() => handleTabChange('smart_money')}
                     >
-                        Institutional
+                        Smart Money
                     </button>
                     <button
                         className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'earnings' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
@@ -976,7 +980,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'sentiment' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
                         onClick={() => handleTabChange('sentiment')}
                     >
-                        Sentiment
+                        AI Sentiment
                     </button>
                     <button
                         className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'projections' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
@@ -1274,82 +1278,332 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     </div>
                 )}
 
-                {activeTab === 'institutional' && (
-                    <div className="space-y-6">
-                        <section>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                <BarChart2 className="text-emerald-500" size={20} /> Institutional Holdings <InfoTooltip text="Top institutional holders and recent changes in their positions." />
-                            </h3>
-                            {institutions ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-white/60 dark:bg-black/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-                                        <h4 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Ownership Breakdown</h4>
-                                        <div className="text-xs text-gray-700 dark:text-gray-300 space-y-1">
-                                            <p>Insiders: <span className="font-mono">{(institutions.insidersPercentHeld * 100).toFixed(2)}%</span></p>
-                                            <p>Institutions: <span className="font-mono">{(institutions.institutionsPercentHeld * 100).toFixed(2)}%</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white/60 dark:bg-black/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/30">
-                                        <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Top Institutional Holders</h4>
-                                        <div className="text-xs text-gray-700 dark:text-gray-300 space-y-1">
-                                            {institutions.top_holders && institutions.top_holders.length > 0 ? (
-                                                institutions.top_holders.slice(0, 3).map((item: any, idx: number) => (
-                                                    <p key={idx}>{item.Holder}: <span className="font-mono">{formatLargeNumber(item.Shares)} shares ({(item['% Out'] * 100).toFixed(2)}%)</span></p>
-                                                ))
-                                            ) : (
-                                                <p className="text-gray-500 italic">No top holders data.</p>
-                                            )}
-                                        </div>
-                                    </div>
+                {activeTab === 'smart_money' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        {/* Unified Smart Money Section */}
+                        <section className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-xl">
+                            {/* Header */}
+                            <div className="p-5 border-b border-gray-100 dark:border-gray-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Zap className="text-emerald-500" size={20} /> Smart Money Analysis
+                                        {institutions?.smart_money?.period && (
+                                            <span className="text-xs font-normal text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                                                {institutions.smart_money.period} Filings
+                                            </span>
+                                        )}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Consolidated view of Institutional Holdings and Insider Activity.
+                                    </p>
                                 </div>
-                            ) : (
-                                <p className="text-gray-500 italic text-sm">No institutional data available.</p>
-                            )}
-                        </section>
+                            </div>
 
-                        {/* Recent Insider Activity */}
-                        <section>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                <Activity className="text-orange-500" size={20} /> Recent Insider Activity <InfoTooltip text="Recent transactions by company officers and directors." />
-                            </h3>
-                            {institutions?.insider_transactions && institutions.insider_transactions.length > 0 ? (
-                                <div className="overflow-x-auto bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-4 shadow-xl">
-                                    <table className="w-full text-xs text-left">
-                                        <thead className="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 uppercase tracking-wider">
-                                            <tr>
-                                                <th className="py-2 px-2">Date</th>
-                                                <th className="py-2 px-2">Insider</th>
-                                                <th className="py-2 px-2">Position</th>
-                                                <th className="py-2 px-2">Transaction</th>
-                                                <th className="py-2 px-2 text-right">Value</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                            {institutions.insider_transactions.map((t: any, idx: number) => {
-                                                const isSale = t.Text.toLowerCase().includes("sale");
-                                                const isBuy = t.Text.toLowerCase().includes("purchase") || t.Text.toLowerCase().includes("buy");
-                                                return (
-                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                                                        <td className="py-2 px-2 font-mono text-gray-600 dark:text-gray-400">{t.Date}</td>
-                                                        <td className="py-2 px-2 font-bold text-gray-900 dark:text-white">{t.Insider}</td>
-                                                        <td className="py-2 px-2 text-gray-500">{t.Position}</td>
-                                                        <td className="py-2 px-2">
-                                                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${isSale ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' : isBuy ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-                                                                {isSale ? 'Sale' : isBuy ? 'Buy' : 'Other'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-2 px-2 text-right font-mono text-gray-900 dark:text-white">
-                                                            ${formatLargeNumber(t.Value || 0)}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+
+                            {/* Consolidated Alerts / Signals Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 pb-0">
+                                {/* Institutional Signal */}
+                                {institutions?.smart_money && (
+                                    <div className={`p-4 rounded-xl border flex items-center gap-3 ${institutions.smart_money.accumulating
+                                        ? 'bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800'
+                                        : 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/20 dark:border-gray-700'
+                                        }`}>
+                                        <div className={`p-2 rounded-full ${institutions.smart_money.accumulating ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'
+                                            }`}>
+                                            <BarChart2 size={18} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Institutional Signal</div>
+                                            <div className={`text-base font-bold ${institutions.smart_money.accumulating ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                {institutions.smart_money.label}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-0.5">
+                                                Total Ownership: <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{(institutions?.institutionsPercentHeld * 100).toFixed(2)}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Insider Signal */}
+                                {institutions?.insider_signal && (
+                                    <div className={`p-4 rounded-xl border flex flex-col gap-1 ${institutions.insider_signal.score > 0
+                                        ? 'bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800'
+                                        : institutions.insider_signal.score < 0
+                                            ? 'bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-800'
+                                            : 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/20 dark:border-gray-700'
+                                        }`}>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`p-1.5 rounded-full ${institutions.insider_signal.score > 0 ? 'bg-emerald-100 text-emerald-600' :
+                                                institutions.insider_signal.score < 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'
+                                                }`}>
+                                                <Activity size={16} />
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Insider Signal</div>
+                                                <div className={`text-base font-bold ${institutions.insider_signal.score > 0 ? 'text-emerald-700 dark:text-emerald-400' :
+                                                    institutions.insider_signal.score < 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                                                    }`}>
+                                                    {institutions.insider_signal.label}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* One-liner Context */}
+                                        <div className="text-xs font-medium opacity-80 pl-9 leading-tight">
+                                            {institutions.insider_signal.summary_text}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Main Content Area: Metrics Grid */}
+                            <div className="p-5">
+                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <TrendingUp size={14} /> Key Metrics
+                                </h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    {/* Institutional Metrics */}
+                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                        <span className="text-[10px] text-gray-500 block mb-1">Inst. Net Flow (QoQ)</span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_shares > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_shares < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {institutions?.smart_money?.change_shares > 0 ? '+' : ''}{formatLargeNumber(institutions?.smart_money?.change_shares)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                        <span className="text-[10px] text-gray-500 block mb-1">Inst. Weighted Change</span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_pct > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_pct < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {institutions?.smart_money?.change_pct > 0 ? '+' : ''}{(institutions?.smart_money?.change_pct * 100).toFixed(2)}%
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Insider Metrics */}
+                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                        <span className="text-[10px] text-gray-500 block mb-1">Net Insider Flow (90d)</span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className={`text-lg font-mono font-bold ${institutions?.insider_signal?.net_flow > 0 ? 'text-emerald-600' : institutions?.insider_signal?.net_flow < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {institutions?.insider_signal?.net_flow > 0 ? '+' : ''}${formatLargeNumber(institutions?.insider_signal?.net_flow)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                        <span className="text-[10px] text-gray-500 block mb-1">Signal Quality (Real vs Auto)</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{institutions?.insider_signal?.discretionary_count || 0}</span>
+                                            <span className="text-[10px] text-gray-400">vs</span>
+                                            <span className="text-sm font-bold text-gray-500">{institutions?.insider_signal?.automatic_count || 0}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            ) : (
-                                <p className="text-gray-500 italic text-sm">No recent insider activity found.</p>
-                            )}
+
+                                <div className="h-px bg-gray-100 dark:bg-gray-800 my-6"></div>
+
+                                {/* Tables Section - Stacked on Mobile, Side by Side on Large Desktop */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    {/* Left: Top Institutional Holders */}
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                <BarChart2 size={14} />
+                                                <div className="flex flex-col">
+                                                    <span>Institutions</span>
+                                                    {institutions?.smart_money?.period && (
+                                                        <span className="text-[9px] font-normal text-gray-400 normal-case bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full w-fit">
+                                                            {institutions.smart_money.period} Filings
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </h4>
+                                            <select
+                                                value={instFilter}
+                                                onChange={(e) => setInstFilter(e.target.value as any)}
+                                                className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                                            >
+                                                <option value="holders">Top Holders</option>
+                                                <option value="recent">Recent Activity</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                                            <table className="w-full text-xs text-left">
+                                                <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
+                                                    <tr>
+                                                        <th className="py-2 px-3 font-medium">Holder</th>
+                                                        {instFilter === 'holders' ? (
+                                                            <>
+                                                                <th className="py-2 px-3 font-medium text-right">Shares</th>
+                                                                <th className="py-2 px-3 font-medium text-right">% Port</th>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <th className="py-2 px-3 font-medium text-right">Reported</th>
+                                                                <th className="py-2 px-3 font-medium text-right">Date</th>
+                                                            </>
+                                                        )}
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                                                    {(() => {
+                                                        let list = institutions?.top_holders || [];
+                                                        if (instFilter === 'recent') {
+                                                            // Filter for recent activity (simple heuristic or use date if available)
+                                                            // Since we don't have transaction date for holdings usually, we just sort by date reported desc
+                                                            // But yfinance sometimes returns "Date Reported".
+                                                            list = [...list].sort((a, b) => new Date(b['Date Reported']).getTime() - new Date(a['Date Reported']).getTime());
+                                                        }
+
+                                                        const visibleList = showAllInstitutions ? list : list.slice(0, 5);
+
+                                                        return visibleList.length > 0 ? (
+                                                            visibleList.map((item: any, idx: number) => (
+                                                                <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                                                                    <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-200 truncate max-w-[140px]" title={item.Holder}>
+                                                                        {item.Holder}
+                                                                    </td>
+                                                                    {instFilter === 'holders' ? (
+                                                                        <>
+                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                {formatLargeNumber(item.Shares)}
+                                                                            </td>
+                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                {(item['% Out'] * 100).toFixed(2)}%
+                                                                            </td>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                {formatLargeNumber(item.Shares)}
+                                                                            </td>
+                                                                            <td className="py-2 px-3 text-right font-mono text-gray-500 dark:text-gray-500">
+                                                                                {item['Date Reported']}
+                                                                            </td>
+                                                                        </>
+                                                                    )}
+                                                                </tr>
+                                                            ))
+                                                        ) : (
+                                                            <tr>
+                                                                <td colSpan={3} className="py-4 text-center text-gray-500 italic">No data available.</td>
+                                                            </tr>
+                                                        );
+                                                    })()}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {institutions?.top_holders?.length > 5 && (
+                                            <div className="mt-2 text-center">
+                                                <button
+                                                    onClick={() => setShowAllInstitutions(!showAllInstitutions)}
+                                                    className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                                                >
+                                                    {showAllInstitutions ? (
+                                                        <>Show Less <ChevronUp size={10} /></>
+                                                    ) : (
+                                                        <>Show All ({institutions.top_holders.length}) <ChevronDown size={10} /></>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Right: Recent Insider Transactions */}
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                <Activity size={14} /> Insiders
+                                            </h4>
+                                            <select
+                                                value={insiderFilter}
+                                                onChange={(e) => setInsiderFilter(e.target.value as any)}
+                                                className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                                            >
+                                                <option value="all">All Activity</option>
+                                                <option value="buy">Buys Only</option>
+                                                <option value="sell">Sells Only</option>
+                                            </select>
+                                        </div>
+
+                                        {institutions?.insider_transactions && institutions.insider_transactions.length > 0 ? (
+                                            <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                                                <table className="w-full text-xs text-left">
+                                                    <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800 uppercase tracking-wider">
+                                                        <tr>
+                                                            <th className="py-2 px-3 font-medium">Date</th>
+                                                            <th className="py-2 px-3 font-medium">Insider</th>
+                                                            <th className="py-2 px-3 font-medium">Type</th>
+                                                            <th className="py-2 px-3 font-medium text-right">Value</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                                                        {(() => {
+                                                            let txs = institutions.insider_transactions;
+                                                            if (insiderFilter === 'buy') {
+                                                                txs = txs.filter((t: any) => t.Text.toLowerCase().includes('purchase') || t.Text.toLowerCase().includes('buy'));
+                                                            } else if (insiderFilter === 'sell') {
+                                                                txs = txs.filter((t: any) => t.Text.toLowerCase().includes('sale') || t.Text.toLowerCase().includes('sell'));
+                                                            }
+                                                            // Always slice for display unless "Show All"
+                                                            const displayTxs = showAllInsider ? txs : txs.slice(0, 6);
+
+                                                            return displayTxs.length > 0 ? (
+                                                                displayTxs.map((t: any, idx: number) => {
+                                                                    const isSale = t.Text.toLowerCase().includes("sale");
+                                                                    const isBuy = t.Text.toLowerCase().includes("purchase") || t.Text.toLowerCase().includes("buy");
+
+                                                                    return (
+                                                                        <tr key={idx} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors ${t.isAutomatic ? 'opacity-60 grayscale' : ''}`}>
+                                                                            <td className="py-2 px-3 font-mono text-gray-600 dark:text-gray-400 whitespace-nowrap">{t.Date}</td>
+                                                                            <td className="py-2 px-3 font-medium text-gray-900 dark:text-white truncate max-w-[100px]" title={t.Insider}>
+                                                                                {t.Insider}
+                                                                            </td>
+                                                                            <td className="py-2 px-3">
+                                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${t.isAutomatic ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' :
+                                                                                    isSale ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' :
+                                                                                        isBuy ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10 dark:text-emerald-400' :
+                                                                                            'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                                                                                    }`}>
+                                                                                    {t.isAutomatic ? 'Auto' : isSale ? 'Sale' : isBuy ? 'Buy' : 'Other'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="py-2 px-3 text-right font-mono text-gray-900 dark:text-white">
+                                                                                ${formatLargeNumber(t.Value || 0)}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })
+                                                            ) : (
+                                                                <tr>
+                                                                    <td colSpan={4} className="py-4 text-center text-gray-500 italic">No activity matching filter.</td>
+                                                                </tr>
+                                                            );
+                                                        })()}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-500 italic text-sm">No recent insider activity found.</p>
+                                        )}
+
+                                        {institutions?.insider_transactions && institutions.insider_transactions.length > 6 && (
+                                            <div className="mt-2 text-center">
+                                                <button
+                                                    onClick={() => setShowAllInsider(!showAllInsider)}
+                                                    className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                                                >
+                                                    {showAllInsider ? (
+                                                        <>Show Less <ChevronUp size={10} /></>
+                                                    ) : (
+                                                        <>Show All ({institutions.insider_transactions.length}) <ChevronDown size={10} /></>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </section>
                     </div>
                 )}
@@ -1525,6 +1779,41 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     )}
                                 </div>
 
+                                {/* Insider MSPR Section */}
+                                {sentimentData.insider_mspr_label && sentimentData.insider_mspr_label !== 'No Data' && (
+                                    <div className="p-5 rounded-xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <h5 className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                                                📊 Insider Sentiment (MSPR)
+                                            </h5>
+                                            <span className="text-[10px] px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full font-mono">
+                                                via Finnhub
+                                            </span>
+                                        </div>
+                                        <div className="flex items-baseline gap-3">
+                                            <span className={`text-2xl font-black ${sentimentData.insider_mspr_label === 'Net Buying' ? 'text-emerald-600' :
+                                                sentimentData.insider_mspr_label === 'Heavy Selling' ? 'text-red-600' : 'text-gray-600'
+                                                }`}>
+                                                {sentimentData.insider_mspr_label}
+                                            </span>
+                                            <span className="text-xs text-gray-500 font-mono">
+                                                Score: {sentimentData.insider_mspr?.toFixed(1)}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                                            <strong>MSPR</strong> = Monthly Share Purchase Ratio. Measures net insider buying vs selling
+                                            over the past 3 months. Range: -100 (heavy selling) to +100 (heavy buying).
+                                        </p>
+                                        <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-3">
+                                            <span>Source: Finnhub API</span>
+                                            <span>•</span>
+                                            <span>Type: SEC Form 4 filings</span>
+                                            <span>•</span>
+                                            <span>Window: 3 months</span>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Merged Footer: Algo Check (Left) + Metadata (Right) */}
                                 <div className="mt-4 p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 mb-6">
                                     <div className="flex items-center gap-2" title="Mathematical baseline validation using TextBlob (No AI)">
@@ -1625,144 +1914,263 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                 {activeTab === 'projections' && (
                     <div className="space-y-6">
-                        {/* Simulation Tab Content - On Demand */}
-                        <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl min-h-[500px] flex flex-col justify-center items-center relative overflow-hidden">
-                            {loadingSimulation || !simulation ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse z-10">
+                        {/* Projection Header with Duration Selector */}
+                        <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl">
+                            {loadingSimulation ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-gray-500 animate-pulse">
                                     <Loader className="animate-spin mb-4 text-blue-500" size={48} />
                                     <p className="font-medium text-gray-700 dark:text-gray-300 text-lg">Running 10,000 Simulations...</p>
                                     <p className="text-sm mt-2 text-gray-400">Modeling volatility • calculating scenarios • aggregating paths</p>
                                 </div>
-                            ) : (
-                                /* Chart Display */
-                                <div className="w-full h-full flex flex-col">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
-                                                <Zap className="text-blue-500" /> Monte Carlo Simulation
-                                                <InfoTooltip text={
-                                                    <div className="space-y-1.5">
-                                                        <p>Simulates {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility ({simulation?.metadata?.period || '2y'}).</p>
-                                                        <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
-                                                            <div className="flex justify-between items-center gap-4">
-                                                                <span className="text-gray-400">Model</span>
-                                                                <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center gap-4">
-                                                                <span className="text-gray-400">History</span>
-                                                                <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center gap-4">
-                                                                <span className="text-gray-400">Paths</span>
-                                                                <span className="font-mono font-bold text-purple-400">{simulation?.metadata?.simulations?.toLocaleString() || '10,000'}</span>
-                                                            </div>
+                            ) : simulation ? (
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
+                                            <Zap className="text-blue-500" /> Price Projections
+                                            <InfoTooltip text={
+                                                <div className="space-y-1.5">
+                                                    <p>Monte Carlo simulation running {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility.</p>
+                                                    <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
+                                                        <div className="flex justify-between items-center gap-4">
+                                                            <span className="text-gray-400">Model</span>
+                                                            <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center gap-4">
+                                                            <span className="text-gray-400">History Used</span>
+                                                            <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
                                                         </div>
                                                     </div>
-                                                } />
-                                            </h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projecting 90 days into the future based on recent volatility.</p>
+                                                </div>
+                                            } />
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Based on {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} simulations using Geometric Brownian Motion</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 px-2">Duration:</span>
+                                            <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500 text-white">
+                                                90 Days
+                                            </button>
                                         </div>
-                                        <button onClick={handleRunSimulation} className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1">
+                                        <button onClick={handleRunSimulation} className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
                                             <Clock size={12} /> Rerun
                                         </button>
                                     </div>
+                                </div>
+                            ) : null}
+                        </div>
 
-                                    <div className="flex-1 w-full min-h-[400px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart
-                                                data={(() => {
-                                                    if (!simulation?.paths || simulation.paths.length === 0) return [];
-                                                    const pathsToDisplay = simulation.paths.slice(0, 20); // Limit to 20 paths
-                                                    const numSteps = pathsToDisplay[0].length;
-                                                    const data = [];
-                                                    for (let i = 0; i < numSteps; i++) {
-                                                        const point: any = { step: i };
-                                                        pathsToDisplay.forEach((path: number[], pIdx: number) => {
-                                                            point[`path${pIdx}`] = path[i];
-                                                        });
-                                                        // Add Percentiles
-                                                        if (simulation.p10) point.p10 = simulation.p10[i];
-                                                        if (simulation.p50) point.p50 = simulation.p50[i];
-                                                        if (simulation.p90) point.p90 = simulation.p90[i];
-                                                        data.push(point);
-                                                    }
-                                                    return data;
-                                                })()}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
-                                                <XAxis dataKey="step" hide />
-                                                <YAxis domain={['auto', 'auto']} stroke="#9ca3af" fontSize={12} tickFormatter={(val) => `$${val.toFixed(0)}`} />
-                                                <RechartsTooltip
-                                                    contentStyle={{
-                                                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                                                        borderColor: '#374151',
-                                                        borderRadius: '12px',
-                                                        padding: '12px 16px',
-                                                        boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
-                                                    }}
-                                                    itemStyle={{ color: '#fff', padding: '4px 0' }}
-                                                    labelFormatter={(label) => `Day ${label} of 90`}
-                                                    labelStyle={{ color: '#9ca3af', marginBottom: '8px', fontWeight: 'bold', fontSize: '12px' }}
-                                                    formatter={(value: number, name: string) => {
-                                                        if (name === 'p10') return [`$${value.toFixed(2)}`, '🔴 Worst Case (10%)'];
-                                                        if (name === 'p50') return [`$${value.toFixed(2)}`, '🔵 Most Likely (50%)'];
-                                                        if (name === 'p90') return [`$${value.toFixed(2)}`, '🟢 Best Case (90%)'];
-                                                        return [null, null]; // Hide individual path values
-                                                    }}
-                                                    filterNull={true}
-                                                />
-                                                {simulation?.paths ? (
-                                                    simulation.paths.slice(0, 20).map((_: any, i: number) => (
-                                                        <Line
-                                                            key={i}
-                                                            type="monotone"
-                                                            dataKey={`path${i}`}
-                                                            stroke="#10b981"
-                                                            strokeWidth={1}
-                                                            strokeOpacity={0.15}
-                                                            dot={false}
-                                                            isAnimationActive={false}
-                                                        />
-                                                    ))
-                                                ) : null}
-                                                {/* Percentile Lines */}
-                                                <Line type="monotone" dataKey="p10" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p10" />
-                                                <Line type="monotone" dataKey="p50" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p50" />
-                                                <Line type="monotone" dataKey="p90" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" dot={false} name="p90" />
-                                            </LineChart>
-                                        </ResponsiveContainer>
+                        {/* Scenario Cards - Moved to Top */}
+                        {simulation && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                                {/* Bear Case */}
+                                <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 backdrop-blur-md rounded-xl border border-red-500/20 p-5">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-xl">🐻</span>
+                                        <span className="text-sm font-bold text-red-600 dark:text-red-400">Bear Case <span className="opacity-60 text-[10px] ml-1">(P10)</span></span>
                                     </div>
-                                    <div className="mt-6 flex justify-around items-center text-xs border-t border-gray-100 dark:border-gray-800 pt-3 flex-shrink-0">
-                                        <div className="text-center group relative cursor-default">
-                                            <div className="text-red-600 dark:text-red-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                                P10 (Worst) <InfoTooltip text="Worst Case (10th Percentile): The value where 90% of outcomes were better." />
-                                            </div>
-                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                                ${simulation?.p10?.[simulation.p10.length - 1]?.toFixed(2) || 'N/A'}
+                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                        ${simulation.p10?.[simulation.p10.length - 1]?.toFixed(2)}
+                                    </div>
+                                    <div className="text-xs text-red-600 dark:text-red-400 font-bold">
+                                        {(((simulation.p10?.[simulation.p10.length - 1] || 0) - (simulation.p10?.[0] || 1)) / (simulation.p10?.[0] || 1) * 100).toFixed(0)}% from current
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were worse</div>
+                                </div>
+
+                                {/* Base Case */}
+                                <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 backdrop-blur-md rounded-xl border border-blue-500/20 p-5">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-xl">📊</span>
+                                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Base Case <span className="opacity-60 text-[10px] ml-1">(P50)</span></span>
+                                    </div>
+                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                        ${simulation.p50?.[simulation.p50.length - 1]?.toFixed(2)}
+                                    </div>
+                                    <div className={`text-xs font-bold ${(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? '+' : ''}{(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100).toFixed(0)}% from current
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-2">Median expected outcome</div>
+                                </div>
+
+                                {/* Bull Case */}
+                                <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 backdrop-blur-md rounded-xl border border-emerald-500/20 p-5">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-xl">🚀</span>
+                                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Bull Case <span className="opacity-60 text-[10px] ml-1">(P90)</span></span>
+                                    </div>
+                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                        ${simulation.p90?.[simulation.p90.length - 1]?.toFixed(2)}
+                                    </div>
+                                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                                        +{(((simulation.p90?.[simulation.p90.length - 1] || 0) - (simulation.p90?.[0] || 1)) / (simulation.p90?.[0] || 1) * 100).toFixed(0)}% from current
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were better</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Risk Metrics Row */}
+                        {simulation && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expected Return</div>
+                                    <div className={`text-xl font-bold font-mono ${simulation.expected_return >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {simulation.expected_return >= 0 ? '+' : ''}{simulation.expected_return?.toFixed(1)}%
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-1">90-day projection</div>
+                                </div>
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">VaR (95%)</div>
+                                    <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">
+                                        -${simulation.risk_var?.toFixed(2)}
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-1">Maximum likely loss</div>
+                                </div>
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prob. of Loss</div>
+                                    <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                                        {(100 - (simulation.probabilities?.breakeven || 50)).toFixed(0)}%
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-1">Chance of negative return</div>
+                                </div>
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Volatility</div>
+                                    <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
+                                        {simulation.volatility?.toFixed(1)}%
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-1">Annualized</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Probability Analysis & Histogram Row */}
+                        {simulation?.probabilities && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                                {/* Probability Table */}
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                        <TrendingUp size={16} className="text-blue-500" /> Probability Analysis
+                                    </h4>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500">+25% gain</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_25}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_25?.toFixed(0)}%</span>
                                             </div>
                                         </div>
-
-                                        <div className="text-center group relative cursor-default">
-                                            <div className="text-blue-600 dark:text-blue-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                                P50 (Likely) <InfoTooltip text="Most Likely (50th Percentile): The median outcome." />
-                                            </div>
-                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                                ${simulation?.p50?.[simulation.p50.length - 1]?.toFixed(2) || 'N/A'}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500">+10% gain</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_10}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_10?.toFixed(0)}%</span>
                                             </div>
                                         </div>
-
-                                        <div className="text-center group relative cursor-default">
-                                            <div className="text-emerald-600 dark:text-emerald-400 font-bold mb-0.5 flex items-center justify-center gap-1">
-                                                P90 (Best) <InfoTooltip text="Best Case (90th Percentile): The value where only 10% of outcomes were better." />
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500">Break-even</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${simulation.probabilities.breakeven}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 w-12 text-right">{simulation.probabilities.breakeven?.toFixed(0)}%</span>
                                             </div>
-                                            <div className="font-mono font-bold text-lg text-gray-900 dark:text-white">
-                                                ${simulation?.p90?.[simulation.p90.length - 1]?.toFixed(2) || 'N/A'}
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500">-10% loss</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_10}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_10?.toFixed(0)}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500">-25% loss</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_25}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_25?.toFixed(0)}%</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+
+                                {/* Return Distribution Histogram */}
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                        <BarChart3 size={16} className="text-purple-500" /> Return Distribution
+                                    </h4>
+                                    <div className="h-[180px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={simulation.histogram || []} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                                                <defs>
+                                                    <linearGradient id="histGradient" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
+                                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <XAxis dataKey="return_pct" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v}%`} />
+                                                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
+                                                <RechartsTooltip
+                                                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
+                                                    formatter={(value: any) => [`${value}%`, 'Probability']}
+                                                    labelFormatter={(label) => `Return: ${label > 0 ? '+' : ''}${label}%`}
+                                                />
+                                                <Area type="monotone" dataKey="percentage" stroke="#8b5cf6" fill="url(#histGradient)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Analyst Targets */}
+                        {simulation?.analyst_targets?.has_data && (
+                            <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5 mt-6">
+                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                    <Target size={16} className="text-amber-500" /> Analyst Consensus
+                                </h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 mb-1">Target Price</div>
+                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">${simulation.analyst_targets.target_mean?.toFixed(2)}</div>
+                                        <div className={`text-xs font-bold ${(simulation.analyst_targets.upside_pct || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {(simulation.analyst_targets.upside_pct || 0) >= 0 ? '+' : ''}{simulation.analyst_targets.upside_pct?.toFixed(1)}% upside
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 mb-1">Target Range</div>
+                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">
+                                            ${simulation.analyst_targets.target_low?.toFixed(0)} - ${simulation.analyst_targets.target_high?.toFixed(0)}
+                                        </div>
+                                        <div className="text-xs text-gray-400">Low - High</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 mb-1">Analysts</div>
+                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">{simulation.analyst_targets.num_analysts}</div>
+                                        <div className="text-xs text-gray-400">covering</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 mb-1">Recommendation</div>
+                                        <div className={`text-lg font-bold capitalize ${simulation.analyst_targets.recommendation_key === 'buy' || simulation.analyst_targets.recommendation_key === 'strong_buy' ? 'text-emerald-600' :
+                                            simulation.analyst_targets.recommendation_key === 'sell' || simulation.analyst_targets.recommendation_key === 'strong_sell' ? 'text-red-600' :
+                                                'text-amber-600'
+                                            }`}>
+                                            {simulation.analyst_targets.recommendation_key?.replace('_', ' ') || 'N/A'}
+                                        </div>
+                                        <div className="text-xs text-gray-400">consensus</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
                     </div>
                 )}
 

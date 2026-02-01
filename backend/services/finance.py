@@ -10,6 +10,8 @@ cache_info = TTLCache(maxsize=100, ttl=600)
 cache_peg = TTLCache(maxsize=100, ttl=600)
 cache_inst = TTLCache(maxsize=100, ttl=600)
 cache_spy = TTLCache(maxsize=1, ttl=3600) # Cache SPY for 1 hour
+cache_analyst = TTLCache(maxsize=100, ttl=3600)  # Cache analyst targets for 1 hour
+
 
 @cached(cache_info)
 def get_stock_info(ticker: str):
@@ -37,6 +39,19 @@ def get_stock_info(ticker: str):
         cleaned_info['fcf_yield'] = fcf / mkt_cap
     else:
         cleaned_info['fcf_yield'] = 0.0
+
+    # v7.3 Enhancements: Ensure specific keys exist for Scorer
+    # Map common yfinance variations if primary keys are missing
+    if 'returnOnEquity' not in cleaned_info:
+        cleaned_info['returnOnEquity'] = 0.0
+    if 'returnOnAssets' not in cleaned_info:
+        cleaned_info['returnOnAssets'] = 0.0
+    if 'forwardPE' not in cleaned_info:
+        cleaned_info['forwardPE'] = cleaned_info.get('trailingPE', 0.0) # Fallback
+    if 'currentRatio' not in cleaned_info:
+        cleaned_info['currentRatio'] = 0.0
+    if 'operatingMargins' not in cleaned_info:
+        cleaned_info['operatingMargins'] = cleaned_info.get('profitMargins', 0.0)
     
     # Attempt to get EPS Surprise from info (sometimes available) or Calendar
     # Since lightweight is preferred, if not in info, we might skip or do a quick fetch
@@ -44,7 +59,73 @@ def get_stock_info(ticker: str):
     
     return cleaned_info
 
+@cached(cache_analyst)
+def get_analyst_targets(ticker: str) -> dict:
+    """
+    Fetch analyst price targets and recommendations from Yahoo Finance.
+    Returns: target_low, target_mean, target_high, target_median, 
+             recommendation_mean, recommendation_key, number_of_analysts
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Get current price for upside/downside calculation
+        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+        
+        # Extract analyst target data
+        target_low = info.get('targetLowPrice')
+        target_high = info.get('targetHighPrice')
+        target_mean = info.get('targetMeanPrice')
+        target_median = info.get('targetMedianPrice')
+        num_analysts = info.get('numberOfAnalystOpinions', 0)
+        
+        # Recommendation data
+        rec_mean = info.get('recommendationMean')  # 1=Strong Buy, 5=Sell
+        rec_key = info.get('recommendationKey', 'none')  # e.g., "buy", "hold", "sell"
+        
+        # Calculate upside/downside if we have data
+        upside_pct = None
+        if target_mean and current_price and current_price > 0:
+            upside_pct = ((target_mean - current_price) / current_price) * 100
+        
+        # Clean NaN values
+        def clean_val(v):
+            if v is None:
+                return None
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                return None
+            return v
+        
+        return {
+            "current_price": clean_val(current_price),
+            "target_low": clean_val(target_low),
+            "target_high": clean_val(target_high),
+            "target_mean": clean_val(target_mean),
+            "target_median": clean_val(target_median),
+            "upside_pct": clean_val(upside_pct),
+            "num_analysts": num_analysts or 0,
+            "recommendation_mean": clean_val(rec_mean),
+            "recommendation_key": rec_key,
+            "has_data": target_mean is not None and num_analysts > 0
+        }
+    except Exception as e:
+        print(f"Error fetching analyst targets for {ticker}: {e}")
+        return {
+            "current_price": None,
+            "target_low": None,
+            "target_high": None,
+            "target_mean": None,
+            "target_median": None,
+            "upside_pct": None,
+            "num_analysts": 0,
+            "recommendation_mean": None,
+            "recommendation_key": "none",
+            "has_data": False
+        }
+
 def get_earnings_surprise(ticker: str) -> float:
+
     """Fetch recent EPS surprise %."""
     try:
         stock = yf.Ticker(ticker)
@@ -153,6 +234,196 @@ def get_news(ticker: str):
     data.sort(key=lambda x: x.get('providerPublishTime', 0) or 0, reverse=True)
     return data
 
+def get_institutional_change(ticker: str) -> dict:
+    """
+    Calculate Quarter-over-Quarter (QoQ) change in institutional holdings.
+    Returns:
+        {
+            "change_pct": float, # Percentage change
+            "change_shares": int, # Net share change
+            "accumulating": bool, # True if positive change
+            "label": str, # Descriptive label
+            "period": str # Reporting period (e.g., "Q4 2025")
+        }
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        
+        # We need the institutional holders DataFrame
+        inst_df = stock.institutional_holders
+        
+        if inst_df is None or inst_df.empty:
+            return {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data"}
+            
+        # Check if we have pctChange column (standard in yfinance)
+        if 'pctChange' not in inst_df.columns and '% Change' not in inst_df.columns:
+            return {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data"}
+            
+        col_name = 'pctChange' if 'pctChange' in inst_df.columns else '% Change'
+        shares_col = 'Shares'
+        
+        # Calculate weighted change
+        total_shares = 0
+        weighted_change_sum = 0
+        net_shares_change = 0
+        
+        for index, row in inst_df.iterrows():
+            shares = row.get(shares_col, 0)
+            change = row.get(col_name, 0)
+            
+            if pd.isna(shares) or pd.isna(change):
+                continue
+                
+            total_shares += shares
+            weighted_change_sum += (shares * change)
+            
+            # Estimate net shares change
+            # If change is 0.05 (5%), original shares were shares / (1 + 0.05)
+            original_shares = shares / (1 + change)
+            diff = shares - original_shares
+            net_shares_change += diff
+            
+        if total_shares == 0:
+             return {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "Neutral", "period": "N/A"}
+             
+        avg_change_pct = weighted_change_sum / total_shares
+        
+        # Determine label
+        if avg_change_pct >= 0.02: # +2%
+            label = "Strong Accumulation"
+        elif avg_change_pct >= 0.005: # +0.5%
+            label = "Accumulating"
+        elif avg_change_pct <= -0.02: # -2%
+            label = "Strong Distribution"
+        elif avg_change_pct <= -0.005: # -0.5%
+            label = "Distributing"
+        else:
+            label = "Hold / Stable"
+            
+        # Get most recent reporting date
+        latest_date = "N/A"
+        if not inst_df.empty and 'Date Reported' in inst_df.columns:
+            try:
+                # pandas series max
+                most_recent = inst_df['Date Reported'].max()
+                # Format: "Q3 2025" or "Dec 2025"
+                # If it's a pandas Timestamp
+                # import pandas as pd (removed)
+                if isinstance(most_recent, pd.Timestamp) or hasattr(most_recent, 'month'):
+                    q = (most_recent.month - 1) // 3 + 1
+                    latest_date = f"Q{q} {most_recent.year}"
+                else:
+                    latest_date = str(most_recent).split(' ')[0]
+            except Exception as e:
+                latest_date = "Recent"
+
+        return {
+            "change_pct": avg_change_pct,
+            "change_shares": int(net_shares_change),
+            "accumulating": avg_change_pct > 0,
+            "label": label,
+            "period": latest_date
+        }
+        
+    except Exception as e:
+        print(f"Error calculating institutional change for {ticker}: {e}")
+        return {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data", "period": "N/A"}
+
+def calculate_insider_signal(transactions: list) -> dict:
+    """
+    Analyzes 90-day discretionary insider transactions to determine a signal.
+    transactions: List of dicts with 'Text', 'Value', 'Shares', 'is_automatic' keys.
+    """
+    if not transactions:
+        return {
+            "label": "No Recent Activity",
+            "score": 0,
+            "net_flow": 0,
+            "total_bought": 0,
+            "total_sold": 0,
+            "trans_count": 0
+        }
+        
+    total_bought = 0
+    total_sold = 0
+    buy_count = 0
+    sell_count = 0
+    unique_buyers = set()
+    unique_sellers = set()
+    
+    for t in transactions:
+        # We only analyze discretionary trades for the signal to be meaningful
+        # Note: The input list 'transactions' should ideally be filtered or we check here
+        # Assuming input is the raw cleaned list which might have 'is_automatic' flag
+        
+        # If the transaction is marked automatic/derivative, we skip for signal calculation
+        # (Though we might still show them in the table, the signal should be purity-driven)
+        # Check if we have identified it as automatic in previous steps
+        # In current flow, we will attach 'isAutomatic' to the dict in get_institutional_holders
+        # But here we will assume strict logic.
+        
+        text = t.get('Text', '').lower()
+        # Fallback check if isAutomatic not present
+        if t.get('isAutomatic', False) or 'gift' in text or 'award' in text or 'grant' in text:
+            continue
+            
+        value = t.get('Value', 0) or 0
+        insider = t.get('Insider', 'Unknown')
+        
+        if 'purchase' in text or 'buy' in text:
+            total_bought += value
+            buy_count += 1
+            unique_buyers.add(insider)
+        elif 'sale' in text or 'sale' in text: # 'sale' covers 'sale'
+            total_sold += value
+            sell_count += 1
+            unique_sellers.add(insider)
+            
+    net_flow = total_bought - total_sold
+    
+    # Determine Label
+    label = "Neutral"
+    score = 0 # -10 to +10
+    
+    # Logic Trees
+    if buy_count == 0 and sell_count == 0:
+        label = "No Discretionary Trades"
+        summary_text = "No open market activity in the last 90 days."
+    elif net_flow > 500000: # Net Buy > $500k
+        label = "Strong Buying"
+        score = 8
+        summary_text = f"{len(unique_buyers)} executives bought ${int(total_bought/1000)}k in stock."
+    elif net_flow > 0:
+        label = "Net Buying"
+        score = 5
+        summary_text = f"{len(unique_buyers)} insiders accumulating shares."
+    elif len(unique_sellers) >= 3 and sell_count > buy_count:
+        label = "Cluster Selling"
+        score = -6
+        summary_text = f"Cluster of {len(unique_sellers)} executives selling."
+    elif net_flow < -5000000: # Net Sell > $5M
+        label = "Heavy Selling"
+        score = -8
+        summary_text = f"Significant selling of ${int(total_sold/1000000)}M by insiders."
+    elif net_flow < 0:
+        label = "Net Selling"
+        score = -4
+        summary_text = f"Net selling pressure of ${int(abs(net_flow)/1000)}k."
+    else:
+        label = "Mixed"
+        summary_text = "Mixed buying and selling activity."
+        
+    return {
+        "label": label,
+        "score": score,
+        "net_flow": net_flow,
+        "total_bought": total_bought,
+        "total_sold": total_sold,
+        "trans_count": buy_count + sell_count,
+        "unique_insiders": len(unique_buyers | unique_sellers),
+        "summary_text": summary_text
+    }
+
 @cached(cache_inst)
 def get_institutional_holders(ticker: str):
     try:
@@ -174,8 +445,8 @@ def get_institutional_holders(ticker: str):
         try:
             inst_df = stock.institutional_holders
             if inst_df is not None and not inst_df.empty:
-                # Top 5
-                top_holders = inst_df.head(5).to_dict(orient='records')
+                # Fetch all holders (removed head(5) limit for frontend sorting)
+                top_holders = inst_df.to_dict(orient='records')
                 # Clean keys
                 cleaned_holders = []
                 for h in top_holders:
@@ -194,20 +465,53 @@ def get_institutional_holders(ticker: str):
                         "% Out": pct_out
                     })
                 holders["top_holders"] = cleaned_holders
+            
+            # Calculate Smart Money Signal (Institutional Change)
+            change_data = get_institutional_change(ticker)
+            holders["smart_money"] = change_data
+            
         except:
             holders["top_holders"] = []
+            holders["smart_money"] = {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data"}
 
-        # Parse Insider Transactions (New)
+        # Parse Insider Transactions - Use yfinance with heuristic 10b5-1 detection
         try:
             trans_df = stock.insider_transactions
             if trans_df is not None and not trans_df.empty:
-                # Top 10 recent
-                recent_trans = trans_df.head(10).to_dict(orient='records')
+                # TOP 50 recent transactions (increased from 15 for 90-day window)
+                recent_trans = trans_df.to_dict(orient='records')
                 cleaned_trans = []
+                automatic_count = 0
+                discretionary_count = 0
+                
+                # Use a 90-day window
+                from datetime import datetime, timedelta
+                cutoff_date = datetime.now() - timedelta(days=90)
+                
                 for t in recent_trans:
+                    # Handle Date and filtering
+                    date_val = t.get("Start Date")
+                    if not date_val:
+                        continue
+                    
+                    try:
+                        # yfinance usually returns pandas Timestamp or string
+                        if isinstance(date_val, str):
+                            tx_date = datetime.strptime(date_val.split(" ")[0], '%Y-%m-%d')
+                        else:
+                            tx_date = date_val.to_pydatetime()
+                            
+                        # Filter for last 90 days
+                        if tx_date < cutoff_date:
+                            continue
+                    except Exception as e:
+                        print(f"Error parsing date {date_val}: {e}")
+                        continue
+
                     # Handle NaN values for JSON serialization
                     shares = t.get("Shares", 0)
                     value = t.get("Value", 0)
+                    text = t.get("Text", "").lower()
                     
                     # Convert NaN to None for proper JSON serialization
                     if isinstance(shares, float) and math.isnan(shares):
@@ -215,49 +519,79 @@ def get_institutional_holders(ticker: str):
                     if isinstance(value, float) and math.isnan(value):
                         value = None
                     
+                    # HEURISTIC 10b5-1 DETECTION based on transaction type
+                    is_automatic = False
+                    detection_reason = "discretionary"
+                    
+                    # Rule 1: Stock gifts - always exclude (not real trades)
+                    if 'gift' in text:
+                        is_automatic = True
+                        detection_reason = "stock_gift"
+                    # Rule 2: Stock awards/grants - compensation plans (automatic)
+                    elif 'award' in text or 'grant' in text:
+                        is_automatic = True
+                        detection_reason = "compensation_award"
+                    # Rule 3: Option exercises - typically scheduled (automatic)
+                    elif 'option exercise' in text or 'exercise' in text:
+                        is_automatic = True
+                        detection_reason = "option_exercise"
+                    # Rule 4: Conversion transactions - typically automatic
+                    elif 'conversion' in text or 'converted' in text:
+                        is_automatic = True
+                        detection_reason = "conversion"
+                    # Rule 5: Sales/Purchases at price - likely discretionary
+                    elif 'sale at price' in text or 'purchase at price' in text:
+                        is_automatic = False
+                        detection_reason = "market_trade"
+                    
+                    if is_automatic:
+                        automatic_count += 1
+                    else:
+                        discretionary_count += 1
+                    
                     cleaned_trans.append({
-                        "Date": str(t.get("Start Date", "")).split(" ")[0], # Keep just date part
+                        "Date": str(t.get("Start Date", "")).split(" ")[0] if t.get("Start Date") else "N/A",
                         "Insider": t.get("Insider", "Unknown"),
-                        "Position": t.get("Position", ""),
-                        "Text": t.get("Text", ""), # e.g. "Sale at price..."
+                        "Position": t.get("Position", "Unknown"),
+                        "Text": text,
+                        "Value": value,
                         "Shares": shares,
-                        "Value": value
+                        "isAutomatic": is_automatic,
+                        "detectionReason": detection_reason
                     })
+                    
                 holders["insider_transactions"] = cleaned_trans
+                holders["insider_source"] = "yfinance_heuristic"
+                holders["insider_metadata"] = {
+                    "total": len(cleaned_trans),
+                    "discretionary": discretionary_count,
+                    "automatic_10b5_1": automatic_count,
+                    "days_analyzed": 90,
+                    "detection_method": "heuristic_text_patterns"
+                }
+
+                # --- NEW: Calculate Insider Signal Summary ---
+                sid = calculate_insider_signal(cleaned_trans)
+                # Attach counts for UI (Level 2 Hierarchy)
+                sid['discretionary_count'] = discretionary_count
+                sid['automatic_count'] = automatic_count
+                holders["insider_signal"] = sid
+                
+                print(f"Heuristic 10b5-1 detection for {ticker}: {discretionary_count} discretionary, {automatic_count} automatic")
             else:
                 holders["insider_transactions"] = []
+                holders["insider_signal"] = calculate_insider_signal([])
+                holders["insider_source"] = "yfinance"
         except Exception as e:
-            print(f"Error getting insider transactions: {e}")
+            print(f"Error getting insider transactions from yfinance: {e}")
             holders["insider_transactions"] = []
-        
-        # Try to get Finnhub MSPR for more accurate insider sentiment
-        try:
-            from services.finnhub_insider import get_insider_sentiment, is_available
-            
-            if is_available():
-                finnhub_data = get_insider_sentiment(ticker)
-                if finnhub_data:
-                    holders["insider_mspr"] = finnhub_data.get("mspr", 0.5)
-                    holders["insider_activity"] = finnhub_data.get("activity_label", "No Activity")
-                    holders["insider_source"] = "finnhub"
-                else:
-                    holders["insider_mspr"] = 0.5
-                    holders["insider_activity"] = "No Activity"
-                    holders["insider_source"] = "finnhub_unavailable"
-            else:
-                holders["insider_mspr"] = 0.5
-                holders["insider_activity"] = "No Activity"
-                holders["insider_source"] = "yfinance_fallback"
-        except Exception as e:
-            print(f"Error getting Finnhub insider data: {e}")
-            holders["insider_mspr"] = 0.5
-            holders["insider_activity"] = "No Activity"
-            holders["insider_source"] = "error_fallback"
+            holders["insider_signal"] = calculate_insider_signal([])
+            holders["insider_source"] = "error"
             
         return holders
     except Exception as e:
         print(f"Error getting holders: {e}")
-        return {"top_holders": [], "insider_transactions": [], "insider_mspr": 0.5, "insider_activity": "No Activity"}
+        return {"top_holders": [], "insider_transactions": []}
 
 @cached(cache_spy)
 def get_market_regime():

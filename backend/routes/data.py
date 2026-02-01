@@ -153,6 +153,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 logger.error(f"Error fetching news: {e}")
                 return []
 
+
         def fetch_institutional():
             try:
                 return finance.get_institutional_holders(ticker)
@@ -190,7 +191,13 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         # 3. Process additional Data for VinSight
         
         if include_sentiment:
-            sentiment_result = analysis.calculate_news_sentiment(news, deep_analysis=True)
+            # v7.3 Optimization: Disable deep analysis (LLM) since sentiment is 0% weight.
+            try:
+                sentiment_result = analysis.calculate_news_sentiment(news, deep_analysis=False, ticker=ticker)
+            except Exception as e:
+                logger.error(f"Error calculating sentiment: {e}")
+                sentiment_result = None
+            
             # Default to neutral if None
             if not sentiment_result:
                  sentiment_result = {"label": "Neutral", "score": 0, "confidence": 0, "article_count": 0}
@@ -289,10 +296,17 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             active_sector = detected_sector
         
         # v6.3: Get new fields
+        # v7.3: Get new fields
         profit_margin = fundamentals_info.get("profitMargins", 0) or 0
+        operating_margin = fundamentals_info.get("operatingMargins", 0) or 0
         debt_to_equity = fundamentals_info.get("debtToEquity", 0) or 0
         if debt_to_equity > 10:
             debt_to_equity = debt_to_equity / 100
+        
+        current_ratio = fundamentals_info.get("currentRatio") or 0.0
+        roe = fundamentals_info.get("returnOnEquity") or 0.0
+        roa = fundamentals_info.get("returnOnAssets") or 0.0
+        forward_pe = fundamentals_info.get("forwardPE") or 0.0
             
         fcf_yield = fundamentals_info.get("fcf_yield", 0.0)
         
@@ -302,11 +316,16 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         fund_data = Fundamentals(
             inst_ownership=inst_own,
             pe_ratio=pe or 0,
+            forward_pe=forward_pe,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
             sector_name=active_sector,
             profit_margin=profit_margin,
+            operating_margin=operating_margin,
+            roe=roe,
+            roa=roa,
             debt_to_equity=debt_to_equity,
+            current_ratio=current_ratio,
             fcf_yield=fcf_yield,
             eps_surprise_pct=eps_surprise
         )
@@ -370,12 +389,18 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         )
 
         # Insider Activity Detection
-        # First, check if Finnhub MSPR is available (more accurate)
-        if institutional.get('insider_source') == 'finnhub':
-            ins_activity = institutional.get('insider_activity', 'No Activity')
+        # v3.0: MSPR is now fetched in sentiment analysis, use it if available
+        ins_activity = "No Activity"
+        
+        # Check if sentiment result has MSPR from Finnhub
+        if sentiment_result and sentiment_result.get('insider_mspr_label') and sentiment_result.get('insider_mspr_label') != "No Data":
+            ins_activity = sentiment_result.get('insider_mspr_label', 'No Activity')
         else:
-            # Fallback to yfinance transaction parsing with cluster detection
+            # Fallback to yfinance transaction parsing (with heuristic 10b5-1 detection)
             txs = institutional.get('insider_transactions', [])
+            
+            # Filter out and count transactions
+            discretionary_txs = [t for t in txs if not t.get('is_10b5_1', False)]
             
             insider_buy = 0
             insider_sell = 0
@@ -384,12 +409,12 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             
             from datetime import datetime
             
-            for t in txs[:15]:
+            for t in discretionary_txs:
                 text = t.get('Text', '').lower()
                 position = t.get('Position', '').lower()
                 date_str = t.get('Date', '')
                 
-                # Skip stock gifts (not actual selling)
+                # Double check for gifts in case heuristic missed it
                 if 'gift' in text:
                     continue
                 
@@ -418,7 +443,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                         break
             
             # Classify
-            if not txs:
+            if not discretionary_txs:
                 ins_activity = "No Activity"
             elif is_cluster_selling:
                 ins_activity = "Cluster Selling"
@@ -435,8 +460,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             sentiment_data = Sentiment(
                 news_sentiment_label=sentiment_label,
                 news_sentiment_score=sentiment_score,
-                news_article_count=news_art_count,
-                insider_activity=ins_activity
+                news_article_count=news_art_count
+                # v6.5: insider_activity removed from scoring - MSPR now display-only
             )
         except TypeError as e:
             logger.error(f"Sentiment Instantiation Failed: {e}. LIKELY STALE SERVER STATE.")
@@ -676,9 +701,15 @@ def get_simulation(ticker: str):
     try:
         history = finance.get_stock_history(ticker, period="1y")
         sim_result = simulation.run_monte_carlo(history)
+        
+        # Also fetch analyst targets for combined response
+        analyst_targets = finance.get_analyst_targets(ticker)
+        sim_result["analyst_targets"] = analyst_targets
+        
         return sim_result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/sentiment/{ticker}")
 def get_sentiment(ticker: str):

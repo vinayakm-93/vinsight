@@ -19,7 +19,8 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 - **VinSight Score v6.1**: Fundamentals-heavy scoring (60/15/15/10) with 29 sector-specific benchmarks.
 - **Sector Override**: Compare any stock against different industry benchmarks (Cloud/SaaS, EV, Banks, Mining, etc.).
 - **Outlooks**: 3m (Technical), 6m (Valuation), 12m (Quality) time horizon analysis.
-- **On-Demand Simulation**: 1,000 path Monte Carlo projections (P10/P50/P90) calculated instantly on tab click.
+- **On-Demand Projections**: Monte Carlo simulation with P10/P50/P90 scenarios, probability analysis, return distribution histogram, analyst consensus, and risk metrics.
+- **AI Sentiment**: Deep sentiment analysis with auto-refresh on tab click.
 - **Smart Alerts**: Email notifications for price targets and major sentiment shifts.
 - **High Performance**: Vectorized simulation engine & consolidated API (load times < 1s).
 - **Portfolio Tracking**: Watchlist management with daily changelog.

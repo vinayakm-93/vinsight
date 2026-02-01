@@ -28,21 +28,25 @@ logger.addHandler(console_handler)
 # Explicitly load from backend/.env
 load_dotenv("backend/.env")
 
-# Re-create config to ensure we pulled latest env vars
-conf = ConnectionConfig(
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
-    MAIL_FROM = os.getenv("MAIL_FROM"),
-    MAIL_PORT = 587,
-    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
-    MAIL_STARTTLS = True,
-    MAIL_SSL_TLS = False,
-    USE_CREDENTIALS = True,
-    VALIDATE_CERTS = False
-)
-
 # For development, we can print to console if no real creds
 MOCK_MODE = os.getenv("MAIL_USERNAME") is None
+
+# Only create real config if we have credentials, otherwise use dummy placeholder
+# to prevent pydantic validation errors on startup
+if not MOCK_MODE:
+    conf = ConnectionConfig(
+        MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
+        MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
+        MAIL_FROM = os.getenv("MAIL_FROM"),
+        MAIL_PORT = 587,
+        MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_STARTTLS = True,
+        MAIL_SSL_TLS = False,
+        USE_CREDENTIALS = True,
+        VALIDATE_CERTS = False
+    )
+else:
+    conf = None  # Will be checked before use
 
 
 # --- Email Templates ---

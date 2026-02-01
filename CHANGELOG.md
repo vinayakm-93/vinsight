@@ -1,6 +1,63 @@
 # Changelog
+
+## [v7.4] - 2026-02-01
+### Added
+- **10-Theme Benchmarking**: Consolidated 30+ sectors into 10 broad strategies (High Growth Tech, Mature Tech, etc.).
+- **Market Reference**: Added S&P 500 columns to Scorer output for broad market context.
+- **Risk Gates**: Formalized penalties for Technical Downtrends (-15 pts) and Monte Carlo Risk (-15 pts).
+- **Optimization**: Disabled Deep Sentiment analysis for faster scorer loading.
+
+## [v7.0 - v7.3] - 2026-02-01
+- **Fundamental Purist Refactor**: Scorer is now 100% Fundamentals.
+- **New Metrics**: ROE, ROA, Forward PE, Operating Margins.
+
  
 
+## v6.7.2 - Insider & Institutional Refinement (2026-02-01)
+
+### 🏛️ Institutional Holdings (Smart Money)
+- **Unified Card**: Merged "Smart Money" signal, Net Change, and QoQ Reporting Period into a single, high-level summary card.
+- **Reporting Period**: Added dynamic detection of the latest reporting quarter (e.g., "Q4 2025 Filings").
+
+### 💼 Insider Activity (90-Day Discretionary)
+- **Heuristic Filtering (10b5-1)**: Backend now automatically distinguishes "Automatic" (Plan/Grant) trades from "Real" (Discretionary) trades based on SEC text patterns.
+- **Signal Logic**: Score and Label are now calculated exclusively on **Discretionary** trades to capture true executive sentiment.
+- **3-Level Hierarchy UI**:
+    - **Level 1**: Glanceable Badge with One-Liner Context (e.g., "Cluster of 3 executives selling").
+    - **Level 2**: Metrics showing Net Flow, Trade Volume, and "Real vs Auto" Count.
+    - **Level 3**: Expandable Transaction Table (Top 10 default) with explicit "Type" column.
+
+---
+## v6.7.1 - MSPR Refactor to Display-Only (2026-02-01)
+
+### 🔧 Scoring Engine (v6.5)
+- **Insider Scoring Removed**: Removed `insider_activity` from VinSight scoring. Sentiment pillar now awards full 10 points based on news sentiment only.
+
+### 📊 Sentiment Tab Enhancement
+- **New MSPR Section**: Added "Insider Sentiment (MSPR)" card with source info (Finnhub API, SEC Form 4 filings, 3-month window).
+
+---
+
+## v6.7.0 - Enhanced Projections & AI Sentiment (2026-02-01)
+
+### 🚀 New Projections Tab Features
+- **Monte Carlo Engine Enhancements**: 
+    - Added Probability Analysis table (+25%/+10%/Break-even/-10%/-25% gain/loss probabilities)
+    - Added Return Distribution Histogram with interactive chart
+    - Added Volatility calculation (annualized %)
+- **Analyst Consensus Integration**: Fetches and displays Yahoo Finance analyst price targets (target_low, target_mean, target_high) and recommendations
+- **Risk Metrics Row**: Four key metrics displayed prominently (Expected Return, VaR 95%, Prob. of Loss, Volatility)
+- **Scenario Cards with Percentile Labels**: Bear Case (P10), Base Case (P50), Bull Case (P90) with clear labeling
+- **UI Cleanup**: Removed Monte Carlo line chart, merged redundant sections, moved scenarios to top for immediate visibility
+- **Duration Selector**: Added 90-day duration indicator with rerun button
+
+### 🔧 AI Sentiment Tab
+- **Renamed**: "Sentiment" → "AI Sentiment" for clarity
+- **On-Demand Loading**: Analysis triggers automatically when the tab is clicked
+
+### 🐛 Fixes
+- Fixed redundant P10/P50/P90 display (removed duplicate section)
+- Improved card layout and percentile indicator visibility
 
 ## v6.6.1 - Dashboard Refactor & Finnhub News (2026-01-31)
 

@@ -18,43 +18,40 @@ from services.vinsight_scorer import (
 
 
 class TestSentimentScoring:
-    """Tests for _score_sentiment() method - v6.3: 10 pts total (News 5 + Insider 5)"""
+    """Tests for _score_sentiment() method - v6.5: 10 pts total (News only, insider removed)"""
     
     def setup_method(self):
         self.scorer = VinSightScorer()
     
-    def test_positive_news_net_buying_gives_max_score(self):
-        """v6.3: Positive news (5) + Net Buying (5) = 10 points"""
+    def test_positive_news_gives_max_score(self):
+        """v6.5: Positive news = 10 points"""
         sentiment = Sentiment(
             news_sentiment_label="Positive",
             news_sentiment_score=0.4,  # Max positive
-            news_article_count=10,
-            insider_activity="Net Buying"
+            news_article_count=10
         )
         score = self.scorer._score_sentiment(sentiment)
         assert score == 10, f"Expected 10, got {score}"
     
-    def test_neutral_news_net_buying(self):
-        """v6.3: Neutral news (2.5) + Net Buying (5) = 7.5 -> 8 points"""
+    def test_neutral_news_gives_mid_score(self):
+        """v6.5: Neutral news = 5 points"""
         sentiment = Sentiment(
             news_sentiment_label="Neutral",
             news_sentiment_score=0.0,
-            news_article_count=10,
-            insider_activity="Net Buying"
-        )
-        score = self.scorer._score_sentiment(sentiment)
-        assert score >= 7, f"Expected >= 7, got {score}"
-    
-    def test_negative_news_net_buying(self):
-        """v6.3: Negative news (0) + Net Buying (5) = 5 points"""
-        sentiment = Sentiment(
-            news_sentiment_label="Negative",
-            news_sentiment_score=-0.4,
-            news_article_count=10,
-            insider_activity="Net Buying"
+            news_article_count=10
         )
         score = self.scorer._score_sentiment(sentiment)
         assert score == 5, f"Expected 5, got {score}"
+    
+    def test_negative_news_gives_zero(self):
+        """v6.5: Negative news = 0 points"""
+        sentiment = Sentiment(
+            news_sentiment_label="Negative",
+            news_sentiment_score=-0.4,
+            news_article_count=10
+        )
+        score = self.scorer._score_sentiment(sentiment)
+        assert score == 0, f"Expected 0, got {score}"
 
 
 class TestFundamentalsScoring:
@@ -170,8 +167,7 @@ class TestFullScoreIntegration:
             sentiment=Sentiment(
                 news_sentiment_label="Positive",
                 news_sentiment_score=0.4,
-                news_article_count=10,
-                insider_activity="Net Buying"
+                news_article_count=10
             ),
             projections=Projections(
                 monte_carlo_p50=145.0,
@@ -224,8 +220,7 @@ class TestFullScoreIntegration:
             sentiment=Sentiment(
                 news_sentiment_label="Positive",
                 news_sentiment_score=0.4,
-                news_article_count=10,
-                insider_activity="Net Buying"
+                news_article_count=10
             ),
             projections=Projections(
                 monte_carlo_p50=145.0,  # 32% upside

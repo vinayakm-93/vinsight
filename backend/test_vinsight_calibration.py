@@ -146,8 +146,8 @@ def test_stock(ticker: str):
             sentiment=Sentiment(
                 news_sentiment_label=sent_label,
                 news_sentiment_score=sentiment_result.get('score', 0),
-                news_article_count=news_art_count,
-                insider_activity=insider
+                news_article_count=news_art_count
+                # v6.5: insider_activity removed from scoring
             ),
             projections=Projections(
                 monte_carlo_p50=p50_val,

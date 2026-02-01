@@ -1,6 +1,6 @@
 # Vinsight Project Handover
 
-**Date:** January 22, 2026
+**Date:** February 01, 2026
 **Status:** Deployed to Production (Google Cloud Run)
 
 ## 🔗 Quick Links
@@ -19,7 +19,7 @@ This is a monorepo containing both the Frontend and Backend.
 *   **Tech:** Next.js (React), TypeScript, Tailwind CSS.
 *   **Deployment:** Docker container on Cloud Run.
 *   **Configuration:** `NEXT_PUBLIC_API_URL` is baked in at build time via `deploy.sh`.
-*   **Updates (v6.2.2):** Improved error handling and toast notifications.
+*   **Updates (v6.7.2):** Insider Activity Refinement (3-Level Hierarchy), Institutional Smart Money UI.
 
 ### Backend
 *   **Path:** `/backend`
@@ -66,10 +66,16 @@ We have automated the deployment process.
 ## ✅ Deployment Status Report (Jan 23)
 | Component | Status | Verified Date | Notes |
 |-----------|--------|---------------|-------|
-| **Frontend** | 🟢 Stable | Jan 23 | Optimized single-request loading. |
-| **Backend** | 🟢 Stable | Jan 23 | Vectorized Simulation, Consolidated API. |
+| **Frontend** | 🟢 Stable | Feb 01 | Insider 3-Level UI, Monte Carlo Projections. |
+| **Backend** | 🟢 Stable | Feb 01 | Heuristic 10b5-1 logic, Smart Money Signal. |
 | **Database** | 🟢 Stable | Jan 22 | Alert deletion logic active. |
 | **Alerts** | 🟢 Active | Jan 22 | Creation & Auto-Deletion verified. |
+
+## ⚠️ Resolved Issues (Feb 01)
+### 1. Insider Signal Noise
+*   **Cause**: Automatic stock grants/gifts were diluting the "Insider Sentiment" signal.
+*   **Fix**: Implemented strict filtering: only "Open Market" discretionary trades now drive the Signal/Score.
+*   **UI**: Added "Type" column and "Real vs Auto" breakdown for transparency.
 
 ## ⚠️ Resolved Issues (Jan 22)
 ### 1. Alert Creation "Failed"

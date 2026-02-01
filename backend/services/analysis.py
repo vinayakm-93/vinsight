@@ -84,26 +84,45 @@ def calculate_risk_metrics(history: List[Dict]) -> Dict:
 
 def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True, ticker: str = None) -> Dict:
     """
-    Calculates sentiment from news using Alpha Vantage (preferred) or Groq (fallback).
+    Calculates sentiment from news using Groq + Finnhub MSPR (insider sentiment).
     
-    v2.5: Alpha Vantage primary (has built-in sentiment + summaries)
-          Falls back to yfinance + Groq if Alpha Vantage unavailable
+    v3.0: Merged Finnhub MSPR into sentiment section
+          - News sentiment via Groq/TextBlob
+          - Insider sentiment via Finnhub MSPR (consolidated API call)
     
     Args:
         news_items: List of news items with 'title' (used for fallback)
         deep_analysis: Legacy parameter (kept for compatibility)
-        ticker: Stock ticker symbol (required for Alpha Vantage)
+        ticker: Stock ticker symbol (required for MSPR fetch)
     
     Returns: {
         'score': float (-1 to 1),
         'label': str ('Positive', 'Negative', 'Neutral'),
         'confidence': float (0 to 1),
         'article_count': int,
-        'source': str ('alpha_vantage' or 'groq')
+        'source': str,
+        'insider_mspr': float (-100 to 100),       # NEW
+        'insider_mspr_label': str,                  # NEW
     }
     """
-    # 1. Gather News Data
-    # Priority: yfinance (Title). Alpha Vantage removed.
+    # Default MSPR values (no data)
+    insider_mspr = 0.0
+    insider_mspr_label = "No Data"
+    
+    # 1. Fetch Finnhub MSPR if ticker provided
+    if ticker:
+        try:
+            from services.finnhub_insider import get_insider_sentiment, is_available
+            
+            if is_available():
+                finnhub_data = get_insider_sentiment(ticker)
+                if finnhub_data:
+                    insider_mspr = finnhub_data.get("mspr", 0.0)
+                    insider_mspr_label = finnhub_data.get("activity_label", "No Activity")
+        except Exception as e:
+            print(f"Error fetching Finnhub MSPR for {ticker}: {e}")
+    
+    # 2. Gather News Data
     articles_to_analyze = []
     source_name = "yfinance + Groq"
     
@@ -119,10 +138,12 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "label": "Neutral",
             "confidence": 0.0,
             "article_count": 0,
-            "source": "none"
+            "source": "none",
+            "insider_mspr": insider_mspr,
+            "insider_mspr_label": insider_mspr_label
         }
 
-    # 2. Analyze with Groq (Batch)
+    # 3. Analyze with Groq (Batch)
     try:
         from services.groq_sentiment import get_groq_analyzer
         groq = get_groq_analyzer()
@@ -138,11 +159,13 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
         
         return {
             "score": result['score'],
-            "label": result['label'].capitalize(), # "positive" -> "Positive"
+            "label": result['label'].capitalize(),
             "confidence": result['confidence'],
             "article_count": len(articles_to_analyze),
             "source": f"{source_name} (Deep Analysis)",
-            "reasoning": result.get('reasoning', '')
+            "reasoning": result.get('reasoning', ''),
+            "insider_mspr": insider_mspr,
+            "insider_mspr_label": insider_mspr_label
         }
         
     except Exception as e:
@@ -178,8 +201,11 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "label": label,
             "confidence": 0.5,
             "article_count": count,
-            "source": "TextBlob (Tier 3)"
+            "source": "TextBlob (Tier 3)",
+            "insider_mspr": insider_mspr,
+            "insider_mspr_label": insider_mspr_label
         }
+
 
 
 def analyze_sentiment_ondemand(ticker: str) -> Dict:
