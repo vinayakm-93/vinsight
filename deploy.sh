@@ -64,11 +64,8 @@ if [ -n "$CLOUDSQL_INSTANCE" ]; then
     echo -e "${GREEN}Configuring for Cloud SQL: $CLOUDSQL_INSTANCE${NC}"
     
     # Check for DB Credentials
-    if [ -z "$DB_USER" ] || [ -z "$DB_PASS" ]; then
-        echo "ERROR: DB_USER and DB_PASS must be set in backend/.env for Cloud SQL deployment."
-        echo "Please add them and retry."
-        exit 1
-    fi
+    # Secret Manager usage
+    echo -e "${GREEN}Using Secret Manager for DB credentials (configured in deploy commands)...${NC}"
     
     DB_NAME=${DB_NAME:-"finance"} # Default to finance if not set
     # Connection string for Google Cloud Run (Unix Socket)
@@ -87,8 +84,8 @@ gcloud run deploy $BACKEND_SERVICE \
     --region $REGION \
     --allow-unauthenticated \
     --memory 2Gi \
-    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
-    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
+    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest" \
     $CLOUD_SQL_FLAG
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --platform managed --region $REGION --format 'value(status.url)')
@@ -105,8 +102,8 @@ gcloud run jobs deploy vinsight-watcher \
     --region $REGION \
     --command "python" \
     --args "jobs/market_watcher_job.py" \
-    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",DB_USER="$DB_USER",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
-    --set-secrets="DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest" \
+    --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
+    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest" \
     --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
 
 cd ..
