@@ -17,6 +17,7 @@ You strictly need these keys for the app to function correctly:
 2.  **API Ninjas**: For stock price data.
 3.  **Groq API**: For fast AI sentiment analysis.
 4.  **Google Gemini**: For deep reasoning analysis.
+5.  **Finnhub API**: For institutional data and real-time news.
 
 ### 3. Backend (FastAPI)
 

@@ -1,8 +1,8 @@
 # Architecture Overview
 
-VinSight follows a modern **Client-Server Architecture** with a **Proxy Layer** for cookie handling.
+VinSight follows a modern **Client-Server Architecture** with a **Proxy Layer** for cookie handling and a micro-batching background worker for market alerts.
 
-## Diagram
+## 1. System Diagram
 
 ```mermaid
 graph TD
@@ -15,6 +15,7 @@ graph TD
     AI2[Gemini API]
     AV[Alpha Vantage API]
     Data[yfinance]
+    Worker[Cloud Run Job: Market Watcher]
 
     User -->|HTTP| FE
     FE -->|/api/* requests| Proxy
@@ -24,44 +25,32 @@ graph TD
     BE -->|Earnings| AI2
     BE -->|News + Sentiment| AV
     BE -->|Stock Data| Data
+    Worker -->|Check Price Targets| BE
 ```
 
-## Components
+## 2. Tech Stack
 
-### Frontend (`/frontend`)
-- **Framework**: Next.js 16 (App Router)
-- **Styling**: TailwindCSS
-- **State**: React Context (AuthContext, ThemeContext)
-- **Charts**: Lightweight-charts
-- **Proxy**: `next.config.js` rewrites `/api/*` to backend
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | Next.js 14/15, TypeScript, Tailwind CSS, Framer Motion |
+| **Backend** | Python 3.11, FastAPI, Pydantic, SQLAlchemy |
+| **Database** | Cloud SQL (PostgreSQL 15) for Prod; SQLite for Local |
+| **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, Alpha Vantage |
+| **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
-### Backend (`/backend`)
-- **Framework**: FastAPI
-- **ORM**: SQLAlchemy
-- **Validation**: Pydantic models
-- **Config**: `redirect_slashes=False` for proxy compatibility
+## 3. Core Engine Logic
+- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0), Weighting profiles, and Vetos.
+- **AI Sentiment Hybrid**: Parallel analysis using FinBERT (fast) and Groq (deep) with temporal weighting and spin detection.
 
-### AI Services (v6.1)
-| Service | Purpose | Fallback |
-|---------|---------|----------|
-| **Alpha Vantage** | News sentiment (pre-scored) | Groq |
-| **Groq (Llama 3.3 70B)** | Deep headline analysis | TextBlob |
-| **Finnhub** | Insider MSPR sentiment | yfinance |
-| **Gemini** | Earnings report analysis | - |
+## 4. Infrastructure & Security
+- **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.
+- **Secrets**: Zero-knowledge credential storage via Google Secret Manager.
+- **Alerts**: Background cron job (Worker) triggered every 5 minutes during US market hours.
 
-### VinSight Scoring Engine (v6.1)
-| Pillar | Points | Focus |
-|--------|--------|-------|
-| **Fundamentals** | 60 | Valuation, Growth, Margins, Debt, Institutional |
-| **Sentiment** | 15 | News + Insider Activity |
-| **Projections** | 15 | Monte Carlo Simulation |
-| **Technicals** | 10 | SMA, RSI, Volume |
+## 5. Detailed Technical Documentation
+- **[Security & Compliance](./SECURITY.md)**: OWASP compliance, Encryption audits, and Rotation schedules.
+- **[Maintenance & Incident Log](./MAINTENANCE_LOG.md)**: Fix history and Root Cause Analyses.
+- **[Deployment Guide](./DEPLOY.md)**: Instructions for pushing to Google Cloud.
+- **[Setup Guide](./SETUP.md)**: Local development environment configuration.
 
-**Sector Benchmarks**: 29 industry-specific thresholds in `backend/config/sector_benchmarks.json`
-
-### Database
-- **Users Table**: Stores user info, hashed passwords, alert limits.
-- **Watchlists Table**: User watchlists with comma-separated tickers.
-- **Alerts Table**: Price alert triggers configured by users.
-- **Stocks Table**: Metadata about symbols.
 

@@ -2,6 +2,9 @@
 
 We use a unified script `deploy.sh` to handle building, secrets mounting, and deploying to Google Cloud Run.
 
+> [!WARNING]
+> **RAM Requirement**: The Backend service REQUIRES a minimum of **2GiB of RAM**. Lower memory configurations will cause OOM (Out of Memory) crashes due to the Python ML dependencies (`torch`, `transformers`).
+
 ## Prerequisites
 1.  **Google Cloud SDK**: [Install Here](https://cloud.google.com/sdk/docs/install)
 2.  **Login**:

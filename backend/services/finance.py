@@ -1225,3 +1225,131 @@ def generate_ai_recommendation(ticker: str, analysis: dict, sentiment: dict, fun
         }
     }
 
+
+
+def get_advanced_metrics(ticker: str) -> dict:
+    """
+    Fetch advanced financial metrics required for CFA-level scoring.
+    Includes:
+    - Gross Margin Trend (Recent vs Previous)
+    - Interest Coverage (EBIT / Interest Expense)
+    - Debt/EBITDA
+    - Altman Z-Score Components
+    """
+    metrics = {
+        "gross_margin_trend": "Flat",
+        "interest_coverage": 100.0, # Default to safe
+        "debt_to_ebitda": 0.0,
+        "altman_z_score": 3.0,
+        "revenue_growth_3y_cagr": 0.0, # 3-year CAGR
+        "return_on_assets": 0.0,
+        "current_ratio": 0.0
+    }
+    
+    try:
+        stock = yf.Ticker(ticker)
+        
+        # 1. Info extraction
+        info = stock.info
+        metrics['return_on_assets'] = info.get('returnOnAssets', 0.0) or 0.0
+        metrics['current_ratio'] = info.get('currentRatio', 0.0) or 0.0
+        
+        # Debt/EBITDA
+        total_debt = info.get('totalDebt')
+        ebitda = info.get('ebitda')
+        if total_debt and ebitda and ebitda > 0:
+            metrics['debt_to_ebitda'] = total_debt / ebitda
+            
+        # 2. Quarterly Financials (For Margin Trend & Coverage)
+        qf = stock.quarterly_financials
+        if not qf.empty:
+            # Gross Margin Trend
+            if 'Gross Profit' in qf.index and 'Total Revenue' in qf.index:
+                rev = qf.loc['Total Revenue']
+                gp = qf.loc['Gross Profit']
+                margins = (gp / rev).dropna()
+                
+                if len(margins) >= 2:
+                    current = margins.iloc[0] # Most recent
+                    previous = margins.iloc[1] # Previous quarter
+                    
+                    if current > previous * 1.01:
+                        metrics['gross_margin_trend'] = "Rising"
+                    elif current < previous * 0.99:
+                        metrics['gross_margin_trend'] = "Falling"
+            
+            # Interest Coverage
+            if 'EBIT' in qf.index and 'Interest Expense' in qf.index:
+                ebit_series = qf.loc['EBIT']
+                int_series = qf.loc['Interest Expense']
+                
+                # Take most recent non-NaN
+                ebit = ebit_series.iloc[0] if not pd.isna(ebit_series.iloc[0]) else 0
+                interest = int_series.iloc[0] if not pd.isna(int_series.iloc[0]) else 0
+                
+                if interest and interest != 0:
+                    metrics['interest_coverage'] = ebit / abs(interest)
+                else:
+                    metrics['interest_coverage'] = 100.0 # Infinite coverage
+        
+        # 3. Revenue Growth (3y CAGR)
+        af = stock.financials
+        if not af.empty and 'Total Revenue' in af.index:
+             revs = af.loc['Total Revenue'].dropna()
+             if len(revs) >= 3:
+                 current_rev = revs.iloc[0]
+                 # Ideally 3 years ago (iloc[3]) but often only 4 cols avail
+                 years = min(len(revs)-1, 3)
+                 old_rev = revs.iloc[years]
+                 
+                 if old_rev > 0 and current_rev > 0:
+                     cagr = (current_rev / old_rev) ** (1/years) - 1
+                     metrics['revenue_growth_3y_cagr'] = cagr
+        
+        # 4. Altman Z-Score
+        qbs = stock.quarterly_balance_sheet
+        if not qbs.empty and not qf.empty:
+             try:
+                 total_assets = qbs.loc['Total Assets'].iloc[0] if 'Total Assets' in qbs.index else 0
+                 
+                 # Liabilities
+                 total_liab = 0
+                 if 'Total Liabilities Net Minority Interest' in qbs.index:
+                     total_liab = qbs.loc['Total Liabilities Net Minority Interest'].iloc[0]
+                 elif 'Total Liab' in qbs.index:
+                     total_liab = qbs.loc['Total Liab'].iloc[0]
+                 else:
+                     # Estimate
+                     total_liab = total_assets * 0.5
+                 
+                 # Working Capital
+                 working_capital = 0
+                 if 'Working Capital' in qbs.index:
+                     working_capital = qbs.loc['Working Capital'].iloc[0]
+                 elif 'Total Assets' in qbs.index: # Rough proxy if missing
+                      working_capital = total_assets * 0.1
+                      
+                 retained_earnings = qbs.loc['Retained Earnings'].iloc[0] if 'Retained Earnings' in qbs.index else 0
+                 
+                 # Components from Financials
+                 ebit = qf.loc['EBIT'].iloc[0] if ('EBIT' in qf.index and not pd.isna(qf.loc['EBIT'].iloc[0])) else 0
+                 sales = qf.loc['Total Revenue'].iloc[0] if ('Total Revenue' in qf.index and not pd.isna(qf.loc['Total Revenue'].iloc[0])) else 0
+                 market_cap = info.get('marketCap', 0)
+                 
+                 if total_assets > 0:
+                     A = working_capital / total_assets
+                     B = retained_earnings / total_assets
+                     C = (ebit * 4) / total_assets # Annualized EBIT
+                     D = market_cap / total_liab if total_liab > 0 else 10.0
+                     E = (sales * 4) / total_assets # Annualized Sales
+                     
+                     # Altman Z-Score Formula
+                     z_score = 1.2*A + 1.4*B + 3.3*C + 0.6*D + 1.0*E
+                     metrics['altman_z_score'] = z_score
+             except Exception as ez:
+                 print(f"Z-Score calc error: {ez}")
+                 
+    except Exception as e:
+        print(f"Error fetching advanced metrics for {ticker}: {e}")
+        
+    return metrics

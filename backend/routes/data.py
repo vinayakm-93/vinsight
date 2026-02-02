@@ -247,11 +247,19 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                  logger.error(f"Error fetching earnings: {e}")
                  return {}
 
+        def fetch_advanced():
+            try:
+                return finance.get_advanced_metrics(ticker)
+            except Exception as e:
+                logger.error(f"Error fetching advanced metrics: {e}")
+                return {} # Fallbacks handled below
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_hist = executor.submit(fetch_history)
             future_info = executor.submit(fetch_info)
             future_news = executor.submit(fetch_news)
             future_inst = executor.submit(fetch_institutional)
+            future_adv = executor.submit(fetch_advanced)
             # future_earn = executor.submit(fetch_earnings) # DB dependency tricky here
             
             # Wait for results
@@ -259,6 +267,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             fundamentals_info = future_info.result()
             news = future_news.result()
             institutional = future_inst.result()
+            advanced_metrics = future_adv.result()
 
         if not history:
              raise HTTPException(status_code=404, detail="No history data found")
@@ -400,13 +409,18 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             forward_pe=forward_pe,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
+            revenue_growth_3y=advanced_metrics.get('revenue_growth_3y_cagr', 0.0), # NEW
             sector_name=active_sector,
             profit_margin=profit_margin,
             operating_margin=operating_margin,
+            gross_margin_trend=advanced_metrics.get('gross_margin_trend', 'Flat'), # NEW
             roe=roe,
             roa=roa,
             debt_to_equity=debt_to_equity,
+            debt_to_ebitda=advanced_metrics.get('debt_to_ebitda', 0.0), # NEW
+            interest_coverage=advanced_metrics.get('interest_coverage', 100.0), # NEW
             current_ratio=current_ratio,
+            altman_z_score=advanced_metrics.get('altman_z_score', 3.0), # NEW
             fcf_yield=fcf_yield,
             eps_surprise_pct=eps_surprise
         )
@@ -460,11 +474,21 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             vol_trend = "Weak/Mixed"
             
+        # CFA Technicals (RVOL & Distance to High)
+        avg_vol = fundamentals_info.get('averageVolume')
+        curr_vol = history[-1]['Volume'] if history else 0
+        relative_volume = (curr_vol / avg_vol) if avg_vol and avg_vol > 0 else 1.0
+        
+        high52 = fundamentals_info.get('fiftyTwoWeekHigh')
+        distance_to_high = ((high52 - current_price) / high52) if high52 and high52 > 0 else 0.0
+
         tech_data = Technicals(
             price=current_price,
             sma50=sma50,
             sma200=sma200,
             rsi=rsi,
+            relative_volume=relative_volume,
+            distance_to_high=distance_to_high,
             momentum_label=momentum,
             volume_trend=vol_trend
         )
@@ -729,9 +753,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             score_data_for_ai = {
                 'total_score': score_result.total_score,
                 'rating': score_result.rating,
-                'fundamentals_score': fund_score,
-                'trend_penalty': score_result.breakdown.get('TrendGate', 0),
-                'income_bonus': score_result.breakdown.get('IncomeBonus', 0),
+                'fundamentals_score': score_result.breakdown.get('Quality Score', 0),
+                'timing_score': score_result.breakdown.get('Timing Score', 0),
                 'breakdown': score_result.details,
                 'outlook_context': {
                     'short_term': short_term_outlook,
@@ -752,7 +775,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "raw_breakdown": score_result.breakdown,
             "modifications": score_result.modifications,
             "score_explanation": score_explanation,
-            "details": score_result.details # New structured breakdown for UI
+            "details": score_result.details, # New structured breakdown for UI
+            "outlook_context": score_data_for_ai['outlook_context'] # Expose deterministic outlooks
         }
 
         # Prepare SMA dict for frontend

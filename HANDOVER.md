@@ -1,93 +1,83 @@
-# Vinsight Project Handover
-
-**Date:** February 01, 2026
-**Status:** Deployed to Production (Google Cloud Run)
-
-## 🔗 Quick Links
-- **GitHub Repository:** [vinayakm-93/vinsight](https://github.com/vinayakm-93/vinsight)
-- **Live Frontend:** [https://vinsight-frontend-wddr2kfz3a-uc.a.run.app](https://vinsight-frontend-wddr2kfz3a-uc.a.run.app)
-- **Live Backend:** [https://vinsight-backend-wddr2kfz3a-uc.a.run.app](https://vinsight-backend-wddr2kfz3a-uc.a.run.app)
-- **Google Cloud Console:** [Project: vinsight-ai](https://console.cloud.google.com/home/dashboard?project=vinsight-ai)
+# VinSight Project Handover (v9.0)
+**Date:** February 02, 2026
+**Status:** Feature Complete / Production Ready
+**Target Audience:** PM, Software Engineering, DevOps, and Business Teams.
 
 ---
 
-## 🛠️ Architecture Overview
-This is a monorepo containing both the Frontend and Backend.
+## 1. Executive Summary & Vision (PM / Business)
+VinSight is an institutional-grade stock analysis platform designed for serious retail investors and portfolio managers. It moves beyond simple "buy/sell" ratings by providing a **CFA-aligned 70/30 Weighted Composite Model** (Quality vs. Timing).
 
-### Frontend
-*   **Path:** `/frontend`
-*   **Tech:** Next.js (React), TypeScript, Tailwind CSS.
-*   **Deployment:** Docker container on Cloud Run.
-*   **Configuration:** `NEXT_PUBLIC_API_URL` is baked in at build time via `deploy.sh`.
-*   **Updates (v6.7.2):** Insider Activity Refinement (3-Level Hierarchy), Institutional Smart Money UI.
-
-### Backend
-*   **Path:** `/backend`
-*   **Tech:** Python (FastAPI), PyTorch (CPU-only), Gunicorn.
-*   **Database:** Cloud SQL (PostgreSQL).
-*   **Key Libraries:** `transformers` (AI analysis), `yfinance` (Stock data), `simplejson` (NaN handling).
-*   **Deployment:** Docker container on Cloud Run (**Requires 2Gi Memory**).
+**The Core Value Prop:**
+*   **Adaptive Intelligence**: Scorer v9.0 uses dynamic benchmarking. It knows that a 15% margin for a Software company is "average," but for a Retailer, it's "elite."
+*   **Sentiment Sentinel**: Proprietary multi-stage news analysis (Finnhub → Groq Llama 3) with "Spin Detection" to cut through PR noise.
+*   **Institutional Transparency**: Distinguishes between discretionary "Real" insider trades and automatic "Boring" 10b5-1 plans.
 
 ---
 
-## 🚀 How to Deploy
-We have automated the deployment process.
+## 2. Product Roadmap & Strategic Features (PM)
+### v9.0 Milestones:
+- [x] **Dynamic Benchmarking Engine**: Elimination of static targets. Thresholds recalibrate based on 12+ industry themes.
+- [x] **Unified Analysis UI**: Compact, high-density dashboard. 40% reduction in vertical footprint for professional efficiency.
+- [x] **Strategy Mixer**: Real-time user-adjustable weighting with automatic "Strategy Labeling" (e.g., Value Purist).
+- [x] **Projections 2.0**: Monte Carlo simulations with P10/P50/P90 probability curves and analyst consensus overlays.
 
-1.  **Make your changes** in code.
-2.  **Run the script**:
-    ```bash
-    ./deploy.sh
-    ```
-    *This script handles enabling APIs, building images, and deploying with correct memory config.*
-
----
-
-## ⚠️ Infrastructure Notes (Jan 22)
-### 1. Memory Requirements
-*   **Critical**: The Backend service now requires **2Gi** of memory (up from 512MiB) due to `torch` and `transformers` usage.
-*   **Configuration**: This is enforced in `./deploy.sh` via the `--memory 2Gi` flag.
-
-### 2. Cold Starts
-*   Since we are on the "Free Tier" (scaling to 0), the first request after a while might take 10-20 seconds to wake up the server.
+### Future Backlog Suggestions:
+*   **Portfolio Import**: Sync with Plaid/Interactive Brokers APIs.
+*   **Multi-Asset Support**: Expand scoring logic to Crypto/ETFs.
+*   **AI Chat Interface**: Allow users to query the analyst persona (e.g., "Compare NVDA margins to AMD").
 
 ---
 
-## 📂 Key Files Guide
-| File | Purpose |
-|------|---------|
-| `deploy.sh` | **Master deployment script.** Handles Secrets, Cloud SQL, Memory Config. |
-| `backend/main.py` | Core App. Includes `NaNJSONResponse` for robust serialization. |
-| `backend/services/alert_checker.py` | Auto-deletes triggered alerts to keep queue clean. |
-| `backend/Dockerfile` | Defines backend environment. Optimized for CPU Torch. |
-| `frontend/Dockerfile` | Defines frontend build. |
+## 3. Engineering Deep Dive (Software Engineering)
+### Tech Stack
+*   **Frontend**: Next.js 15+, TypeScript, Tailwind CSS (v4), Recharts.
+*   **Backend**: FastAPI (Python 3.11), SQLAlchemy, NumPy (Vectorized MC simulations).
+*   **AI Core**: Groq (Llama 3.3 70B), Gemini 1.5 Pro.
+*   **Data Sources**: yfinance (Technical/Consensus), Finnhub (Smart Money/News), Alpha Vantage (Global Financials).
+
+### Core Logic: `vinsight_scorer.py`
+The heart of the app is the `VinSightScorer` class.
+*   **`evaluate()`**: Orchestrates Data fetching → Quality Scoring → Timing Scoring → Veto Checks → Narrative Generation.
+*   **Dynamic Interpolation**: Uses `_linear_score()` to map raw values into weighted points based on benchmarks in `backend/config/sector_benchmarks.json`.
+*   **Vetos**: Hard kill-switches (e.g., Interest Coverage < 1.5x) cap the total score.
 
 ---
 
-## ✅ Deployment Status Report (Jan 23)
-| Component | Status | Verified Date | Notes |
-|-----------|--------|---------------|-------|
-| **Frontend** | 🟢 Stable | Feb 01 | Insider 3-Level UI, Monte Carlo Projections. |
-| **Backend** | 🟢 Stable | Feb 01 | Heuristic 10b5-1 logic, Smart Money Signal. |
-| **Database** | 🟢 Stable | Jan 22 | Alert deletion logic active. |
-| **Alerts** | 🟢 Active | Jan 22 | Creation & Auto-Deletion verified. |
+## 4. DevOps & Infrastructure (DevOps)
+### Deployment Flow
+We use a custom `./deploy.sh` script that automates the Google Cloud Run workflow.
+1.  **Containerization**: Backend and Frontend are containerized.
+2.  **Memory**: **CRITICAL**: Backend requires **2GiB RAM** to handle Python ML overhead.
+3.  **Networking**: Next.js uses a rewrite proxy in `next.config.ts` to forward `/api/*` to the backend, solving CORS and cookie issues.
 
-## ⚠️ Resolved Issues (Feb 01)
-### 1. Insider Signal Noise
-*   **Cause**: Automatic stock grants/gifts were diluting the "Insider Sentiment" signal.
-*   **Fix**: Implemented strict filtering: only "Open Market" discretionary trades now drive the Signal/Score.
-*   **UI**: Added "Type" column and "Real vs Auto" breakdown for transparency.
-
-## ⚠️ Resolved Issues (Jan 22)
-### 1. Alert Creation "Failed"
-*   **Cause**: `NaN` values crashing JSON encoder.
-*   **Fix**: Implemented `NaNJSONResponse`.
-
-### 2. OOM Crashes
-*   **Cause**: 512MiB memory insufficient for ML libs.
-*   **Fix**: Upgraded container to 2Gi RAM.
-
-### 3. Trailing Slash 404
-*   **Cause**: Frontend proxy stripped slashes, Backend expected them.
-*   **Fix**: Backend routes updated to be slash-agnostic via `@router.post("")`.
+### Environment & Secrets (GCP Secret Manager)
+| Secret Name | Purpose |
+|-------------|---------|
+| `GROQ_API_KEY` | Deep Reasoning & Sentiment |
+| `FINNHUB_API_KEY` | Institutional Data / Real-time News |
+| `DATABASE_URL` | Cloud SQL (PostgreSQL) connection string |
+| `JWT_SECRET` | Authentication tokens |
 
 ---
+
+## 5. Business & Operations (Business Team)
+### Licensing
+*   **Model**: **Source Available License**.
+*   **Rights**: Modification and redistribution are restricted. The code is owned by Vinayak.
+
+### API Cost Management
+The app is currently configured for maximum performance on **Free/Low-Cost tiers**:
+*   **Finnhub**: Free tier (60 calls/min) - We use defensive caching.
+*   **Groq**: Extremely high-speed, low-cost LLM inference.
+*   **yfinance**: Zero cost.
+*   **Gemini**: Free tier / Pay-per-use for deep earnings analysis.
+
+### Compliance & Reliability
+*   **Data Latency**: Institutional filings are updated via 13F (quarterly) and Form 4 (90-day window).
+*   **Error Handling**: Implemented custom `NaNJSONResponse` to prevent crashes when financial data is missing from providers.
+
+---
+**Handover Signature:**
+*Vinayak*
+*Lead Architect*

@@ -8,31 +8,34 @@ import os
 
 @dataclass
 class Fundamentals:
-    # 1. Valuation (30%)
+    # 1. Valuation
     pe_ratio: float
     forward_pe: float
     peg_ratio: float
+    fcf_yield: float
     
-    # 2. Profitability (20%)
+    # 2. Profitability
     profit_margin: float # Net Margin
     operating_margin: float
+    gross_margin_trend: str # "Rising", "Falling", "Flat"
     
-    # 3. Efficiency (20%)
+    # 3. Efficiency
     roe: float # Return on Equity
     roa: float # Return on Assets
     
-    # 4. Solvency (10%)
+    # 4. Solvency / Health
     debt_to_equity: float
+    debt_to_ebitda: float
+    interest_coverage: float
     current_ratio: float
+    altman_z_score: float
     
-    # 5. Growth (10%)
+    # 5. Growth
     earnings_growth_qoq: float
+    revenue_growth_3y: float
     
-    # 6. Conviction (10%)
+    # 6. Conviction / Other
     inst_ownership: float
-    
-    # Helper
-    fcf_yield: float
     eps_surprise_pct: float
     sector_name: str = "Technology"
 
@@ -42,6 +45,8 @@ class Technicals:
     sma50: float
     sma200: float
     rsi: float
+    relative_volume: float
+    distance_to_high: float
     momentum_label: Literal["Bullish", "Bearish"]
     volume_trend: str
     
@@ -100,16 +105,8 @@ def _load_sector_benchmarks() -> tuple[Dict, Dict, Dict]:
 # --- Scoring Engine v7.4 ---
 
 class VinSightScorer:
-    VERSION = "v7.5 (Spectrum Scoring)"
+    VERSION = "v8.0 (CFA Composite Model)"
     
-    # Weight Distribution (Total 100 for Fundamentals)
-    WEIGHT_Valuation = 30
-    WEIGHT_Profitability = 20
-    WEIGHT_Efficiency = 20
-    WEIGHT_Solvency = 10
-    WEIGHT_Growth = 10
-    WEIGHT_Conviction = 10
-
     def __init__(self):
         self.sector_benchmarks, self.defaults, self.market_ref = _load_sector_benchmarks()
         self.details = []
@@ -121,78 +118,241 @@ class VinSightScorer:
         theme = self._map_sector_to_theme(stock.fundamentals.sector_name, stock.ticker)
         stock.fundamentals.sector_name = theme 
         
-        # --- Phase 1: Core Score (Spectrum Based) ---
-        breakdown_scores = self._score_fundamentals_spectrum(stock.fundamentals)
-        f_score = sum(breakdown_scores.values())
+        # --- Phase 1: Quality Score (70% Weight) ---
+        # Focus: Solvency, Efficiency, Valuation
+        quality_score, q_breakdown = self._score_quality(stock.fundamentals)
         
-        # --- Phase 2: Risk Gates & Modifications (Spectrum Bonuses/Penalties) ---
-        bonuses = 0
+        # --- Phase 2: Timing Score (30% Weight) ---
+        # Focus: Trend, Momentum, Volume
+        timing_score, t_breakdown = self._score_timing(stock.technicals, stock.beta, stock.fundamentals.sector_name)
+        
+        # --- Phase 3: Kill Switches (The Analyst's Veto) ---
         modifications = []
         
-        # A. Trend Gate (Spectrum Penalty)
-        trend_penalty = self._check_trend_gate(stock.technicals)
-        if trend_penalty < 0:
-            bonuses += trend_penalty
-            modifications.append(f"Trend Gate Penalty ({trend_penalty:.1f})")
-            
-        # B. Projection Gate (Spectrum Penalty)
-        proj_penalty = self._check_projection_gate(stock.projections)
-        if proj_penalty < 0:
-            bonuses += proj_penalty
-            modifications.append(f"Risk Gate Penalty ({proj_penalty:.1f})")
-            
-        # C. Income Bonus (Spectrum: Yield-based if Beta < 1.0)
-        income_bonus = 0
-        if stock.beta < 1.0:
-            # Ideal: 4% (+5), Zero: 1.5% (0)
-            income_bonus = self._linear_score(
-                stock.dividend_yield, ideal=4.0, zero=1.5, max_pts=5,
-                label="Income Safety", category="Modifiers", unit="%"
-            )
-            if income_bonus > 0:
-                bonuses += income_bonus
-                modifications.append(f"Income Safety Bonus (+{income_bonus:.1f})")
-        
-        # D. RSI (Spectrum: 30-70 band)
-        rsi_modifier = 0
-        rsi = stock.technicals.rsi
-        if rsi:
-            # Oversold Bonus: Ideal 20 (+5), Zero 30 (0)
-            if rsi < 30:
-                rsi_modifier = self._linear_score(
-                    rsi, ideal=20.0, zero=30.0, max_pts=5,
-                    label="RSI Oversold", category="Modifiers"
-                )
-                if rsi_modifier > 0:
-                    modifications.append(f"Oversold Bonus (+{rsi_modifier:.1f})")
-            
-            # Overbought Penalty: Ideal 80 (-5), Zero 70 (0)
-            elif rsi > 70:
-                # Use linear_score but manually handle negative
-                penalty_raw = self._linear_score(
-                    rsi, ideal=80.0, zero=70.0, max_pts=5,
-                    label="RSI Overbought", category="Modifiers"
-                )
-                rsi_modifier = -penalty_raw
-                if rsi_modifier < 0:
-                    modifications.append(f"Overbought Penalty ({rsi_modifier:.1f})")
-            else:
-                self._add_detail("Modifiers", "RSI Momentum", f"{rsi:.1f}", "30 - 70", 0, 5, "Neutral")
-        
-        bonuses += rsi_modifier
+        # 1. Insolvency Veto
+        # If Interest Coverage < 1.5, Max Final Score = 40 (Strong Sell)
+        insolvency_cap = None
+        if stock.fundamentals.interest_coverage < 1.5:
+             insolvency_cap = 40
+             modifications.append("INSOLVENCY RISK: Interest Coverage < 1.5x (Safe < 1.5x)")
 
-        final_score = f_score + bonuses
-        final_score = max(0, min(100, final_score))
+        # 2. Valuation Veto
+        # If PEG > 4.0, Max Quality Score = 50
+        if stock.fundamentals.peg_ratio > 4.0:
+            if quality_score > 50:
+                quality_score = 50
+                modifications.append("VALUATION VETO: PEG > 4.0 cap applied")
         
-        # Update breakdown with modifiers
-        breakdown_scores["Bonuses"] = round(max(0, income_bonus + (rsi_modifier if rsi_modifier > 0 else 0)), 1)
-        breakdown_scores["Penalties"] = round(min(0, trend_penalty + proj_penalty + (rsi_modifier if rsi_modifier < 0 else 0)), 1)
+        # 3. Downtrend Veto
+        # If Price < SMA200 AND Price < SMA50, Max Timing Score = 30
+        if stock.technicals.price < stock.technicals.sma200 and stock.technicals.price < stock.technicals.sma50:
+             if timing_score > 30:
+                 timing_score = 30
+                 modifications.append("DOWNTREND VETO: Price below SMA200 & SMA50")
         
-        # --- Phase 3: Output Generation ---
+        # --- Phase 4: Composite Calculation ---
+        # Master Equation: 70% Quality + 30% Timing
+        final_score = (quality_score * 0.70) + (timing_score * 0.30)
+        
+        # Apply Insolvency Cap if triggered
+        if insolvency_cap and final_score > insolvency_cap:
+            final_score = insolvency_cap
+            modifications.append(f"Score Capped at {insolvency_cap} due to Insolvency Risk")
+            
+        final_score = round(final_score, 1)
+        
+        # Combine breakdowns
+        full_breakdown = {**q_breakdown, **t_breakdown}
+        full_breakdown['Quality Score'] = round(quality_score, 1)
+        full_breakdown['Timing Score'] = round(timing_score, 1)
+        
+        # Output Generation
         rating = self._get_rating(final_score)
-        narrative = self._generate_narrative(stock.ticker, final_score, f_score, trend_penalty, proj_penalty)
+        narrative = self._generate_narrative(stock.ticker, final_score, quality_score, timing_score, modifications)
         
-        return ScoreResult(final_score, rating, narrative, breakdown_scores, modifications, self.details)
+        return ScoreResult(final_score, rating, narrative, full_breakdown, modifications, self.details)
+
+    def _score_quality(self, f: Fundamentals) -> tuple[float, Dict]:
+        """
+        Calculates the Quality Score (Max 100).
+        """
+        score = 0.0
+        breakdown = {}
+        
+        benchmarks = self._get_benchmarks(f.sector_name)
+        
+        # --- A. Valuation (35 Pts) ---
+        # 1. PEG Ratio (20 pts) - Dynamic Target
+        target_peg = benchmarks.get('peg_fair', 1.5)
+        s_peg = self._linear_score(
+            f.peg_ratio, ideal=target_peg, zero=target_peg + 2.0, max_pts=20,
+            label="PEG Ratio", category="Quality (Valuation)"
+        )
+        score += s_peg
+        breakdown['PEG'] = s_peg
+        
+        # 2. FCF Yield (15 pts) - Dynamic Target
+        target_fcf = benchmarks.get('fcf_yield_strong', 0.05)
+        s_fcf = self._linear_score(
+            f.fcf_yield, ideal=target_fcf, zero=target_fcf * 0.2, max_pts=15,
+            label="FCF Yield", category="Quality (Valuation)", unit="%"
+        )
+        score += s_fcf
+        breakdown['FCF Yield'] = s_fcf
+        
+        # --- B. Profitability (35 Pts) ---
+        # 3. ROE (15 pts) - Dynamic Target
+        target_roe = benchmarks.get('roe_strong', 0.15)
+        s_roe = self._linear_score(
+            f.roe, ideal=target_roe, zero=target_roe * 0.3, max_pts=15,
+            label="ROE", category="Quality (Profitability)", unit="%"
+        )
+        score += s_roe
+        breakdown['ROE'] = s_roe
+        
+        # 4. Net Margin (10 pts) - Dynamic Target
+        target_margin = benchmarks.get('margin_healthy', 0.12)
+        s_margin = self._linear_score(
+            f.profit_margin, ideal=target_margin, zero=target_margin * 0.4, max_pts=10,
+            label="Net Margin", category="Quality (Profitability)", unit="%"
+        )
+        score += s_margin
+        breakdown['Net Margin'] = s_margin
+        
+        # 5. Gross Margin Trend (10 pts) - Rising YoY
+        s_gm_trend = 0.0
+        if f.gross_margin_trend == "Rising":
+            s_gm_trend = 10.0
+            status = "Excellent"
+        elif f.gross_margin_trend == "Flat":
+            s_gm_trend = 5.0
+            status = "Neutral"
+        else:
+            s_gm_trend = 0.0
+            status = "Poor"
+            
+        score += s_gm_trend
+        breakdown['GM Trend'] = s_gm_trend
+        self._add_detail("Quality (Profitability)", "Gross Margin Trend", f.gross_margin_trend, "Rising", s_gm_trend, 10, status)
+        
+        # --- C. Health (20 Pts) ---
+        # 6. Debt Threshold (15 pts) - Dynamic Target
+        target_debt = benchmarks.get('debt_safe', 1.0)
+        s_debt = self._linear_score(
+            f.debt_to_ebitda, ideal=target_debt, zero=target_debt * 2.0, max_pts=15, # Lower is better
+            label="Debt/EBITDA", category="Quality (Health)"
+        )
+        score += s_debt
+        breakdown['Debt/EBITDA'] = s_debt
+        
+        # 7. Altman Z-Score (5 pts) - Standard Target
+        s_z = self._linear_score(
+            f.altman_z_score, ideal=3.0, zero=1.8, max_pts=5,
+            label="Altman Z-Score", category="Quality (Health)"
+        )
+        score += s_z
+        breakdown['Altman Z'] = s_z
+
+        # --- D. Growth (10 Pts) ---
+        # 8. Rev Growth (10 pts) - Dynamic Target
+        target_growth = benchmarks.get('growth_strong', 0.10)
+        s_growth = self._linear_score(
+            f.revenue_growth_3y, ideal=target_growth, zero=0.0, max_pts=10,
+            label="Rev Growth (3yr)", category="Quality (Growth)", unit="%"
+        )
+        score += s_growth
+        breakdown['Growth'] = s_growth
+        
+        return score, breakdown
+        
+    def _score_timing(self, t: Technicals, beta: float, sector_name: str) -> tuple[float, Dict]:
+        """
+        Calculates the Timing Score (Max 100).
+        """
+        score = 0.0
+        breakdown = {}
+        
+        benchmarks = self._get_benchmarks(sector_name)
+        
+        # --- A. Trend (50 Pts) ---
+        # 1. Price vs SMA200 (30 pts)
+        # Logic: Binary/Step? Or continuous? "Price > 200 SMA"
+        # Let's use continuous ratio to reward strength, but cap at max.
+        # User said: Benchmark Price > 200 SMA.
+        if t.sma200 and t.sma200 > 0:
+            ratio = t.price / t.sma200
+            # Ideal: 1.05 (Clear uptrend), Zero: 0.95 (Breakdown warning)
+            s_sma200 = self._linear_score(
+                ratio, ideal=1.01, zero=0.95, max_pts=30,
+                label="Price vs SMA200", category="Timing (Trend)"
+            )
+            score += s_sma200
+            breakdown['vs SMA200'] = s_sma200
+        else:
+             self._add_detail("Timing (Trend)", "Price vs SMA200", "N/A", "> 1.0", 0, 30, "N/A")
+        
+        # 2. Price vs SMA50 (20 pts)
+        if t.sma50 and t.sma50 > 0:
+            ratio = t.price / t.sma50
+            s_sma50 = self._linear_score(
+                ratio, ideal=1.01, zero=0.95, max_pts=20,
+                label="Price vs SMA50", category="Timing (Trend)"
+            )
+            score += s_sma50
+            breakdown['vs SMA50'] = s_sma50
+        else:
+             self._add_detail("Timing (Trend)", "Price vs SMA50", "N/A", "> 1.0", 0, 20, "N/A")
+
+        # --- B. Momentum (15 Pts) ---
+        # 3. RSI (15 pts) - Target: 40-65 (Bullish Zone)
+        # We need a bell curve or specific band scoring.
+        # If 40 <= RSI <= 65 -> Max Pts.
+        # If RSI < 30 or RSI > 80 -> 0 Pts.
+        rsi_score = 0.0
+        status = "Neutral"
+        if t.rsi:
+            if 40 <= t.rsi <= 65:
+                rsi_score = 15.0
+                status = "Excellent"
+            elif 30 <= t.rsi < 40 or 65 < t.rsi <= 75:
+                rsi_score = 10.0 # Ok zone
+                status = "Good"
+            else:
+                rsi_score = 0.0
+                status = "Poor"
+        score += rsi_score
+        breakdown['RSI'] = rsi_score
+        self._add_detail("Timing (Momentum)", "RSI (14)", f"{t.rsi:.1f}" if t.rsi else "N/A", "40 - 65", rsi_score, 15, status)
+
+        # --- C. Volume (15 Pts) ---
+        # 4. Relative Volume (15 pts) - Target: > 1.5x
+        s_rvol = self._linear_score(
+            t.relative_volume, ideal=1.5, zero=0.5, max_pts=15,
+            label="Rel. Vol (RVOL)", category="Timing (Volume)"
+        )
+        score += s_rvol
+        breakdown['RVOL'] = s_rvol
+
+        # --- D. Risk (20 Pts) ---
+        # 5. Beta (10 pts) - Dynamic Target
+        target_beta = benchmarks.get('beta_safe', 1.2)
+        s_beta = self._linear_score(
+            beta, ideal=target_beta, zero=target_beta + 0.8, max_pts=10, # Lower is better (Stability)
+            label="Beta", category="Timing (Risk)"
+        )
+        score += s_beta
+        breakdown['Beta'] = s_beta
+        
+        # 6. Distance to High (10 pts) - Target: Within 15% (< 0.15 distance)
+        # distance logic: (High - Current)/High. So 0.0 is best. 0.15 is limit.
+        s_dist = self._linear_score(
+            t.distance_to_high, ideal=0.15, zero=0.30, max_pts=10, # Lower is better
+            label="Dist. to High", category="Timing (Risk)", unit="%"
+        )
+        score += s_dist
+        breakdown['Dist to High'] = s_dist
+        
+        return score, breakdown
 
     def _linear_score(self, value: float, ideal: float, zero: float, max_pts: float, label: str, category: str, unit: str = "") -> float:
         """
@@ -245,160 +405,47 @@ class VinSightScorer:
         
         return score
 
-    def _score_fundamentals_spectrum(self, f: Fundamentals) -> Dict[str, float]:
-        """
-        Calculates scores using continuous linear interpolation.
-        Total Max: 100
-        """
-        scores = {
-            "Valuation": 0.0,
-            "Profitability": 0.0,
-            "Efficiency": 0.0,
-            "Solvency": 0.0,
-            "Growth": 0.0,
-            "Conviction": 0.0
-        }
-        
-        benchmarks = self._get_benchmarks(f.sector_name)
-        
-        # Load Dynamic Benchmarks
-        peg_fair = benchmarks.get("peg_fair", 1.5)
-        fpe_fair = benchmarks.get("forward_pe_fair", 18.0)
-        margin_healthy = benchmarks.get("margin_healthy", 0.12)
-        roe_strong = benchmarks.get("roe_strong", 0.15)
-        roa_strong = benchmarks.get("roa_strong", 0.05)
-        debt_safe = benchmarks.get("debt_safe", 1.0)
-        curr_ratio_safe = benchmarks.get("current_ratio_safe", 1.5)
-        growth_strong = benchmarks.get("growth_strong", 0.10)
-        
-        # --- 1. Valuation (30 Pts) ---
-        # PEG (20 pts)
-        # Ideal: 1.0, Zero: 3.0
-        scores["Valuation"] += self._linear_score(
-            f.peg_ratio, ideal=1.0, zero=3.0, max_pts=20, 
-            label="Valuation (PEG)", category="Fundamentals"
-        )
-        
-        # Forward PE (10 pts)
-        # Ideal: Fair, Zero: Fair * 2.0
-        scores["Valuation"] += self._linear_score(
-            f.forward_pe, ideal=fpe_fair, zero=fpe_fair * 2.0, max_pts=10, 
-            label="Forward Val (PE)", category="Fundamentals"
-        )
-        
-        # --- 2. Profitability (20 Pts) ---
-        # Net Margin (10 pts)
-        # Ideal: Healthy, Zero: 0.0
-        scores["Profitability"] += self._linear_score(
-            f.profit_margin, ideal=margin_healthy, zero=0.0, max_pts=10,
-            label="Net Margin", category="Fundamentals", unit="%"
-        )
-        
-        # Operating Margin (10 pts)
-        scores["Profitability"] += self._linear_score(
-            f.operating_margin, ideal=margin_healthy, zero=0.0, max_pts=10,
-            label="Op. Margin", category="Fundamentals", unit="%"
-        )
-        
-        # --- 3. Efficiency (20 Pts) ---
-        # ROE (10 pts)
-        # Ideal: Strong, Zero: 0.0
-        scores["Efficiency"] += self._linear_score(
-            f.roe, ideal=roe_strong, zero=0.0, max_pts=10,
-            label="ROE", category="Fundamentals", unit="%"
-        )
-        
-        # ROA (10 pts)
-        scores["Efficiency"] += self._linear_score(
-            f.roa, ideal=roa_strong, zero=0.0, max_pts=10,
-            label="ROA", category="Fundamentals", unit="%"
-        )
-        
-        # --- 4. Solvency (10 Pts) ---
-        # Debt/Equity (5 pts)
-        # NOTE: Lower is better. Ideal: Safe, Zero: Safe * 3.0
-        scores["Solvency"] += self._linear_score(
-            f.debt_to_equity, ideal=debt_safe, zero=debt_safe * 3.0, max_pts=5,
-            label="Debt/Equity", category="Fundamentals"
-        )
-        
-        # Current Ratio (5 pts)
-        # Ideal: Safe, Zero: 0.8 (Risk of insolvency)
-        scores["Solvency"] += self._linear_score(
-            f.current_ratio, ideal=curr_ratio_safe, zero=0.8, max_pts=5,
-            label="Current Ratio", category="Fundamentals"
-        )
-        
-        # --- 5. Growth (10 Pts) ---
-        # Earnings Growth (10 pts)
-        # Ideal: Strong, Zero: -0.10 (Declining)
-        scores["Growth"] += self._linear_score(
-            f.earnings_growth_qoq, ideal=growth_strong, zero=-0.10, max_pts=10,
-            label="Growth (QoQ)", category="Fundamentals", unit="%"
-        )
-        
-        # --- 6. Conviction (10 Pts) ---
-        # Inst Ownership (10 pts)
-        # Ideal: 80%, Zero: 20%
-        # Note: Input is already 0-100, so don't use unit="%" which multiplies by 100
-        scores["Conviction"] += self._linear_score(
-            f.inst_ownership, ideal=80.0, zero=20.0, max_pts=10,
-            label="Inst. Ownership", category="Fundamentals"
-        )
-        
-        # Round buckets for cleaner display
-        for k in scores:
-            scores[k] = round(scores[k], 1)
-            
-        return scores
-
     def _map_sector_to_theme(self, raw_sector: str, ticker: str) -> str:
         """Maps Yahoo Finance sector strings to one of our 10 Wealth Manager Themes."""
         s = raw_sector.lower() if raw_sector else "technology"
         
-        # 1. High Growth Tech
-        # Heuristic: Tech sector + Keywords or specific tickers known for growth/software
-        if "software" in s or "information" in s:
-            return "High Growth Tech"
+        # 1. Tech & Growth (Nasdaq 100)
+        if "software" in s or "information" in s: return "💻 Tech & Growth (Nasdaq 100)"
         
-        # 2. Mature Tech
-        if "technology" in s or "semiconduct" in s or "electronic" in s:
-            return "Mature Tech"
+        # 2. Semiconductors (Specific Check)
+        if "semiconduct" in s: return "💾 Semiconductors"
+        
+        # 3. Technology Sector (General Hardware/Electronics)
+        if "technology" in s or "electronic" in s: return "📱 Technology Sector"
+        
+        # 4. Financials
+        if "financial" in s or "bank" in s or "insurance" in s or "capital" in s: return "💰 Financial Sector"
+        
+        # 5. Healthcare
+        if "health" in s or "pharma" in s or "biotech" in s or "medical" in s: return "🏥 Healthcare Sector"
+        
+        # 6. Consumer Discretionary
+        if "cyclical" in s or "vehicle" in s or "auto" in s or "entertainment" in s or "retail" in s or "apparel" in s: return "🛍️ Consumer Discretionary"
+        
+        # 7. Consumer Staples
+        if "defensive" in s or "food" in s or "drink" in s or "beverage" in s or "household" in s or "tobacco" in s: return "🛒 Consumer Staples"
+        
+        # 8. Energy
+        if "energy" in s or "oil" in s or "gas" in s: return "🛢️ Energy Sector"
+        
+        # 9. Materials
+        if "material" in s or "mining" in s or "chemical" in s or "steel" in s or "gold" in s: return "🧱 Materials & Mining"
+        
+        # 10. Industrials
+        if "industr" in s or "aerospace" in s or "defense" in s or "transport" in s or "machinery" in s: return "🏗️ Industrials Sector"
+        
+        # 11. Real Estate
+        if "real estate" in s or "reit" in s: return "🏠 Real Estate (REITs)"
+        
+        # 12. Utilities
+        if "utilit" in s or "communication" in s or "telecom" in s: return "⚡ Utilities Sector"
             
-        # 3. Financials
-        if "financial" in s or "bank" in s or "insurance" in s or "capital" in s:
-            return "Financials"
-            
-        # 4. Healthcare
-        if "health" in s or "pharma" in s or "biotech" in s or "medical" in s:
-            return "Healthcare"
-            
-        # 5. Consumer Cyclical
-        if "cyclical" in s or "vehicle" in s or "auto" in s or "entertainment" in s or "retail" in s or "apparel" in s:
-            return "Consumer Cyclical"
-            
-        # 6. Consumer Defensive
-        if "defensive" in s or "food" in s or "drink" in s or "beverage" in s or "household" in s or "tobacco" in s:
-            return "Consumer Defensive"
-            
-        # 7. Energy & Materials
-        if "energy" in s or "oil" in s or "gas" in s or "material" in s or "mining" in s or "chemical" in s or "steel" in s:
-            return "Energy & Materials"
-            
-        # 8. Industrials
-        if "industr" in s or "aerospace" in s or "defense" in s or "transport" in s or "machinery" in s:
-            return "Industrials"
-            
-        # 9. Real Estate
-        if "real estate" in s or "reit" in s:
-            return "Real Estate"
-            
-        # 10. Utilities (and Telecom)
-        if "utilit" in s or "communication" in s or "telecom" in s:
-            return "Utilities"
-            
-        # Default Fallback - Be somewhat conservative
-        return "Mature Tech"
+        return "🇺🇸 Broad Market (S&P 500)"
 
     def _add_detail(self, category: str, metric: str, value: str, benchmark: str, score: float, max_score: float, status: str):
         self.details.append({
@@ -406,119 +453,45 @@ class VinSightScorer:
             "metric": metric,
             "value": value,
             "benchmark": benchmark,
-            "score": f"{score}/{max_score}",
+            "score": f"{score:.1f}/{max_score:.0f}",
             "status": status
         })
 
     def _get_benchmarks(self, sector_name: str) -> Dict:
         return self.sector_benchmarks.get(sector_name, self.defaults)
 
-    # _score_fundamentals REMOVED - replaced by _score_fundamentals_spectrum
+    def _get_rating(self, score: float) -> str:
+        if score >= 90: return "Strong Buy"
+        elif score >= 75: return "Buy"
+        elif score >= 60: return "Hold"
+        elif score >= 40: return "Sell"
+        else: return "Strong Sell"
 
-    def _check_projection_gate(self, p: Projections) -> float:
-        """
-        Projections: Risk Penalty (Spectrum)
-        Ideal: Downside >= -5% (0 penalty)
-        Zero: Downside <= -25% (-15 penalty)
-        """
-        if not p.current_price or p.current_price <= 0:
-            return 0.0
-            
-        downside_risk_pct = ((p.monte_carlo_p10 - p.current_price) / p.current_price) * 100
-        
-        # Use linear_score (max_pts=15)
-        # Note: ideal is a higher number (-5), zero is a lower number (-25)
-        score = self._linear_score(
-            downside_risk_pct, ideal=-5.0, zero=-25.0, max_pts=15.0,
-            label="Risk Gate (Downside)", category="Modifiers", unit="%"
-        )
-        
-        # If score is 15 (Excellent), penalty is 0. If score is 0 (Poor), penalty is -15.
-        penalty = round(score - 15.0, 1)
-        return penalty
-
-    def _check_trend_gate(self, t: Technicals) -> float:
-        """
-        Technicals: Trend Penalty (Spectrum)
-        Ideal: Price >= SMA200 * 1.05 (0 penalty)
-        Zero: Price <= SMA200 * 0.90 (-15 penalty)
-        """
-        if not t.sma200 or t.sma200 <= 0:
-            return 0.0
-            
-        ratio = t.price / t.sma200
-        
-        # Ideal: 1.05, Zero: 0.90
-        score = self._linear_score(
-            ratio, ideal=1.05, zero=0.90, max_pts=15.0,
-            label="Trend Strength (vs SMA200)", category="Modifiers"
-        )
-        
-        # If score is 15 (Excellent), penalty is 0. If score is 0 (Poor), penalty is -15.
-        penalty = round(score - 15.0, 1)
-        return penalty
-
-    def _get_rating(self, score: int) -> str:
-        if score >= 85: return "Strong Buy"
-        elif score >= 70: return "Buy"
-        elif score >= 50: return "Hold"
-        else: return "Sell"
-
-    def _generate_narrative(self, ticker, final, f, trend_pen, proj_pen) -> str:
+    def _generate_narrative(self, ticker, final, q, t, mods) -> str:
         narrative = f"{ticker} is rated {self._get_rating(final)} ({final:.0f}/100). "
         
-        if f >= 80: narrative += "Business quality and valuation are exceptional. "
-        elif f >= 60: narrative += "Fundamentals are solid. "
-        else: narrative += "Fundamentals are weak or expensive. "
+        narrative += f"Quality ({q:.0f}/100) is {'elite' if q>85 else 'strong' if q>70 else 'fair' if q>50 else 'weak'}, "
+        narrative += f"Timing ({t:.0f}/100) is {'bullish' if t>80 else 'supportive' if t>60 else 'neutral' if t>40 else 'bearish'}. "
             
-        if trend_pen < 0: narrative += "PENALTY APPLIED: Primary downtrend. "
-        if proj_pen < 0: narrative += "PENALTY APPLIED: High projected downside risk. "
+        if mods:
+             narrative += f"CAUTION: {len(mods)} Risk Factor(s) Triggered. "
             
         return narrative
 
     def print_report(self, stock: StockData, result: ScoreResult):
         print(f"\n--- VinSight {self.VERSION}: {stock.ticker} ---")
-        print(f"Strategy: Fundamental Purist (Wealth Manager)")
-        print(f"Theme: {stock.fundamentals.sector_name}")
+        print(f"Strategy: CFA Composite Model (70% Quality / 30% Timing)")
         print(f"Score: {result.total_score:.1f}/100 ({result.rating})")
         print(f"Narrative: {result.verdict_narrative}")
-        print("\n[PENALTY LOGIC]")
-        print(f"  Modifications: {', '.join(result.modifications) if result.modifications else 'None'}")
+        print("\n[RISK FACTORS & VETOS]")
+        print(f"  {', '.join(result.modifications) if result.modifications else 'None'}")
         
         print("\n[DETAILED SCORE BREAKDOWN]")
-        for k, v in result.breakdown.items():
-            print(f"  {k:<15}: {v}")
-        
-        print("\n[BENCHMARK COMPARISON]")
-        print(f"  {'METRIC':<20} | {'VALUE':<10} | {'BENCHMARK':<12} | {'MARKET':<10} | {'SCORE':<8} | {'STATUS'}")
-        print("-" * 90)
-        
-        # Map metric names to market ref keys
-        m_ref_map = {
-             "Valuation (PEG)": "peg_fair",
-             "Forward Val (PE)": "forward_pe_fair",
-             "Net Margin": "margin_healthy",
-             "Op. Margin": "margin_healthy",
-             "ROE": "roe_strong", 
-             "ROA": "roa_strong",
-             "Debt/Equity": "debt_safe",
-             "Current Ratio": "current_ratio_safe",
-             "Growth (QoQ)": "growth_strong"
-        }
+        print(f"  {'CATEGORY':<25} | {'METRIC':<20} | {'VALUE':<10} | {'BENCHMARK':<12} | {'SCORE':<8} | {'STATUS'}")
+        print("-" * 100)
         
         for detail in result.details:
-            if detail['category'] == "Fundamentals":
-                m_key = m_ref_map.get(detail['metric'])
-                m_val = self.market_ref.get(m_key, "-") if m_key else "-"
-                
-                # Format
-                if isinstance(m_val, (int, float)):
-                    if "Margin" in detail['metric'] or "ROE" in detail['metric'] or "Growth" in detail['metric']:
-                        m_val = f"{m_val*100:.0f}%"
-                    else:
-                        m_val = f"{m_val}"
-
-                print(f"  {detail['metric']:<20} | {detail['value']:<10} | {detail['benchmark']:<12} | {m_val:<10} | {detail['score']:<8} | {detail['status']}")
+                print(f"  {detail['category']:<25} | {detail['metric']:<20} | {detail['value']:<10} | {detail['benchmark']:<12} | {detail['score']:<8} | {detail['status']}")
                 
         print("----------------------------------------------\n")
 

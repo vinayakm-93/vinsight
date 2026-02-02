@@ -1,6 +1,64 @@
 # Changelog
 
-## [v7.5] - 2026-02-01
+## [v9.0.0] - Dynamic Benchmarking & Unified UI (2026-02-02)
+
+### 🚀 Major Feature: Adaptive Sector Benchmarking
+- **Engine v9.0**: Transitioned from rigid metric targets to **Dynamic Sector Thresholds**.
+- **Contextual Pricing**: PEG, FCF Yield, ROE, and Margin targets are now fetched from industry-specific benchmarks (e.g., Tech vs. Energy have different "ideal" values).
+- **Linear Interpolation 2.0**: Scoring curves automatically map "Poor" to "Excellent" based on the sector's unique financial architecture.
+
+### 🎨 UI: Professional Consolidation
+- **Unified Strategy Mixer**: Merged the strategy title, weighting stats, and slider into a single, compact, bio-metric-style header.
+- **Sentiment Consolidation**: Merged "Today's Pulse" and "Weekly Trend" cards into a single high-density sentiment block, reducing vertical height by 40%.
+- **Mobile-First Refinement**: Drastically reduced vertical footprint across the dashboard.
+- **Deep Collapsibles**: Detailed score breakdown tables are now individually collapsible and closed by default for a cleaner "Bottom Line Up Front" experience.
+- **Vibrant Modifiers**: Modifiers/Vetos now use high-contrast Red/Green color coding and human-readable text (removed technical "VETO:" prefixes).
+
+### 🧠 Logic & Intelligence
+- **Strategy Labeling**: Added automatic strategy categorization based on weights: **Value Purist**, **Fundamental**, **Balanced**, and **Trader**.
+- **CFA Engine v5.0**: Refined the core composite engine to better handle mid-cycle sector rotations through the dynamic benchmark layer.
+
+### 📚 Project Sustainability & Handover
+- **Comprehensive Documentation**: Updated **README**, **ARCHITECTURE**, **FEATURES**, and **SETUP** guides for v9.0 alignment.
+- **Dynamic Logic Guide**: Created [VINSIGHT_SCORER_V9_DYNAMIC_LOGIC.md](docs/VINSIGHT_SCORER_V9_DYNAMIC_LOGIC.md) for institutional logic transparency.
+- **Role-Based Handover**: Created a specialized **HANDOVER.md** guide for PM, Engineering, DevOps, and Business teams.
+- **Legacy Cleanup**: Marked v7 and v8 logic docs as LEGACY to prevent cross-team confusion.
+
+---
+
+## [v8.0.0] - CFA Scoring Engine & Senior Analyst AI (2026-02-02)
+
+### 🚀 Major Feature: CFA-Level Scoring Engine
+- **Weighted Composite Model**: Transitioned to a **70% Quality / 30% Timing** split, adhering to CFA institute principles of fundamental analysis.
+- **Quality Score (70 pts)**:
+    - **Valuation (35%)**: PEG Ratio (<1.0 ideal), FCF Yield (>5%).
+    - **Profitability (35%)**: ROE (>20%), Net Margins (>20%), Gross Margin Trend (Rising).
+    - **Health (20%)**: Debt/EBITDA (<3.0x), Altman Z-Score (>3.0 Safe Zone).
+    - **Growth (10%)**: 3-Year Revenue CAGR (>15%).
+- **Timing Score (30 pts)**:
+    - **Trend (50%)**: Price vs SMA200 & SMA50.
+    - **Momentum (15%)**: RSI (Bullish Zone 40-65).
+    - **Volume (15%)**: Relative Volume (>1.5x breakout).
+    - **Risk (20%)**: Beta (<1.2) and Distance to High (<15%).
+
+### 🛡️ Kill Switches (Vetos)
+- **Insolvency Veto**: If `Interest Coverage < 1.5x`, Total Score is capped at 40 (Sell).
+- **Valuation Veto**: If `PEG > 4.0`, Quality Score is capped at 50.
+- **Downtrend Veto**: If Price < SMA200 & SMA50, Timing Score is capped at 30.
+
+### 🧠 Senior Equity Analyst AI
+- **New Persona**: "Cynical CFA Analyst". Decisive, data-driven, and jargon-heavy.
+- **Structured Output**: AI now returns a JSON object with:
+    - **Executive Summary**: 2-sentence thesis.
+    - **Factor Analysis**: Specific comments on Quality vs Timing.
+    - **Risk Factors**: Bulleted list of primary risks.
+    - **Strategic Outlook**: 3m (Tactical), 6m (Catalyst), 12m (Strategic) horizons.
+
+### 📊 UI Updates
+- **Split Scoring**: Dashboard now displays separate "Quality" and "Timing" sub-scores.
+- **AI Briefing Card**: Magazine-style layout for the AI's "Executive Summary", with distinct sections for Thesis, Risks, and Outlooks.
+
+---
 ### 🧠 AI Analyst "Expert Mode"
 - **Actionable Outlooks**: AI prompt heavily refined to produce specific, catalyst-driven insights (e.g., "Bullish flag break", "Undervalued ahead of earnings").
 - **Concise Thesis**: "Bottom Line Up Front" logic applied.

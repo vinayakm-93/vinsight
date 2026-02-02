@@ -352,72 +352,67 @@ Output EXACT JSON:
 
     def generate_score_summary(self, ticker: str, score_data: dict) -> str:
         """
-        Generate a retail-friendly AI summary of the recommendation score.
-        
-        Args:
-            ticker: Stock ticker symbol
-            score_data: Dict containing {
-                'total_score': int (0-100),
-                'rating': str (BUY/HOLD/SELL),
-                'fundamentals_score': int,
-                'trend_penalty': int,
-                'income_bonus': int,
-                'breakdown': dict with metric details
-            }
-            
-        Returns:
-            A 2-3 sentence retail-friendly summary written like a senior analyst.
+        Generates a 'Senior Equity Analyst' summary using Llama 3.1 70B via Groq.
+        Persona: cynical, sophisticated, data-driven CFA charterholder.
+        Output: Structured JSON for the new UI layout.
         """
-        if not self.client:
+        if not self.is_available():
             return self._generate_fallback_summary(score_data)
-        
+            
         try:
+            # Unwrap data
             total = score_data.get('total_score', 0)
-            rating = score_data.get('rating', 'HOLD')
-            fund_score = score_data.get('fundamentals_score', 0)
-            trend_pen = score_data.get('trend_penalty', 0)
-            income_bonus = score_data.get('income_bonus', 0)
-            breakdown = score_data.get('breakdown', {})
+            rating = score_data.get('rating', 'Neutral')
+            q_score = score_data.get('fundamentals_score', 0) # Mapped to Quality
+            t_score = score_data.get('timing_score', 0) # Newly passed key
             
-            # Extract Outlook Data if available
-            outlook_context = score_data.get('outlook_context', {})
-            short_term_technicals = outlook_context.get('short_term', [])
-            medium_term_factors = outlook_context.get('medium_term', [])
-            long_term_factors = outlook_context.get('long_term', [])
+            # Format breakdown items for context
+            breakdown_list = score_data.get('breakdown', [])
+            breakdown_str = self._format_breakdown(breakdown_list)
             
-            # Build context (Optimized for JSON UI)
-            prompt = f"""Summarize this VinSight score like a senior hedge fund analyst briefing a retail client. 
-
-Stock: {ticker}
-Action: {rating} ({total}/100)
-
-Core Data:
-- Business Quality: {fund_score}/100
-- Risk Gates: {trend_pen} pts (Trend), {income_bonus} pts (Safety)
-- Key Metrics: {self._format_breakdown(breakdown)}
-
-Technical/Outlook Factors:
-- Short-Term: {', '.join(short_term_technicals)}
-- Medium-Term: {', '.join(medium_term_factors)}
-- Long-Term: {', '.join(long_term_factors)}
-
-Task: analysis_json
-Return a JSON object with these exact keys:
-1. "score_explanation": A concise (max 15 words) "Headlines" explanation of WHY the score is {total}. (e.g. "Stellar fundamentals are currently suppressed by negative technical trend").
-2. "thesis": Analyze what is WORKING for the business vs peers. Cite specific quality metrics.
-3. "risk": The primary downside risk or failure point (technical or fundamental).
-4. "outlook_3m": Max 12 words. Actionable Setup (e.g. "Bullish flag forming, watch break of $150").
-5. "outlook_6m": Max 12 words. Catalyst Watch (e.g. "Undervalued ahead of product cycle launch").
-6. "outlook_12m": Max 12 words. Conviction Level (e.g. "High conviction double-bagger potential").
-
-Tone: Senior Wall Street Analyst. Decisive, comparative, data-backed.
-Respond ONLY with the RAW JSON object. No markdown formatting."""
+            outlooks = score_data.get('outlook_context', {})
+            short_term = outlooks.get('short_term', [])
+            medium_term = outlooks.get('medium_term', [])
+            long_term = outlooks.get('long_term', [])
+            
+            # Construct Prompt
+            prompt = f"""
+            Role: Senior Equity Analyst (CFA) at a top-tier hedge fund.
+            Task: Write an INSTITUTIONAL RESEARCH NOTE on {ticker}.
+            
+            DATA:
+            - Scorer Rating: {rating.upper()} (Score: {total}/100)
+            - Quality Score (Fundamentals): {q_score}/100 (Weight: 70%)
+            - Timing Score (Technicals): {t_score}/100 (Weight: 30%)
+            
+            KEY FACTOR BREAKDOWN:
+            {breakdown_str}
+            
+            CONTEXT:
+            - Short-Term (Technicals): {', '.join(short_term)}
+            - Medium-Term (Regime/Sector): {', '.join(medium_term)}
+            - Long-Term (Valuation/Growth): {', '.join(long_term)}
+            
+            OUTPUT REQUIREMENTS (JSON ONLY):
+            1. "executive_summary": 2 decisive sentences. State the thesis clearly. Be cynical if valuation is high. Be aggressive if widespread fear but good fundamentals.
+            2. "factor_analysis": A dictionary with keys "quality" and "timing".
+               - "quality": 1 sentence analyzing valuation, margins, or solvency.
+               - "timing": 1 sentence analyzing trend, momentum, or volume.
+            3. "risk_factors": A list of 2-3 specific risks (e.g. "Margin compression", "Overbought RSI", "Sector rotation"). bullet points style strings.
+            4. "outlook": A dictionary with keys "3m" (Tactical), "6m" (Catalyst), "12m" (Strategic). Max 10 words each.
+            
+            TONE:
+            - Professional, sophisticated, decisive.
+            - NO "I think" or "Basic". use terms like "multiple expansion", "margin contraction", "capitulation", "technically damaged".
+            
+            Respond ONLY with the RAW JSON object.
+            """
 
             chat_completion = self.client.chat.completions.create(
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a senior equity analyst. Output valid JSON only."
+                        "content": "You are a Senior CFA Analyst. Output valid JSON only."
                     },
                     {
                         "role": "user",
@@ -426,12 +421,11 @@ Respond ONLY with the RAW JSON object. No markdown formatting."""
                 ],
                 model=self.model,
                 temperature=0.3,
-                max_tokens=450,
+                max_tokens=600,
                 response_format={"type": "json_object"}
             )
             
             summary = chat_completion.choices[0].message.content.strip()
-            # Clean up any quotes
             summary = summary.strip('"').strip("'")
             return summary
             

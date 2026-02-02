@@ -8,6 +8,7 @@ import {
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List } from 'lucide-react'; // Renamed icon
+import { Shield } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -101,17 +102,21 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const SECTOR_OPTIONS = [
         'Auto',
         'Standard',
-        // 10 Wealth Manager Themes
-        'High Growth Tech',
-        'Mature Tech',
-        'Financials',
-        'Healthcare',
-        'Consumer Cyclical',
-        'Consumer Defensive',
-        'Energy & Materials',
-        'Industrials',
-        'Real Estate',
-        'Utilities'
+        '🇺🇸 Broad Market (S&P 500)',
+        '💻 Tech & Growth (Nasdaq 100)',
+        '🏢 Blue Chips (Dow Jones)',
+        '🌱 Small Caps (Russell 2000)',
+        '📱 Technology Sector',
+        '💰 Financial Sector',
+        '🏥 Healthcare Sector',
+        '🛍️ Consumer Discretionary',
+        '🛒 Consumer Staples',
+        '🛢️ Energy Sector',
+        '🏗️ Industrials Sector',
+        '⚡ Utilities Sector',
+        '🧱 Materials & Mining',
+        '🏠 Real Estate (REITs)',
+        '💾 Semiconductors'
     ];
     const [showAllInsider, setShowAllInsider] = useState(false);
 
@@ -119,6 +124,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [instFilter, setInstFilter] = useState<'holders' | 'recent'>('holders');
     const [insiderFilter, setInsiderFilter] = useState<string>('all');
     const [showAllInstitutions, setShowAllInstitutions] = useState(false);
+
+    // Strategy Mixer State
+    const [fundWeight, setFundWeight] = useState(70); // Default 70% Fundamental (CFA), 30% Timing
 
     // Real-time price updates with smart polling
     const { quote: realtimeQuote } = useRealtimePrice(ticker || '', {
@@ -994,7 +1002,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {/* 1. Hero Section: Recommendation Score */}
                         {analysis?.ai_analysis ? (
-                            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-xl relative overflow-hidden">
+                            <div className="bg-white/80 dark:bg-gray-900/60 glass-panel rounded-2xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500">
                                 {/* Background Decorations */}
                                 <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
 
@@ -1049,88 +1057,184 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                                 <div className="relative z-10 space-y-6 mt-4">
                                     {/* 1. Header Row: Score Ring + Context */}
-                                    <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm flex flex-col md:flex-row items-center gap-6 w-full">
+                                    <div className="space-y-4">
+                                        {/* Top Row: Score + Veto Matrix */}
+                                        {/* Top Row: Score + Veto Matrix (Unified Card) */}
+                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm w-full">
+                                            {/* Top Section: Score Ring + Veto Matrix */}
+                                            <div className="flex flex-col md:flex-row items-stretch gap-6">
+                                                {/* Left: Score Ring & Summary (70%) */}
+                                                <div className="flex-1 flex flex-col md:flex-row items-center gap-6">
+                                                    <div className="relative w-24 h-24 flex-shrink-0">
+                                                        {(() => {
+                                                            const rawQuality = (analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? analysis.ai_analysis.score;
+                                                            const rawTiming = (analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? analysis.ai_analysis.score;
+                                                            const dynamicScore = ((rawQuality * fundWeight) + (rawTiming * (100 - fundWeight))) / 100;
 
-                                        {/* Score Ring Section */}
-                                        <div className="flex items-center gap-6 md:w-1/2">
-                                            <div className="relative w-20 h-20 flex-shrink-0">
-                                                <div className="w-20 h-20 rounded-full border-[6px] border-gray-100 dark:border-gray-800 flex items-center justify-center relative">
-                                                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-                                                        <circle
-                                                            cx="50"
-                                                            cy="50"
-                                                            r="46"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            strokeWidth="8"
-                                                            className={`text-${analysis.ai_analysis.color}-500 transition-all duration-1000 ease-out`}
-                                                            strokeDasharray={`${(analysis.ai_analysis.score / 100) * 289} 289`}
-                                                            strokeLinecap="round"
-                                                        />
-                                                    </svg>
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                                        <span className={`text-xl font-bold ${analysis.ai_analysis.color === 'emerald' ? 'text-emerald-500' : analysis.ai_analysis.color === 'amber' ? 'text-amber-500' : 'text-red-500'}`}>
-                                                            {analysis.ai_analysis.score.toFixed(1)}
+                                                            let ringColor = 'emerald';
+                                                            if (dynamicScore < 40) ringColor = 'red';
+                                                            else if (dynamicScore < 60) ringColor = 'amber';
+                                                            else if (dynamicScore < 75) ringColor = 'blue';
+
+                                                            return (
+                                                                <div className={`w-20 h-20 rounded-full border-[5px] border-gray-100 dark:border-gray-800 flex items-center justify-center relative glow-${ringColor}`}>
+                                                                    <svg className="absolute inset-0 w-full h-full -rotate-90 filter drop-shadow-[0_0_10px_rgba(var(--ring-glow-rgb),0.5)]" viewBox="0 0 100 100">
+                                                                        <circle
+                                                                            cx="50" cy="50" r="46" fill="none"
+                                                                            stroke="currentColor" strokeWidth="9"
+                                                                            className={`text-${ringColor}-500 transition-all duration-700 ease-out`}
+                                                                            strokeDasharray={`${(dynamicScore / 100) * 289} 289`}
+                                                                            strokeLinecap="round"
+                                                                        />
+                                                                    </svg>
+                                                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                                        <span className={`text-xl font-black text-${ringColor}-500 transition-all duration-300 drop-shadow-sm`}>
+                                                                            {dynamicScore.toFixed(1)}
+                                                                        </span>
+                                                                        <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter text-center px-1">
+                                                                            {(() => {
+                                                                                const strategy = fundWeight >= 90 ? "VALUE" : fundWeight >= 70 ? "FUND." : fundWeight <= 30 ? "TRADER" : "BALANCED";
+                                                                                return fundWeight === 70 ? 'CFA' : strategy;
+                                                                            })()}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{analysis.ticker}</h3>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">
+                                                                {(() => {
+                                                                    const strategy = fundWeight >= 90 ? "Value Purist" : fundWeight >= 70 ? "Fundamental" : fundWeight <= 30 ? "Trader" : "Balanced";
+                                                                    return fundWeight === 70 ? strategy : `${strategy} (Custom)`;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                        {(() => {
+                                                            try {
+                                                                const content = typeof analysis.ai_analysis.justification === 'string' && analysis.ai_analysis.justification.trim().startsWith('{')
+                                                                    ? JSON.parse(analysis.ai_analysis.justification)
+                                                                    : null;
+                                                                return <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 font-medium leading-snug">
+                                                                    {content?.executive_summary || content?.score_explanation || "Analyzing score drivers..."}
+                                                                </p>;
+                                                            } catch (e) { return null; }
+                                                        })()}
+                                                    </div>
+                                                </div>
+
+                                                {/* Divider */}
+                                                <div className="hidden md:block w-px bg-gray-200 dark:bg-gray-700"></div>
+
+                                                {/* Right: Veto Matrix (30%) */}
+                                                <div className="md:w-[30%] flex flex-col justify-center min-w-[200px]">
+                                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Veto Matrix / Modifiers</h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {analysis.ai_analysis.modifications?.map((mod: string, i: number) => {
+                                                            const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
+                                                            const isBonus = mod.includes("Bonus") || mod.includes("+");
+                                                            const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
+
+                                                            return (
+                                                                <span
+                                                                    key={i}
+                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 border transition-all duration-300 hover:scale-105 backdrop-blur-sm ${isPenalty
+                                                                        ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+                                                                        : isBonus
+                                                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                                                                            : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+                                                                        }`}
+                                                                >
+                                                                    {isPenalty ? <TrendingDown size={14} className="text-red-500 animate-pulse" /> : isBonus ? <Zap size={14} className="text-emerald-500 animate-pulse" /> : null}
+                                                                    {displayText}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                        {(!analysis.ai_analysis.modifications || analysis.ai_analysis.modifications.length === 0) && (
+                                                            <span className="text-xs text-gray-400 italic">No active modifiers</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Merged Strategy Mixer Section */}
+                                            <div className="w-full h-px bg-gray-200 dark:bg-gray-800/50 my-3"></div>
+
+                                            <div className="w-full">
+                                                {/* Unified All-in-One Header */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 px-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1 bg-blue-500/10 rounded-lg">
+                                                            <Sliders size={14} className="text-blue-600 dark:text-blue-400" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider">Strategy Mixer</h4>
+                                                            <p className="text-[8px] text-gray-500 uppercase font-bold tracking-tight">Active Weighting Profile</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                                                        <div className="flex flex-col items-center px-2">
+                                                            <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Technical</span>
+                                                            <span className="text-xs font-black text-blue-500">{100 - fundWeight}%</span>
+                                                        </div>
+                                                        <div className="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
+                                                        <div className="flex flex-col items-center px-2">
+                                                            <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Fundamental</span>
+                                                            <span className="text-xs font-black text-emerald-500">{fundWeight}%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Slider Container */}
+                                                <div className="relative pt-3 pb-1 px-1">
+                                                    {/* Labels for ends */}
+                                                    <div className="absolute top-0 left-0 text-[7px] font-black text-blue-500/60 uppercase tracking-widest flex items-center gap-1">
+                                                        <TrendingUp size={8} /> Trader Focus
+                                                    </div>
+                                                    <div className="absolute top-0 right-0 text-[7px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center gap-1">
+                                                        Investor Focus <Shield size={9} className="text-emerald-500" />
+                                                    </div>
+
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="100"
+                                                        value={fundWeight}
+                                                        onChange={(e) => setFundWeight(parseInt(e.target.value))}
+                                                        className="w-full premium-slider mt-2"
+                                                    />
+                                                </div>
+
+                                                <div className="flex justify-between items-center mt-1 px-1">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                                                            {fundWeight < 40 ? "Momentum Optimized" : fundWeight > 60 ? "Quality Centric" : "Balanced Alpha"}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                                                            CFA v5.0 Engine
                                                         </span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{analysis.ticker}</h3>
-                                                {/* Dynamic Score Explanation (The "Why") */}
-                                                {(() => {
-                                                    try {
-                                                        const content = typeof analysis.ai_analysis.justification === 'string' && analysis.ai_analysis.justification.trim().startsWith('{')
-                                                            ? JSON.parse(analysis.ai_analysis.justification)
-                                                            : null;
-                                                        return (
-                                                            <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 font-medium leading-snug">
-                                                                {content?.score_explanation || "Analyzing score drivers..."}
-                                                            </p>
-                                                        );
-                                                    } catch (e) { return null; }
-                                                })()}
-                                            </div>
-                                        </div>
-
-                                        {/* Divider */}
-                                        <div className="hidden md:block w-px h-12 bg-gray-200 dark:bg-gray-700"></div>
-
-                                        {/* Badges / Modifications */}
-                                        <div className="flex flex-wrap gap-2 justify-center md:justify-start flex-1">
-                                            {analysis.ai_analysis.modifications?.map((mod: string, i: number) => {
-                                                const isPenalty = mod.includes("Penalty") || mod.includes("-");
-                                                const isBonus = mod.includes("Bonus") || mod.includes("+");
-
-                                                return (
-                                                    <span
-                                                        key={i}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${isPenalty
-                                                                ? "bg-red-500/10 text-red-500 border-red-500/20"
-                                                                : isBonus
-                                                                    ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                                                                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
-                                                            }`}
-                                                    >
-                                                        {isPenalty ? <TrendingDown size={14} /> : isBonus ? <Zap size={14} /> : null}
-                                                        {mod}
-                                                    </span>
-                                                );
-                                            })}
                                         </div>
                                     </div>
 
                                     {/* Right: Score Anchor Text & Badges */}
                                     {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
                                     <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-4">
+                                        <div className="flex items-center gap-2 mb-3">
                                             <div className="p-1 rounded bg-blue-500/10 text-blue-500">
-                                                <Zap size={14} className="animate-pulse" />
+                                                <Zap size={12} className="animate-pulse" />
                                             </div>
-                                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Specialist Briefing</span>
-                                            <div className="ml-auto flex items-center gap-1.5">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                                <span className="text-[9px] text-gray-400 font-medium">Model: Llama 3.1 70B</span>
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Analyst Briefing</span>
+                                            <div className="ml-auto flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
+                                                <span className="h-1 w-1 rounded-full bg-emerald-500"></span>
+                                                <span className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter">Llama 3.1 70B</span>
                                             </div>
                                         </div>
 
@@ -1155,46 +1259,175 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                                                 return (
                                                     <div className="space-y-4">
-                                                        {/* Thesis & Risk Row (Left Border Accent Style) */}
+                                                        {/* Factor Analysis Row */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            <div className="bg-emerald-50/30 dark:bg-emerald-900/5 rounded-r-lg border-l-[3px] border-emerald-500 pl-4 py-3">
-                                                                <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 uppercase tracking-wide">
-                                                                    Thesis
-                                                                </h4>
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
-                                                                    {content.thesis}
+                                                            <div className="bg-emerald-50/30 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-800/30 p-3">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <h4 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                                                        <Activity size={12} /> Quality Analysis
+                                                                    </h4>
+                                                                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                                                        {(analysis.ai_analysis as any).raw_breakdown?.['Quality Score']?.toFixed(1) || '0.0'}/100
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug font-medium">
+                                                                    {content.factor_analysis?.quality || "Analyzing valuation and fundamentals..."}
                                                                 </p>
                                                             </div>
-                                                            <div className="bg-amber-50/30 dark:bg-amber-900/5 rounded-r-lg border-l-[3px] border-amber-500 pl-4 py-3">
-                                                                <h4 className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1 uppercase tracking-wide">
-                                                                    Risk
-                                                                </h4>
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
-                                                                    {content.risk}
+                                                            <div className="bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800/30 p-3">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                                                                        <TrendingUp size={12} /> Timing Analysis
+                                                                    </h4>
+                                                                    <span className="text-xs font-black text-blue-600 dark:text-blue-400">
+                                                                        {(analysis.ai_analysis as any).raw_breakdown?.['Timing Score']?.toFixed(1) || '0.0'}/100
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug font-medium">
+                                                                    {content.factor_analysis?.timing || "Analyzing trend and momentum..."}
                                                                 </p>
                                                             </div>
                                                         </div>
 
+                                                        {/* Risk Factors (Bullet Points) */}
+                                                        <div className="bg-amber-50/30 dark:bg-amber-900/5 rounded-lg border-l-[3px] border-amber-500 pl-4 py-2">
+                                                            <h4 className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
+                                                                Key Risk Factors
+                                                            </h4>
+                                                            <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-0.5">
+                                                                {Array.isArray(content.risk_factors)
+                                                                    ? content.risk_factors.map((risk: string, idx: number) => (
+                                                                        <li key={idx}>{risk}</li>
+                                                                    ))
+                                                                    : <li>{content.risk || "None identified"}</li>
+                                                                }
+                                                            </ul>
+                                                        </div>
+
                                                         {/* Outlooks Grid (Minimal Cards) */}
-                                                        <div className="grid grid-cols-3 gap-3 pt-2">
-                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
-                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">3 Months</h5>
-                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_3m}</p>
+                                                        {/* Outlooks Grid (Premium Cards) */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                                                            {/* 3 Months */}
+                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-blue-300 dark:hover:border-blue-700/50 transition-all duration-300">
+                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                                    <TrendingUp size={40} className="text-blue-500" />
+                                                                </div>
+                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> 3 Months (Tactical)
+                                                                </h5>
+                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
+                                                                    {content.outlook?.["3m"] || content.outlook_3m}
+                                                                </p>
+                                                                {/* Added Details */}
+                                                                {analysis.ai_analysis.outlook_context?.short_term && (
+                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                                                                        {analysis.ai_analysis.outlook_context.short_term.slice(0, 3).map((item: string, i: number) => (
+                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
+                                                                                <span className="w-1 h-1 rounded-full bg-blue-400 mt-1 flex-shrink-0"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                )}
                                                             </div>
-                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
-                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">6 Months</h5>
-                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_6m}</p>
+
+                                                            {/* 6 Months */}
+                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-purple-300 dark:hover:border-purple-700/50 transition-all duration-300">
+                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                                    <Zap size={40} className="text-purple-500" />
+                                                                </div>
+                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span> 6 Months (Catalyst)
+                                                                </h5>
+                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
+                                                                    {content.outlook?.["6m"] || content.outlook_6m}
+                                                                </p>
+                                                                {/* Added Details */}
+                                                                {analysis.ai_analysis.outlook_context?.medium_term && (
+                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                                                                        {analysis.ai_analysis.outlook_context.medium_term.slice(0, 3).map((item: string, i: number) => (
+                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
+                                                                                <span className="w-1 h-1 rounded-full bg-purple-400 mt-1 flex-shrink-0"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                )}
                                                             </div>
-                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
-                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">12 Months</h5>
-                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_12m}</p>
+
+                                                            {/* 12 Months */}
+                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-emerald-300 dark:hover:border-emerald-700/50 transition-all duration-300">
+                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                                    <Target size={40} className="text-emerald-500" />
+                                                                </div>
+                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 12 Months (Strategic)
+                                                                </h5>
+                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
+                                                                    {content.outlook?.["12m"] || content.outlook_12m}
+                                                                </p>
+                                                                {/* Added Details */}
+                                                                {analysis.ai_analysis.outlook_context?.long_term && (
+                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                                                                        {analysis.ai_analysis.outlook_context.long_term.slice(0, 3).map((item: string, i: number) => (
+                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
+                                                                                <span className="w-1 h-1 rounded-full bg-emerald-400 mt-1 flex-shrink-0"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 );
 
                                             } catch (e) {
-                                                console.error("JSON Parse Error", e);
+                                                console.error("JSON Parse Error or AI Failed", e);
+
+                                                // Fallback: Render Deterministic Outlooks if available
+                                                if (analysis.ai_analysis.outlook_context) {
+                                                    const oc = analysis.ai_analysis.outlook_context;
+                                                    return (
+                                                        <div className="space-y-4">
+                                                            <div className="bg-orange-50 dark:bg-orange-900/10 border-l-4 border-orange-500 p-3 rounded-r-lg">
+                                                                <p className="text-xs text-orange-700 dark:text-orange-400 font-bold">
+                                                                    AI Analyst Unavailable. Showing algorithmic outlooks.
+                                                                </p>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Short Term (Technical)</h5>
+                                                                    <ul className="space-y-1">
+                                                                        {oc.short_term?.map((item: string, i: number) => (
+                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-blue-500"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Medium Term (Sector)</h5>
+                                                                    <ul className="space-y-1">
+                                                                        {oc.medium_term?.map((item: string, i: number) => (
+                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-purple-500"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Long Term (Fundamental)</h5>
+                                                                    <ul className="space-y-1">
+                                                                        {oc.long_term?.map((item: string, i: number) => (
+                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-emerald-500"></span> {item}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
                                                 return <p className="text-xs text-red-400">Analysis unavailable.</p>;
                                             }
                                         })()}
@@ -1212,79 +1445,117 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
 
 
-                        {/* 2.5 Detailed Breakdown Table (New) */}
+                        {/* 2.5 Detailed Breakdown Table (Sectioned) */}
                         {analysis?.ai_analysis?.details && (
-                            <details className="group mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden transition-all">
-                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
-                                    <h4 className="font-bold flex items-center gap-2 text-sm">
+                            <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                                <div className="p-4 border-b border-gray-200 dark:border-gray-700/50">
+                                    <h4 className="font-bold flex items-center gap-2 text-sm text-gray-900 dark:text-white">
                                         <Grid size={16} className="text-gray-500" /> Detailed Score Breakdown
                                         <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider ml-2">Target vs Actual</span>
                                     </h4>
-                                    <span className="flex items-center gap-2 text-gray-400 group-hover:text-blue-500 transition-colors">
-                                        <span className="text-[10px] font-normal group-open:hidden">Click to expand</span>
-                                        <span className="text-[10px] font-normal hidden group-open:inline">Click to collapse</span>
-                                        <span className="transition-transform duration-200 group-open:rotate-180 text-xs">▼</span>
-                                    </span>
-                                </summary>
-                                <div className="border-t border-gray-200 dark:border-gray-700/50">
-
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left">
-                                            <thead className="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
-                                                <tr>
-                                                    <th className="px-4 py-3 font-medium">Metric</th>
-                                                    <th className="px-4 py-3 font-medium">Value</th>
-                                                    <th className="px-4 py-3 font-medium">Benchmark/Target</th>
-                                                    <th className="px-4 py-3 font-medium">Status</th>
-                                                    <th className="px-4 py-3 font-medium text-right">Score</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                {analysis.ai_analysis.details.map((row: any, idx: number) => {
-                                                    // Status Color Logic
-                                                    let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                    const s = row.status.toLowerCase();
-                                                    if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) {
-                                                        statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                    } else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) {
-                                                        statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                    } else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) {
-                                                        statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                    }
-
-                                                    return (
-                                                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                            <td className="px-4 py-3 font-medium text-gray-900 dark:text-white flex flex-col">
-                                                                <span>{row.metric}</span>
-                                                                <span className="text-[10px] text-gray-400 font-normal">{row.category}</span>
-                                                            </td>
-                                                            <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                            <td className="px-4 py-3">
-                                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColor}`}>
-                                                                    {row.status}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">
-                                                                {row.score}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                            <tfoot className="bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-800 font-bold text-xs">
-                                                <tr>
-                                                    <td colSpan={4} className="px-4 py-3 text-right uppercase tracking-wider text-gray-500">Total Score</td>
-                                                    <td className="px-4 py-3 text-right text-lg text-blue-600 dark:text-blue-400">{analysis.ai_analysis.score.toFixed(1)}/100</td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    </div>
                                 </div>
-                            </details>
+                                <div className="p-4 space-y-4">
+
+                                    {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
+                                    <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                        <summary className="flex cursor-pointer items-center justify-between p-3 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors select-none">
+                                            <div className="flex items-center gap-2">
+                                                <Shield size={16} className="text-emerald-500" />
+                                                <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Fundamental Quality</h5>
+                                            </div>
+                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs">▼</span>
+                                        </summary>
+                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                            <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                <table className="w-full text-sm text-left">
+                                                    <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                        <tr>
+                                                            <th className="px-4 py-2 font-bold">Metric</th>
+                                                            <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                            <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                            <th className="px-4 py-2 font-bold">Status</th>
+                                                            <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                        {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
+                                                            let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                            const s = row.status.toLowerCase();
+                                                            if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                            else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                            else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                            return (
+                                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                        <span>{row.metric}</span>
+                                                                        <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                    <td className="px-4 py-3">
+                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </details>
+
+                                    {/* SECTION 2: TIMING (TECHNICAL) */}
+                                    <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                        <summary className="flex cursor-pointer items-center justify-between p-3 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors select-none">
+                                            <div className="flex items-center gap-2">
+                                                <TrendingUp size={16} className="text-blue-500" />
+                                                <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                            </div>
+                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs">▼</span>
+                                        </summary>
+                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                            <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                <table className="w-full text-sm text-left">
+                                                    <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                        <tr>
+                                                            <th className="px-4 py-2 font-bold">Metric</th>
+                                                            <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                            <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                            <th className="px-4 py-2 font-bold">Status</th>
+                                                            <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                        {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
+                                                            let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                            const s = row.status.toLowerCase();
+                                                            if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                            else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                            else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                            return (
+                                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                        <span>{row.metric}</span>
+                                                                        <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                    <td className="px-4 py-3">
+                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
                         )}
-
-
                     </div>
                 )}
 
@@ -1296,62 +1567,56 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
 
                             {/* Consolidated Alerts / Signals Row */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 pb-0">
-                                {/* Institutional Signal */}
-                                {institutions?.smart_money && (
-                                    <div className={`p-4 rounded-xl border flex items-center gap-3 ${institutions.smart_money.accumulating
-                                        ? 'bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800'
-                                        : 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/20 dark:border-gray-700'
-                                        }`}>
-                                        <div className={`p-2 rounded-full ${institutions.smart_money.accumulating ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'
-                                            }`}>
-                                            <BarChart2 size={18} />
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Institutional Signal</div>
-                                            <div className={`text-base font-bold ${institutions.smart_money.accumulating ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300'
-                                                }`}>
-                                                {institutions.smart_money.label}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-0.5">
-                                                Total Ownership: <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{(institutions?.institutionsPercentHeld * 100).toFixed(2)}%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Insider Signal */}
-                                {institutions?.insider_signal && (
-                                    <div className={`p-4 rounded-xl border flex flex-col gap-1 ${institutions.insider_signal.score > 0
-                                        ? 'bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800'
-                                        : institutions.insider_signal.score < 0
-                                            ? 'bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-800'
-                                            : 'bg-gray-50/50 border-gray-100 dark:bg-gray-800/20 dark:border-gray-700'
-                                        }`}>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`p-1.5 rounded-full ${institutions.insider_signal.score > 0 ? 'bg-emerald-100 text-emerald-600' :
-                                                institutions.insider_signal.score < 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'
-                                                }`}>
-                                                <Activity size={16} />
+                            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+                                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/20 rounded-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+                                    {/* Institutional Signal */}
+                                    <div className="p-3 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-1.5 rounded-lg ${institutions?.smart_money?.accumulating ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-500/10 text-gray-500'}`}>
+                                                <BarChart2 size={16} />
                                             </div>
                                             <div>
-                                                <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Insider Signal</div>
-                                                <div className={`text-base font-bold ${institutions.insider_signal.score > 0 ? 'text-emerald-700 dark:text-emerald-400' :
-                                                    institutions.insider_signal.score < 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
-                                                    }`}>
-                                                    {institutions.insider_signal.label}
-                                                </div>
-                                                <div className="text-xs text-gray-500 mt-0.5">
-                                                    Inside Ownership: <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{(institutions?.insidersPercentHeld * 100).toFixed(2)}%</span>
+                                                <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Institutional</div>
+                                                <div className={`text-sm font-bold leading-tight ${institutions?.smart_money?.accumulating ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                                    {institutions?.smart_money?.label || "Neutral Signal"}
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* One-liner Context */}
-                                        <div className="text-xs font-medium opacity-80 pl-9 leading-tight">
-                                            {institutions.insider_signal.summary_text}
+                                        <div className="text-right">
+                                            <div className="text-[9px] uppercase font-bold text-gray-400">Held</div>
+                                            <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
+                                                {(institutions?.institutionsPercentHeld * 100).toFixed(1)}%
+                                            </div>
                                         </div>
                                     </div>
-                                )}
+
+                                    {/* Insider Signal */}
+                                    <div className="p-3">
+                                        <div className="flex items-center justify-between gap-4 mb-1">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-1.5 rounded-lg ${institutions?.insider_signal?.score > 0 ? 'bg-emerald-500/10 text-emerald-600' : institutions?.insider_signal?.score < 0 ? 'bg-red-500/10 text-red-600' : 'bg-gray-500/10 text-gray-500'}`}>
+                                                    <Activity size={16} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Insider</div>
+                                                    <div className={`text-sm font-bold leading-tight ${institutions?.insider_signal?.score > 0 ? 'text-emerald-600' : institutions?.insider_signal?.score < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                        {institutions?.insider_signal?.label || "No Active Signal"}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-[9px] uppercase font-bold text-gray-400">Held</div>
+                                                <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
+                                                    {(institutions?.insidersPercentHeld * 100).toFixed(1)}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Contextual one-liner */}
+                                        <div className="text-[10px] text-gray-400 italic pl-8 line-clamp-1 leading-tight">
+                                            {institutions?.insider_signal?.summary_text}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Main Content Area: Metrics Grid */}
@@ -1804,40 +2069,52 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                {/* Dual Score Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Today's Pulse */}
-                                    <div className="p-5 rounded-xl border bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Today's Pulse</h5>
-                                            <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full font-bold">Last 24h</span>
+                                {/* Merged News Sentiment Card */}
+                                <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800">
+                                        {/* Today's Pulse */}
+                                        <div className="p-4 flex items-center justify-between gap-6">
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Today's Pulse</h5>
+                                                    <span className="text-[8px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full font-bold">24H</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_today > 0.3 ? 'text-emerald-500' : sentimentData.score_today < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                        {sentimentData.score_today > 0 ? '+' : ''}{sentimentData.score_today?.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 mt-1">
+                                                    {sentimentData.news_flow?.latest?.length || 0} articles • Immediate reaction
+                                                </p>
+                                            </div>
+                                            <div className={`p-3 rounded-xl ${sentimentData.score_today > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_today < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
+                                                {sentimentData.score_today > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_today < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
+                                            </div>
                                         </div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className={`text-4xl font-black font-mono tracking-tight ${sentimentData.score_today > 0.3 ? 'text-emerald-500' : sentimentData.score_today < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                {sentimentData.score_today > 0 ? '+' : ''}{sentimentData.score_today?.toFixed(2)}
-                                            </span>
-                                            <span className="text-xs text-gray-400 font-medium">scale: -1 to +1</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            {sentimentData.news_flow?.latest?.length || 0} articles analyzed. Immediate reaction.
-                                        </p>
-                                    </div>
 
-                                    {/* Weekly Trend */}
-                                    <div className="p-5 rounded-xl border bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Weekly Trend</h5>
-                                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold">Last 7 Days</span>
+                                        {/* Weekly Trend */}
+                                        <div className="p-4 flex items-center justify-between gap-6">
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Weekly Trend</h5>
+                                                    <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-500 rounded-full font-bold">7D</span>
+                                                </div>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_weekly > 0.3 ? 'text-emerald-500' : sentimentData.score_weekly < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                        {sentimentData.score_weekly > 0 ? '+' : ''}{sentimentData.score_weekly?.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 mt-1">
+                                                    {sentimentData.news_flow?.historical?.length || 0} articles • Sustained narrative
+                                                </p>
+                                            </div>
+                                            <div className={`p-3 rounded-xl ${sentimentData.score_weekly > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_weekly < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
+                                                {sentimentData.score_weekly > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_weekly < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
+                                            </div>
                                         </div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className={`text-4xl font-black font-mono tracking-tight ${sentimentData.score_weekly > 0.3 ? 'text-emerald-500' : sentimentData.score_weekly < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                {sentimentData.score_weekly > 0 ? '+' : ''}{sentimentData.score_weekly?.toFixed(2)}
-                                            </span>
-                                            <span className="text-xs text-gray-400 font-medium">scale: -1 to +1</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            {sentimentData.news_flow?.historical?.length || 0} articles analyzed. Sustained narrative.
-                                        </p>
                                     </div>
                                 </div>
 
