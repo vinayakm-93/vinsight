@@ -110,3 +110,50 @@ def get_insider_sentiment(ticker: str) -> Optional[Dict]:
     except Exception as e:
         logger.error(f"Unexpected error in Finnhub insider: {e}")
         return None
+def get_insider_transactions(ticker: str) -> List[Dict]:
+    """
+    Fetch raw insider transactions from Finnhub API and format for the UI.
+    Includes heuristic 10b5-1 detection for the fallback.
+    """
+    api_key = os.getenv("FINNHUB_API_KEY")
+    if not api_key:
+        return []
+
+    try:
+        url = "https://finnhub.io/api/v1/stock/insider-transactions"
+        params = {"symbol": ticker, "token": api_key}
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        raw_trans = data.get("data", [])
+        if not raw_trans:
+            return []
+            
+        formatted = []
+        for t in raw_trans[:50]: # Top 50 recent
+            # Heuristic detection for Finnhub's transaction types
+            # Finnhub provides 'transactionCode' (e.g., 'S' for Sell, 'P' for Purchase, 'A' for Award)
+            code = t.get("transactionCode", "")
+            is_automatic = code in ['A', 'M', 'X'] # Award, Exercise, etc.
+            
+            # Map labels
+            reason = "market_trade"
+            if code == 'A': reason = "compensation_award"
+            if code == 'M' or code == 'X': reason = "option_exercise"
+            
+            formatted.append({
+                "Date": t.get("transactionDate", "N/A"),
+                "Insider": t.get("name", "Unknown"),
+                "Position": "Officer/Director", # Finnhub doesn't always provide specific position here
+                "Text": f"Finnhub Code: {code}",
+                "Value": t.get("transactionPrice", 0) * t.get("change", 0) if t.get("transactionPrice") else 0,
+                "Shares": t.get("change", 0),
+                "isAutomatic": is_automatic,
+                "detectionReason": reason
+            })
+        return formatted
+    except Exception as e:
+        logger.error(f"Finnhub transaction fallback error: {e}")
+        return []

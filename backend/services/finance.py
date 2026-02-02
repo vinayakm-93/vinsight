@@ -4,28 +4,44 @@ import math
 from cachetools import cached, TTLCache
 import concurrent.futures
 import time
+import requests
 
-# Separate caches to avoid key collisions since functions share the same `ticker` argument
+from services.disk_cache import stock_info_cache, price_cache, analysis_cache, holders_cache
+from services.finnhub_insider import is_available
+
+# yf_session removed to allow yfinance to handle its own session (v7.4 fix)
+
 cache_info = TTLCache(maxsize=100, ttl=600)
 cache_peg = TTLCache(maxsize=100, ttl=600)
 cache_inst = TTLCache(maxsize=100, ttl=600)
-cache_spy = TTLCache(maxsize=1, ttl=3600) # Cache SPY for 1 hour
-cache_analyst = TTLCache(maxsize=100, ttl=3600)  # Cache analyst targets for 1 hour
+cache_spy = TTLCache(maxsize=1, ttl=3600)
+cache_analyst = TTLCache(maxsize=100, ttl=3600)
 
 
 @cached(cache_info)
 def get_stock_info(ticker: str):
-    """Fetch basic info for a stock."""
-    stock = yf.Ticker(ticker)
-    info = stock.info
-    
-    # Clean info of NaN/Inf for JSON safety
-    cleaned_info = {}
-    for k, v in info.items():
-        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
-            cleaned_info[k] = None
-        else:
-            cleaned_info[k] = v
+    """Fetch basic info for a stock with persistent caching."""
+    # 1. Check persistent disk cache first
+    cached_data = stock_info_cache.get(f"info_{ticker}")
+    if cached_data:
+        return cached_data
+
+    # 2. Fetch from yfinance
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Clean info of NaN/Inf for JSON safety
+        cleaned_info = {}
+        for k, v in info.items():
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                cleaned_info[k] = None
+            else:
+                cleaned_info[k] = v
+    except Exception as e:
+        print(f"yfinance info error for {ticker}: {e}")
+        # Raise so fallback can catch
+        raise e
 
     # Enrich with calculated flags
     peg = cleaned_info.get('pegRatio')
@@ -41,7 +57,7 @@ def get_stock_info(ticker: str):
         cleaned_info['fcf_yield'] = 0.0
 
     # v7.3 Enhancements: Ensure specific keys exist for Scorer
-    # Map common yfinance variations if primary keys are missing
+    # ... (skipping mapping for brevity as I'll include it in the replace)
     if 'returnOnEquity' not in cleaned_info:
         cleaned_info['returnOnEquity'] = 0.0
     if 'returnOnAssets' not in cleaned_info:
@@ -53,10 +69,10 @@ def get_stock_info(ticker: str):
     if 'operatingMargins' not in cleaned_info:
         cleaned_info['operatingMargins'] = cleaned_info.get('profitMargins', 0.0)
     
-    # Attempt to get EPS Surprise from info (sometimes available) or Calendar
-    # Since lightweight is preferred, if not in info, we might skip or do a quick fetch
-    # For this implementation, we will try to look up 'earningsHistory' if available in info or separate call logic in data.py
-    
+    # 3. Store in disk cache before returning
+    if cleaned_info:
+        stock_info_cache.set(f"info_{ticker}", cleaned_info)
+        
     return cleaned_info
 
 @cached(cache_analyst)
@@ -142,20 +158,39 @@ def get_earnings_surprise(ticker: str) -> float:
     return 0.0
 
 def get_stock_history(ticker: str, period="1mo", interval="1d"):
-    """Fetch historical data."""
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period, interval=interval)
-    hist.reset_index(inplace=True)
-    
-    # Standardize Date column for frontend
-    if 'Datetime' in hist.columns:
-        hist.rename(columns={'Datetime': 'Date'}, inplace=True)
-    
-    # Convert dates to string for JSON serialization
-    if 'Date' in hist.columns:
-        hist['Date'] = hist['Date'].astype(str)
+    """Fetch historical data with persistent caching."""
+    cache_key = f"hist_{ticker}_{period}_{interval}"
+    cached_data = price_cache.get(cache_key)
+    if cached_data:
+        return cached_data
+
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=period, interval=interval)
         
-    return hist.to_dict(orient="records")
+        if hist.empty:
+            return []
+            
+        # Convert to list of dicts for frontend
+        data = []
+        for index, row in hist.iterrows():
+            data.append({
+                "Date": index.isoformat(),
+                "Open": row['Open'],
+                "High": row['High'],
+                "Low": row['Low'],
+                "Close": row['Close'],
+                "Volume": row['Volume']
+            })
+            
+        if data:
+            price_cache.set(cache_key, data)
+            
+        return data
+    except Exception as e:
+        print(f"Error fetching history for {ticker}: {e}")
+        # Raise so route fallback can catch
+        raise e
 
 @cached(cache_peg)
 def get_peg_ratio(ticker: str) -> float:
@@ -193,12 +228,14 @@ def get_news(ticker: str):
     news = stock.news
     # Normalize data for frontend
     data = []
-    for item in news:
+    for item in (news or []):
+        if not item:
+            continue
         try:
             # Check if data is nested in 'content' (common in new yfinance structure)
             info = item.get('content', item)
             
-            if not isinstance(info, dict):
+            if not info or not isinstance(info, dict):
                 continue
 
             # Extract fields with fallbacks
@@ -212,10 +249,9 @@ def get_news(ticker: str):
             # Publisher
             publisher = info.get('provider', {}).get('displayName') or "Yahoo Finance"
             
-            # Time: prefer providerPublishTime (unix), else pubDate (iso)
-            publish_time = item.get('providerPublishTime')
+            publish_time = item.get('providerPublishTime') or info.get('providerPublishTime')
             if not publish_time and 'pubDate' in info:
-                publish_time = info['pubDate'] # Frontend might need to parse this
+                publish_time = info['pubDate']
                 
             # Thumbnail
             thumb = info.get('thumbnail', {}).get('resolutions', [{}])[0].get('url') if info.get('thumbnail') else None
@@ -304,21 +340,17 @@ def get_institutional_change(ticker: str) -> dict:
         latest_date = "N/A"
         if not inst_df.empty and 'Date Reported' in inst_df.columns:
             try:
-                # pandas series max
                 most_recent = inst_df['Date Reported'].max()
-                # Format: "Q3 2025" or "Dec 2025"
-                # If it's a pandas Timestamp
-                # import pandas as pd (removed)
                 if isinstance(most_recent, pd.Timestamp) or hasattr(most_recent, 'month'):
                     q = (most_recent.month - 1) // 3 + 1
                     latest_date = f"Q{q} {most_recent.year}"
                 else:
                     latest_date = str(most_recent).split(' ')[0]
-            except Exception as e:
+            except:
                 latest_date = "Recent"
 
         return {
-            "change_pct": avg_change_pct,
+            "change_pct": float(avg_change_pct),
             "change_shares": int(net_shares_change),
             "accumulating": avg_change_pct > 0,
             "label": label,
@@ -351,17 +383,17 @@ def calculate_insider_signal(transactions: list) -> dict:
     unique_buyers = set()
     unique_sellers = set()
     
+    # NEW: Track top official buying and repeat buyers
+    top_official_titles = ['ceo', 'cfo', 'coo', 'president', 'chairman', 'chief', 'director']
+    top_official_buying = False
+    top_official_buyer_name = None
+    top_official_selling = False
+    top_official_seller_name = None
+    buyer_counts = {}  # Track repeat buyers
+    seller_counts = {}  # Track repeat sellers
+    
     for t in transactions:
         # We only analyze discretionary trades for the signal to be meaningful
-        # Note: The input list 'transactions' should ideally be filtered or we check here
-        # Assuming input is the raw cleaned list which might have 'is_automatic' flag
-        
-        # If the transaction is marked automatic/derivative, we skip for signal calculation
-        # (Though we might still show them in the table, the signal should be purity-driven)
-        # Check if we have identified it as automatic in previous steps
-        # In current flow, we will attach 'isAutomatic' to the dict in get_institutional_holders
-        # But here we will assume strict logic.
-        
         text = t.get('Text', '').lower()
         # Fallback check if isAutomatic not present
         if t.get('isAutomatic', False) or 'gift' in text or 'award' in text or 'grant' in text:
@@ -369,46 +401,73 @@ def calculate_insider_signal(transactions: list) -> dict:
             
         value = t.get('Value', 0) or 0
         insider = t.get('Insider', 'Unknown')
+        position = t.get('Position', '').lower()
         
         if 'purchase' in text or 'buy' in text:
             total_bought += value
             buy_count += 1
             unique_buyers.add(insider)
-        elif 'sale' in text or 'sale' in text: # 'sale' covers 'sale'
+            
+            # Track repeat buyers
+            buyer_counts[insider] = buyer_counts.get(insider, 0) + 1
+            
+            # Check if top official is buying
+            if any(title in position for title in top_official_titles):
+                top_official_buying = True
+                top_official_buyer_name = insider
+                
+        elif 'sale' in text:
             total_sold += value
             sell_count += 1
             unique_sellers.add(insider)
             
+            # Track repeat sellers
+            seller_counts[insider] = seller_counts.get(insider, 0) + 1
+            
+            # Check if top official is selling
+            if any(title in position for title in top_official_titles):
+                top_official_selling = True
+                top_official_seller_name = insider
+            
     net_flow = total_bought - total_sold
+    
+    # Find repeat buyers/sellers (2+ times)
+    repeat_buyers = [name for name, count in buyer_counts.items() if count >= 2]
+    repeat_sellers = [name for name, count in seller_counts.items() if count >= 2]
+    has_repeat_buying = len(repeat_buyers) > 0
+    has_repeat_selling = len(repeat_sellers) > 0
     
     # Determine Label
     label = "Neutral"
     score = 0 # -10 to +10
     
-    # Logic Trees
+    # Logic Trees (Simplified: Executive Buying, Buying, Cluster Selling, Selling)
     if buy_count == 0 and sell_count == 0:
-        label = "No Discretionary Trades"
-        summary_text = "No open market activity in the last 90 days."
-    elif net_flow > 500000: # Net Buy > $500k
-        label = "Strong Buying"
-        score = 8
-        summary_text = f"{len(unique_buyers)} executives bought ${int(total_bought/1000)}k in stock."
+        label = "No Activity"
+        summary_text = "No discretionary trades in the last 90 days."
+    # BUYING SIGNALS
+    elif top_official_buying and net_flow > 0:
+        label = "Executive Buying"
+        score = 9
+        summary_text = f"Top executive ({top_official_buyer_name.split()[0] if top_official_buyer_name else 'Official'}) buying shares."
     elif net_flow > 0:
-        label = "Net Buying"
-        score = 5
-        summary_text = f"{len(unique_buyers)} insiders accumulating shares."
+        label = "Buying"
+        score = 6
+        if len(unique_buyers) >= 3:
+            summary_text = f"Coordinated buying by {len(unique_buyers)} insiders."
+        elif has_repeat_buying:
+            summary_text = f"{repeat_buyers[0].split()[0]} buying multiple times."
+        else:
+            summary_text = f"{len(unique_buyers)} insider(s) accumulating shares."
+    # SELLING SIGNALS
     elif len(unique_sellers) >= 3 and sell_count > buy_count:
         label = "Cluster Selling"
-        score = -6
-        summary_text = f"Cluster of {len(unique_sellers)} executives selling."
-    elif net_flow < -5000000: # Net Sell > $5M
-        label = "Heavy Selling"
         score = -8
-        summary_text = f"Significant selling of ${int(total_sold/1000000)}M by insiders."
+        summary_text = f"Cluster of {len(unique_sellers)} executives selling."
     elif net_flow < 0:
-        label = "Net Selling"
-        score = -4
-        summary_text = f"Net selling pressure of ${int(abs(net_flow)/1000)}k."
+        label = "Selling"
+        score = -5
+        summary_text = f"Net selling pressure by {len(unique_sellers)} insider(s)."
     else:
         label = "Mixed"
         summary_text = "Mixed buying and selling activity."
@@ -419,27 +478,43 @@ def calculate_insider_signal(transactions: list) -> dict:
         "net_flow": net_flow,
         "total_bought": total_bought,
         "total_sold": total_sold,
+        "buy_count": buy_count,
+        "sell_count": sell_count,
         "trans_count": buy_count + sell_count,
         "unique_insiders": len(unique_buyers | unique_sellers),
-        "summary_text": summary_text
+        "summary_text": summary_text,
+        "top_official_buying": top_official_buying,
+        "repeat_buyers": repeat_buyers
     }
 
 @cached(cache_inst)
 def get_institutional_holders(ticker: str):
+    """Fetch institutional holders with persistent caching."""
+    cache_key = f"inst_{ticker}"
+    cached_data = holders_cache.get(cache_key)
+    if cached_data:
+        return cached_data
+
     try:
         stock = yf.Ticker(ticker)
-        # We'll just get major holders for the summary
-        # inst = stock.institutional_holders # Returns DataFrame, need to serialize
-        # major = stock.major_holders # Returns DataFrame
-        # For simplicity in this MVP, we will try to get raw dicts if possible or convert DF
         
-        # Let's try to get a summary
-        info = stock.info
+        # Initialize holders with defaults
         holders = {
-            "insidersPercentHeld": info.get("heldPercentInsiders", 0),
-            "institutionsPercentHeld": info.get("heldPercentInstitutions", 0),
-            "institutionsCount": 0 # Not easily available in simple info, needing DataFrame parsing
+            "top_holders": [],
+            "insider_transactions": [],
+            "insidersPercentHeld": 0,
+            "institutionsPercentHeld": 0,
+            "institutionsCount": 0,
+            "smart_money": {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data"}
         }
+
+        # Try to get info safely
+        try:
+            info = stock.info
+            holders["insidersPercentHeld"] = info.get("heldPercentInsiders", 0)
+            holders["institutionsPercentHeld"] = info.get("heldPercentInstitutions", 0)
+        except Exception as e:
+            print(f"yfinance info error in holders for {ticker}: {e}")
         
         # Parse Institutional Holders
         try:
@@ -470,9 +545,11 @@ def get_institutional_holders(ticker: str):
             change_data = get_institutional_change(ticker)
             holders["smart_money"] = change_data
             
-        except:
+        except Exception as e:
+            print(f"Institutional fetch error for {ticker}: {e}")
             holders["top_holders"] = []
-            holders["smart_money"] = {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data"}
+            holders["smart_money"] = {"change_pct": 0.0, "change_shares": 0, "accumulating": False, "label": "No Data (Rate Limited)"}
+            holders["status"] = "rate_limited"
 
         # Parse Insider Transactions - Use yfinance with heuristic 10b5-1 detection
         try:
@@ -484,12 +561,15 @@ def get_institutional_holders(ticker: str):
                 automatic_count = 0
                 discretionary_count = 0
                 
-                # Use a 90-day window
+                # Use a 90-day window for SIGNALS, but return ALL for TABLE
                 from datetime import datetime, timedelta
                 cutoff_date = datetime.now() - timedelta(days=90)
                 
+                # Validation checks for signal calculation
+                signal_trans = []
+
                 for t in recent_trans:
-                    # Handle Date and filtering
+                    # Handle Date
                     date_val = t.get("Start Date")
                     if not date_val:
                         continue
@@ -501,7 +581,10 @@ def get_institutional_holders(ticker: str):
                         else:
                             tx_date = date_val.to_pydatetime()
                             
-                        # Filter for last 90 days
+                        # Format for JSON
+                        date_str = str(t.get("Start Date", "")).split(" ")[0] if t.get("Start Date") else "N/A"
+                        
+                        # Filter ALL transactions for the last 90 days
                         if tx_date < cutoff_date:
                             continue
                     except Exception as e:
@@ -544,13 +627,29 @@ def get_institutional_holders(ticker: str):
                         is_automatic = False
                         detection_reason = "market_trade"
                     
-                    if is_automatic:
-                        automatic_count += 1
-                    else:
-                        discretionary_count += 1
+                    # Only contribute to Signal counts if within 90 days
+                    if tx_date >= cutoff_date:
+                        if is_automatic:
+                            automatic_count += 1
+                        else:
+                            discretionary_count += 1
+                        
+                        # Add to signal calculation list
+                        # We reconstruct the dict to match what calculate_insider_signal expects (or pass the clean one)
+                        signal_obj = {
+                            "Date": date_str,
+                            "Insider": t.get("Insider", "Unknown"),
+                            "Position": t.get("Position", "Unknown"),
+                            "Text": text,
+                            "Value": value,
+                            "Shares": shares,
+                            "isAutomatic": is_automatic,
+                            "detectionReason": detection_reason
+                        }
+                        signal_trans.append(signal_obj)
                     
                     cleaned_trans.append({
-                        "Date": str(t.get("Start Date", "")).split(" ")[0] if t.get("Start Date") else "N/A",
+                        "Date": date_str,
                         "Insider": t.get("Insider", "Unknown"),
                         "Position": t.get("Position", "Unknown"),
                         "Text": text,
@@ -564,34 +663,75 @@ def get_institutional_holders(ticker: str):
                 holders["insider_source"] = "yfinance_heuristic"
                 holders["insider_metadata"] = {
                     "total": len(cleaned_trans),
-                    "discretionary": discretionary_count,
-                    "automatic_10b5_1": automatic_count,
+                    "discretionary_90d": discretionary_count,
+                    "automatic_10b5_1_90d": automatic_count,
                     "days_analyzed": 90,
                     "detection_method": "heuristic_text_patterns"
                 }
 
                 # --- NEW: Calculate Insider Signal Summary ---
-                sid = calculate_insider_signal(cleaned_trans)
+                # Use ONLY the 90-day window transactions for the signal
+                sid = calculate_insider_signal(signal_trans)
                 # Attach counts for UI (Level 2 Hierarchy)
                 sid['discretionary_count'] = discretionary_count
                 sid['automatic_count'] = automatic_count
                 holders["insider_signal"] = sid
                 
-                print(f"Heuristic 10b5-1 detection for {ticker}: {discretionary_count} discretionary, {automatic_count} automatic")
+                print(f"Heuristic 10b5-1 detection for {ticker}: {discretionary_count} discretionary, {automatic_count} automatic (90d)")
             else:
                 holders["insider_transactions"] = []
                 holders["insider_signal"] = calculate_insider_signal([])
                 holders["insider_source"] = "yfinance"
+
+                # Trigger fallback if empty
+                if is_available():
+                    print(f"yfinance insiders empty for {ticker}, trying Finnhub fallback")
+                    from services import finnhub_insider
+                    finnhub_trans = finnhub_insider.get_insider_transactions(ticker)
+                    if finnhub_trans:
+                        holders["insider_transactions"] = finnhub_trans
+                        holders["insider_source"] = "finnhub"
+                        discretionary = sum(1 for t in finnhub_trans if not t.get('isAutomatic', False))
+                        automatic = sum(1 for t in finnhub_trans if t.get('isAutomatic', False))
+                        holders["insider_signal"] = calculate_insider_signal(finnhub_trans)
+                        holders["insider_signal"]['discretionary_count'] = discretionary
+                        holders["insider_signal"]['automatic_count'] = automatic
         except Exception as e:
             print(f"Error getting insider transactions from yfinance: {e}")
+            
+            # --- FALLBACK: Use Finnhub for Insiders if yfinance fails ---
+            if is_available():
+                print(f"Attempting Finnhub fallback for {ticker} insiders")
+                try:
+                    from services.finnhub_insider import get_insider_sentiment
+                    # We can use the insider sentiment we already have or fetch transactions
+                    # but for the TABLE we want transactions. Let's add that to finnhub_insider.py
+                    from services import finnhub_insider
+                    finnhub_trans = finnhub_insider.get_insider_transactions(ticker)
+                    if finnhub_trans:
+                        holders["insider_transactions"] = finnhub_trans
+                        holders["insider_source"] = "finnhub"
+                        # Calc simple signal from finnhub data
+                        discretionary = sum(1 for t in finnhub_trans if not t.get('isAutomatic', False))
+                        automatic = sum(1 for t in finnhub_trans if t.get('isAutomatic', False))
+                        holders["insider_signal"] = calculate_insider_signal(finnhub_trans)
+                        holders["insider_signal"]['discretionary_count'] = discretionary
+                        holders["insider_signal"]['automatic_count'] = automatic
+                        if holders:
+                            holders_cache.set(f"inst_{ticker}", holders)
+                        return holders
+                except Exception as ef:
+                    print(f"Finnhub fallback failed: {ef}")
+
             holders["insider_transactions"] = []
             holders["insider_signal"] = calculate_insider_signal([])
             holders["insider_source"] = "error"
             
         return holders
     except Exception as e:
-        print(f"Error getting holders: {e}")
-        return {"top_holders": [], "insider_transactions": []}
+        print(f"Error getting holders for {ticker}: {e}")
+        # Raise so route fallback can catch
+        raise e
 
 @cached(cache_spy)
 def get_market_regime():
@@ -632,7 +772,10 @@ def get_batch_prices(tickers: list):
     Lightweight fetch for Watchlist Sidebar.
     Only fetches price and prev_close to calculate change.
     Uses yf.Ticker.fast_info which is much faster than .info or .history.
+    Falls back to direct Yahoo API if rate limited.
     """
+    from services import yahoo_client
+    
     def fetch_fast_price(ticker):
         try:
             t = yf.Ticker(ticker)
@@ -653,7 +796,25 @@ def get_batch_prices(tickers: list):
                 "companyName": ticker # Fallback since we aren't doing the slow Info fetch
             }
         except Exception as e:
-            # print(f"Error fetching fast price for {ticker}: {e}")
+            # Fallback to yahoo_client on rate limit
+            if "Too Many Requests" in str(e) or "Rate limited" in str(e):
+                print(f"Rate limited for {ticker}, using yahoo_client fallback")
+                chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="5d")
+                if chart and chart.get("meta"):
+                    meta = chart["meta"]
+                    last_price = meta.get("regularMarketPrice", 0)
+                    prev_close = meta.get("chartPreviousClose", 0)
+                    change = last_price - prev_close if prev_close else 0
+                    change_percent = (change / prev_close * 100) if prev_close else 0
+                    return {
+                        "symbol": ticker,
+                        "currentPrice": last_price,
+                        "previousClose": prev_close,
+                        "regularMarketChange": change,
+                        "regularMarketChangePercent": change_percent,
+                        "companyName": meta.get("shortName", ticker)
+                    }
+            print(f"Error fetching {ticker}: {e}")
             return None
 
     results = []
@@ -672,6 +833,8 @@ def get_batch_stock_details(tickers: list):
     Optimized: Single API call per stock for all metrics.
     Calculates: 5D%, 1M%, 6M%, SMA20, SMA50, EPS, P/E, YTD%
     """
+    from services import yahoo_client
+    
     def fetch_one(ticker):
         try:
             # Single yfinance call for ALL data
@@ -746,6 +909,79 @@ def get_batch_stock_details(tickers: list):
                 "fiftyTwoWeekHigh": safe_val(info.get('fiftyTwoWeekHigh'))
             }
         except Exception as e:
+            # Fallback to yahoo_client on rate limit
+            if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
+                print(f"Rate limited for {ticker} details, using yahoo_client fallback")
+                chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="1y")
+                if chart and chart.get("meta"):
+                    meta = chart["meta"]
+                    current = meta.get("regularMarketPrice", 0)
+                    prev_close = meta.get("chartPreviousClose", 0)
+                    
+                    # Performance from chart indicators
+                    five_day = one_month = six_month = None
+                    sma20 = sma50 = None
+                    ytd_change = None
+                    
+                    quotes = chart.get("indicators", {}).get("quote", [{}])[0]
+                    closes = quotes.get("close", [])
+                    
+                    if closes and current:
+                        def pct_change_fallback(days):
+                            if len(closes) > days:
+                                past = closes[-days]
+                                if past and past > 0:
+                                    return ((current - past) / past) * 100
+                            return None
+                        
+                        five_day = pct_change_fallback(5)
+                        one_month = pct_change_fallback(21)
+                        six_month = pct_change_fallback(126)
+                        
+                        # SMA Fallback
+                        if len(closes) >= 20:
+                            valid_closes = [c for c in closes[-20:] if c is not None]
+                            if valid_closes:
+                                sma20 = sum(valid_closes) / len(valid_closes)
+                        if len(closes) >= 50:
+                            valid_closes = [c for c in closes[-50:] if c is not None]
+                            if valid_closes:
+                                sma50 = sum(valid_closes) / len(valid_closes)
+
+                    # Basic info
+                    change = current - prev_close if prev_close else 0
+                    change_pct = (change / prev_close * 100) if prev_close else 0
+                    
+                    # Try to get extra info from summary (might fail but we have defaults)
+                    summary = yahoo_client.get_quote_summary(ticker, modules="defaultKeyStatistics,financialData")
+                    eps = None
+                    pe = None
+                    high_52 = None
+                    
+                    if summary:
+                        stats = summary.get("defaultKeyStatistics", {})
+                        fin_data = summary.get("financialData", {})
+                        eps = stats.get("trailingEps", {}).get("raw")
+                        pe = stats.get("trailingPE", {}).get("raw")
+                        high_52 = stats.get("fiftyTwoWeekHigh", {}).get("raw")
+
+                    return {
+                        "symbol": ticker,
+                        "currentPrice": current,
+                        "regularMarketChange": change,
+                        "regularMarketChangePercent": change_pct,
+                        "previousClose": prev_close,
+                        "fiveDayChange": five_day,
+                        "oneMonthChange": one_month,
+                        "sixMonthChange": six_month,
+                        "ytdChangePercent": ytd_change, # Harder to calc without pandas in fallback
+                        "sma20": sma20,
+                        "sma50": sma50,
+                        "trailingEps": eps,
+                        "trailingPE": pe,
+                        "fiftyTwoWeekHigh": high_52
+                    }
+            
             print(f"Error fetching {ticker}: {e}")
             return None
 

@@ -350,6 +350,143 @@ Output EXACT JSON:
         """Check if Groq API is available (API key configured)."""
         return self.client is not None
 
+    def generate_score_summary(self, ticker: str, score_data: dict) -> str:
+        """
+        Generate a retail-friendly AI summary of the recommendation score.
+        
+        Args:
+            ticker: Stock ticker symbol
+            score_data: Dict containing {
+                'total_score': int (0-100),
+                'rating': str (BUY/HOLD/SELL),
+                'fundamentals_score': int,
+                'trend_penalty': int,
+                'income_bonus': int,
+                'breakdown': dict with metric details
+            }
+            
+        Returns:
+            A 2-3 sentence retail-friendly summary written like a senior analyst.
+        """
+        if not self.client:
+            return self._generate_fallback_summary(score_data)
+        
+        try:
+            total = score_data.get('total_score', 0)
+            rating = score_data.get('rating', 'HOLD')
+            fund_score = score_data.get('fundamentals_score', 0)
+            trend_pen = score_data.get('trend_penalty', 0)
+            income_bonus = score_data.get('income_bonus', 0)
+            breakdown = score_data.get('breakdown', {})
+            
+            # Extract Outlook Data if available
+            outlook_context = score_data.get('outlook_context', {})
+            short_term_technicals = outlook_context.get('short_term', [])
+            medium_term_factors = outlook_context.get('medium_term', [])
+            long_term_factors = outlook_context.get('long_term', [])
+            
+            # Build context (Optimized for JSON UI)
+            prompt = f"""Summarize this VinSight score like a senior hedge fund analyst briefing a retail client. 
+
+Stock: {ticker}
+Action: {rating} ({total}/100)
+
+Core Data:
+- Business Quality: {fund_score}/100
+- Risk Gates: {trend_pen} pts (Trend), {income_bonus} pts (Safety)
+- Key Metrics: {self._format_breakdown(breakdown)}
+
+Technical/Outlook Factors:
+- Short-Term: {', '.join(short_term_technicals)}
+- Medium-Term: {', '.join(medium_term_factors)}
+- Long-Term: {', '.join(long_term_factors)}
+
+Task: analysis_json
+Return a JSON object with these exact keys:
+1. "score_explanation": A concise (max 15 words) "Headlines" explanation of WHY the score is {total}. (e.g. "Stellar fundamentals are currently suppressed by negative technical trend").
+2. "thesis": Analyze what is WORKING for the business vs peers. Cite specific quality metrics.
+3. "risk": The primary downside risk or failure point (technical or fundamental).
+4. "outlook_3m": Max 12 words. Actionable Setup (e.g. "Bullish flag forming, watch break of $150").
+5. "outlook_6m": Max 12 words. Catalyst Watch (e.g. "Undervalued ahead of product cycle launch").
+6. "outlook_12m": Max 12 words. Conviction Level (e.g. "High conviction double-bagger potential").
+
+Tone: Senior Wall Street Analyst. Decisive, comparative, data-backed.
+Respond ONLY with the RAW JSON object. No markdown formatting."""
+
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a senior equity analyst. Output valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=self.model,
+                temperature=0.3,
+                max_tokens=450,
+                response_format={"type": "json_object"}
+            )
+            
+            summary = chat_completion.choices[0].message.content.strip()
+            # Clean up any quotes
+            summary = summary.strip('"').strip("'")
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Error generating score summary: {e}")
+            return self._generate_fallback_summary(score_data)
+    
+    def _format_breakdown(self, breakdown) -> str:
+        """Format breakdown (dict or list) for prompt."""
+        if not breakdown:
+            return "No detailed breakdown available."
+        
+        lines = []
+        if isinstance(breakdown, list):
+            for item in breakdown[:15]:
+                cat = item.get('category', 'Metric')
+                met = item.get('metric', '')
+                stat = item.get('status', '')
+                lines.append(f"  - [{cat}] {met}: {stat}")
+        elif isinstance(breakdown, dict):
+            for category, metrics in breakdown.items():
+                if isinstance(metrics, dict):
+                    for metric, data in metrics.items():
+                        if isinstance(data, dict):
+                            status = data.get('status', 'N/A')
+                            lines.append(f"  - {metric}: {status}")
+        return "\n".join(lines[:10])
+    
+    def _generate_fallback_summary(self, score_data: dict) -> str:
+        """Generate a fallback summary without AI."""
+        total = score_data.get('total_score', 0)
+        fund = score_data.get('fundamentals_score', 0)
+        trend_pen = score_data.get('trend_penalty', 0)
+        income = score_data.get('income_bonus', 0)
+        
+        parts = []
+        if fund >= 80:
+            parts.append(f"strong Fundamentals ({fund} pts)")
+        elif fund >= 60:
+            parts.append(f"solid Fundamentals ({fund} pts)")
+        else:
+            parts.append(f"weak Fundamentals ({fund} pts)")
+        
+        if trend_pen < 0:
+            parts.append(f"a Trend Gate Penalty ({trend_pen})")
+        if income > 0:
+            parts.append(f"an Income Safety Bonus (+{income})")
+        
+        if len(parts) == 1:
+            return f"The score is driven by {parts[0]}."
+        elif len(parts) == 2:
+            return f"The score is anchored by {parts[0]}, with {parts[1]}."
+        else:
+            return f"The score is anchored by {parts[0]}, but affected by {parts[1]} and {parts[2]}."
+
 
 # Singleton instance
 _groq_instance = None

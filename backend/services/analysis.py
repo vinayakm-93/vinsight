@@ -143,68 +143,60 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             "insider_mspr_label": insider_mspr_label
         }
 
-    # 3. Analyze with Groq (Batch)
-    try:
-        from services.groq_sentiment import get_groq_analyzer
-        groq = get_groq_analyzer()
-        
-        if not groq.is_available():
-            raise Exception("Groq API not available")
+    # 3. Analyze with Groq (Batch) only if deep_analysis is True
+    if deep_analysis:
+        try:
+            from services.groq_sentiment import get_groq_analyzer
+            groq = get_groq_analyzer()
+            
+            if groq.is_available():
+                context = ticker if ticker else "Company"
+                result = groq.analyze_batch(articles_to_analyze, context=context)
+                
+                return {
+                    "score": result['score'],
+                    "label": result['label'].capitalize(),
+                    "confidence": result['confidence'],
+                    "article_count": len(articles_to_analyze),
+                    "source": f"{source_name} (Deep Analysis)",
+                    "reasoning": result.get('reasoning', ''),
+                    "insider_mspr": insider_mspr,
+                    "insider_mspr_label": insider_mspr_label
+                }
+        except Exception as e:
+            print(f"Error in Groq sentiment analysis, falling back to TextBlob: {e}")
 
-        # Context for analysis
-        context = ticker if ticker else "Company"
-        
-        # Batch Analysis
-        result = groq.analyze_batch(articles_to_analyze, context=context)
-        
-        return {
-            "score": result['score'],
-            "label": result['label'].capitalize(),
-            "confidence": result['confidence'],
-            "article_count": len(articles_to_analyze),
-            "source": f"{source_name} (Deep Analysis)",
-            "reasoning": result.get('reasoning', ''),
-            "insider_mspr": insider_mspr,
-            "insider_mspr_label": insider_mspr_label
-        }
-        
-    except Exception as e:
-        # Fallback to TextBlob if Groq fails
-        import traceback
-        traceback.print_exc()
-        print(f"Error in Groq sentiment analysis, falling back to TextBlob: {e}")
-        
-        from textblob import TextBlob
-        
-        total_polarity = 0
-        count = 0
-        
-        for item in news_items:
-            title = item.get('title', '')
-            if title:
-                blob = TextBlob(title)
-                total_polarity += blob.sentiment.polarity
-                count += 1
-        
-        avg_polarity = total_polarity / count if count > 0 else 0
-        
-        # Use stricter thresholds matching Groq analysis
-        if avg_polarity > 0.5:
-            label = "Positive"
-        elif avg_polarity < -0.3:
-            label = "Negative"
-        else:
-            label = "Neutral"
-        
-        return {
-            "score": avg_polarity,
-            "label": label,
-            "confidence": 0.5,
-            "article_count": count,
-            "source": "TextBlob (Tier 3)",
-            "insider_mspr": insider_mspr,
-            "insider_mspr_label": insider_mspr_label
-        }
+    # 4. Fallback/Fast-Path to TextBlob (Used if deep_analysis=False OR Groq fails)
+    from textblob import TextBlob
+    
+    total_polarity = 0
+    count = 0
+    
+    for item in news_items:
+        title = item.get('title', '')
+        if title:
+            blob = TextBlob(title)
+            total_polarity += blob.sentiment.polarity
+            count += 1
+    
+    avg_polarity = total_polarity / count if count > 0 else 0
+    
+    if avg_polarity > 0.5:
+        label = "Positive"
+    elif avg_polarity < -0.3:
+        label = "Negative"
+    else:
+        label = "Neutral"
+    
+    return {
+        "score": avg_polarity,
+        "label": label,
+        "confidence": 0.5,
+        "article_count": count,
+        "source": "TextBlob (Tier 3)",
+        "insider_mspr": insider_mspr,
+        "insider_mspr_label": insider_mspr_label
+    }
 
 
 

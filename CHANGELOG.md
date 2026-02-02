@@ -1,5 +1,22 @@
 # Changelog
 
+## [v7.5] - 2026-02-01
+### 🧠 AI Analyst "Expert Mode"
+- **Actionable Outlooks**: AI prompt heavily refined to produce specific, catalyst-driven insights (e.g., "Bullish flag break", "Undervalued ahead of earnings").
+- **Concise Thesis**: "Bottom Line Up Front" logic applied.
+- **Score Explanation**: Dynamic "Why" header added to the recommendation card (e.g., "Fundamentals strong but suppressed by negative trend").
+
+### 🎨 UI Overhaul (Recommendation Tab)
+- **Header Redesign**: Removed static labels, moved Score Ring + Context to a unified top bar.
+- **Magazine-Style Grid**: Full-width layout for AI briefing with distinct Left-Accent color coding.
+- **RSI Visibility**: Explicit "RSI Safety" row (Bonus/Penalty) added to the Detailed Breakdown table.
+- **RSI Badges**: Blue (Oversold) and Red (Overbought) badges now visually distinct.
+
+### 🔧 Scoring Tweaks
+- **Trend Gate**: Penalty reduced from -15 to **-10** (less punitive for counter-trend value plays).
+
+---
+
 ## [v7.4] - 2026-02-01
 ### Added
 - **10-Theme Benchmarking**: Consolidated 30+ sectors into 10 broad strategies (High Growth Tech, Mature Tech, etc.).

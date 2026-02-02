@@ -117,7 +117,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
     // Smart Money Interaction State
     const [instFilter, setInstFilter] = useState<'holders' | 'recent'>('holders');
-    const [insiderFilter, setInsiderFilter] = useState<'all' | 'buy' | 'sell'>('all');
+    const [insiderFilter, setInsiderFilter] = useState<string>('all');
     const [showAllInstitutions, setShowAllInstitutions] = useState(false);
 
     // Real-time price updates with smart polling
@@ -1047,69 +1047,157 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     </div>
                                 </div>
 
-                                <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
-                                    {/* Left: Score Gauge with Ticker */}
-                                    <div className="relative flex-shrink-0 flex flex-col items-center">
-                                        <div className="w-28 h-28 rounded-full border-8 border-gray-100 dark:border-gray-800 flex items-center justify-center relative">
-                                            {/* SVG Ring for Score */}
-                                            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-                                                <circle
-                                                    cx="50"
-                                                    cy="50"
-                                                    r="46"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="8"
-                                                    className={`text-${analysis.ai_analysis.color}-500 transition-all duration-1000 ease-out`}
-                                                    strokeDasharray={`${(analysis.ai_analysis.score / 100) * 289} 289`}
-                                                    strokeLinecap="round"
-                                                />
-                                            </svg>
-                                            <div className="text-center">
-                                                <span className="text-2xl font-bold text-gray-900 dark:text-white block">{analysis.ai_analysis.score}</span>
-                                                <span className={`text-[10px] font-bold uppercase tracking-wider text-${analysis.ai_analysis.color}-500`}>
-                                                    {analysis.ai_analysis.rating}
-                                                </span>
+                                <div className="relative z-10 space-y-6 mt-4">
+                                    {/* 1. Header Row: Score Ring + Context */}
+                                    <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm flex flex-col md:flex-row items-center gap-6 w-full">
+
+                                        {/* Score Ring Section */}
+                                        <div className="flex items-center gap-6 md:w-1/2">
+                                            <div className="relative w-20 h-20 flex-shrink-0">
+                                                <div className="w-20 h-20 rounded-full border-[6px] border-gray-100 dark:border-gray-800 flex items-center justify-center relative">
+                                                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+                                                        <circle
+                                                            cx="50"
+                                                            cy="50"
+                                                            r="46"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="8"
+                                                            className={`text-${analysis.ai_analysis.color}-500 transition-all duration-1000 ease-out`}
+                                                            strokeDasharray={`${(analysis.ai_analysis.score / 100) * 289} 289`}
+                                                            strokeLinecap="round"
+                                                        />
+                                                    </svg>
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                        <span className={`text-xl font-bold ${analysis.ai_analysis.color === 'emerald' ? 'text-emerald-500' : analysis.ai_analysis.color === 'amber' ? 'text-amber-500' : 'text-red-500'}`}>
+                                                            {analysis.ai_analysis.score.toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{analysis.ticker}</h3>
+                                                {/* Dynamic Score Explanation (The "Why") */}
+                                                {(() => {
+                                                    try {
+                                                        const content = typeof analysis.ai_analysis.justification === 'string' && analysis.ai_analysis.justification.trim().startsWith('{')
+                                                            ? JSON.parse(analysis.ai_analysis.justification)
+                                                            : null;
+                                                        return (
+                                                            <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 font-medium leading-snug">
+                                                                {content?.score_explanation || "Analyzing score drivers..."}
+                                                            </p>
+                                                        );
+                                                    } catch (e) { return null; }
+                                                })()}
                                             </div>
                                         </div>
-                                        {/* Ticker below the score */}
-                                        <span className="mt-2 text-base font-bold text-gray-900 dark:text-white tracking-wide">{ticker}</span>
+
+                                        {/* Divider */}
+                                        <div className="hidden md:block w-px h-12 bg-gray-200 dark:bg-gray-700"></div>
+
+                                        {/* Badges / Modifications */}
+                                        <div className="flex flex-wrap gap-2 justify-center md:justify-start flex-1">
+                                            {analysis.ai_analysis.modifications?.map((mod: string, i: number) => {
+                                                const isPenalty = mod.includes("Penalty") || mod.includes("-");
+                                                const isBonus = mod.includes("Bonus") || mod.includes("+");
+
+                                                return (
+                                                    <span
+                                                        key={i}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${isPenalty
+                                                                ? "bg-red-500/10 text-red-500 border-red-500/20"
+                                                                : isBonus
+                                                                    ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                                                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+                                                            }`}
+                                                    >
+                                                        {isPenalty ? <TrendingDown size={14} /> : isBonus ? <Zap size={14} /> : null}
+                                                        {mod}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
 
                                     {/* Right: Score Anchor Text & Badges */}
-                                    <div className="flex-1 text-center md:text-left">
-                                        {/* Score anchor explanation */}
-                                        {analysis.ai_analysis.raw_breakdown && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-3">
-                                                The score is anchored by{' '}
-                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Fundamentals >= 37 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 27 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {analysis.ai_analysis.raw_breakdown.Fundamentals >= 37 ? 'strong' : analysis.ai_analysis.raw_breakdown.Fundamentals >= 27 ? 'moderate' : 'weak'} Fundamentals ({analysis.ai_analysis.raw_breakdown.Fundamentals} pts)
-                                                </span>
-                                                , but weighed down by{' '}
-                                                <span className={`font-semibold ${analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? 'text-emerald-600 dark:text-emerald-400' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                    {analysis.ai_analysis.raw_breakdown.Sentiment >= 11 ? 'strong' : analysis.ai_analysis.raw_breakdown.Sentiment >= 7 ? 'moderate' : 'weak'} Sentiment ({analysis.ai_analysis.raw_breakdown.Sentiment} pts)
-                                                </span>.
-                                            </p>
-                                        )}
-
-                                        {/* Modifications / Badges */}
-                                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                                            {analysis.ai_analysis.modifications && analysis.ai_analysis.modifications.length > 0 ? (
-                                                analysis.ai_analysis.modifications.map((mod: string, idx: number) => {
-                                                    const isPenalty = mod.includes("Penalty");
-                                                    return (
-                                                        <span key={idx} className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${isPenalty ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'}`}>
-                                                            {isPenalty ? <TrendingDown size={14} /> : <Zap size={14} />}
-                                                            {mod}
-                                                        </span>
-                                                    );
-                                                })
-                                            ) : (
-                                                <span className="px-3 py-1 rounded-full text-xs font-medium text-gray-500 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                                                    No Standard Bonuses/Penalties Applied
-                                                </span>
-                                            )}
+                                    {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
+                                    <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="p-1 rounded bg-blue-500/10 text-blue-500">
+                                                <Zap size={14} className="animate-pulse" />
+                                            </div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Specialist Briefing</span>
+                                            <div className="ml-auto flex items-center gap-1.5">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                                <span className="text-[9px] text-gray-400 font-medium">Model: Llama 3.1 70B</span>
+                                            </div>
                                         </div>
+
+                                        {(() => {
+                                            try {
+                                                // safely parse or fall back
+                                                const content = typeof analysis.ai_analysis.justification === 'string'
+                                                    && analysis.ai_analysis.justification.trim().startsWith('{')
+                                                    ? JSON.parse(analysis.ai_analysis.justification)
+                                                    : null;
+
+                                                if (!content) {
+                                                    // Fallback
+                                                    return (
+                                                        <div className="pl-4 border-l-2 border-gray-300 dark:border-gray-600">
+                                                            <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                                                                {analysis.ai_analysis.justification}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <div className="space-y-4">
+                                                        {/* Thesis & Risk Row (Left Border Accent Style) */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <div className="bg-emerald-50/30 dark:bg-emerald-900/5 rounded-r-lg border-l-[3px] border-emerald-500 pl-4 py-3">
+                                                                <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1 uppercase tracking-wide">
+                                                                    Thesis
+                                                                </h4>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
+                                                                    {content.thesis}
+                                                                </p>
+                                                            </div>
+                                                            <div className="bg-amber-50/30 dark:bg-amber-900/5 rounded-r-lg border-l-[3px] border-amber-500 pl-4 py-3">
+                                                                <h4 className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1 uppercase tracking-wide">
+                                                                    Risk
+                                                                </h4>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
+                                                                    {content.risk}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Outlooks Grid (Minimal Cards) */}
+                                                        <div className="grid grid-cols-3 gap-3 pt-2">
+                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
+                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">3 Months</h5>
+                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_3m}</p>
+                                                            </div>
+                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
+                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">6 Months</h5>
+                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_6m}</p>
+                                                            </div>
+                                                            <div className="bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700/50 rounded-lg p-3">
+                                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-1">12 Months</h5>
+                                                                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{content.outlook_12m}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+
+                                            } catch (e) {
+                                                console.error("JSON Parse Error", e);
+                                                return <p className="text-xs text-red-400">Analysis unavailable.</p>;
+                                            }
+                                        })()}
                                     </div>
                                 </div>
                             </div>
@@ -1187,7 +1275,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             <tfoot className="bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-800 font-bold text-xs">
                                                 <tr>
                                                     <td colSpan={4} className="px-4 py-3 text-right uppercase tracking-wider text-gray-500">Total Score</td>
-                                                    <td className="px-4 py-3 text-right text-lg text-blue-600 dark:text-blue-400">{analysis.ai_analysis.score}/100</td>
+                                                    <td className="px-4 py-3 text-right text-lg text-blue-600 dark:text-blue-400">{analysis.ai_analysis.score.toFixed(1)}/100</td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -1196,85 +1284,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             </details>
                         )}
 
-                        {/* 3. Outlooks Accordion (Collapsible) */}
-                        {analysis?.ai_analysis && (
-                            <details className="group bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
-                                <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors">
-                                    <span className="flex items-center gap-2 text-sm"><TrendingUp size={16} className="text-blue-500" /> Outlooks</span>
-                                    <span className="flex items-center gap-2 text-gray-400 group-hover:text-blue-500 transition-colors">
-                                        <span className="text-[10px] font-normal group-open:hidden">Click to expand</span>
-                                        <span className="text-[10px] font-normal hidden group-open:inline">Click to collapse</span>
-                                        <span className="transition-transform duration-200 group-open:rotate-180 text-xs">▼</span>
-                                    </span>
-                                </summary>
-                                <div className="border-t border-gray-200 dark:border-gray-700/50 p-3 pt-0 mt-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        {/* Short Term - 1-4 weeks */}
-                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-blue-100 dark:border-blue-900/30">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                                    <Zap size={14} className="text-blue-600 dark:text-blue-400" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">3 Months</h4>
-                                                    <p className="text-[10px] text-gray-500">Technical/Momentum</p>
-                                                </div>
-                                            </div>
-                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
-                                                {analysis.ai_analysis.outlooks?.short_term?.map((s: string, i: number) => (
-                                                    <li key={i} className="flex items-start gap-2 bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></span>
-                                                        <span className="leading-relaxed">{s}</span>
-                                                    </li>
-                                                )) || <li className="italic text-gray-400">No short-term signals available</li>}
-                                            </ul>
-                                        </div>
 
-                                        {/* Medium Term - 1-3 months */}
-                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-purple-100 dark:border-purple-900/30">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                                                    <Activity size={14} className="text-purple-600 dark:text-purple-400" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">6 Months</h4>
-                                                    <p className="text-[10px] text-gray-500">Valuation/Growth</p>
-                                                </div>
-                                            </div>
-                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
-                                                {analysis.ai_analysis.outlooks?.medium_term?.map((s: string, i: number) => (
-                                                    <li key={i} className="flex items-start gap-2 bg-purple-50/50 dark:bg-purple-900/10 p-2 rounded-lg">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"></span>
-                                                        <span className="leading-relaxed">{s}</span>
-                                                    </li>
-                                                )) || <li className="italic text-gray-400">No medium-term signals available</li>}
-                                            </ul>
-                                        </div>
-
-                                        {/* Long Term - 6-12 months */}
-                                        <div className="bg-white dark:bg-gray-900/40 rounded-lg p-4 border border-orange-100 dark:border-orange-900/30">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                                                    <TrendingUp size={14} className="text-orange-600 dark:text-orange-400" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">12 Months</h4>
-                                                    <p className="text-[10px] text-gray-500">Quality/Fundamentals</p>
-                                                </div>
-                                            </div>
-                                            <ul className="text-xs space-y-2.5 text-gray-600 dark:text-gray-400">
-                                                {analysis.ai_analysis.outlooks?.long_term?.map((s: string, i: number) => (
-                                                    <li key={i} className="flex items-start gap-2 bg-orange-50/50 dark:bg-orange-900/10 p-2 rounded-lg">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0"></span>
-                                                        <span className="leading-relaxed">{s}</span>
-                                                    </li>
-                                                )) || <li className="italic text-gray-400">No long-term signals available</li>}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </details>
-                        )}
                     </div>
                 )}
 
@@ -1282,22 +1292,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {/* Unified Smart Money Section */}
                         <section className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-xl">
-                            {/* Header */}
-                            <div className="p-5 border-b border-gray-100 dark:border-gray-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <Zap className="text-emerald-500" size={20} /> Smart Money Analysis
-                                        {institutions?.smart_money?.period && (
-                                            <span className="text-xs font-normal text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                                                {institutions.smart_money.period} Filings
-                                            </span>
-                                        )}
-                                    </h3>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Consolidated view of Institutional Holdings and Insider Activity.
-                                    </p>
-                                </div>
-                            </div>
+                            {/* Header Removed as per user request */}
 
 
                             {/* Consolidated Alerts / Signals Row */}
@@ -1346,6 +1341,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     }`}>
                                                     {institutions.insider_signal.label}
                                                 </div>
+                                                <div className="text-xs text-gray-500 mt-0.5">
+                                                    Inside Ownership: <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{(institutions?.insidersPercentHeld * 100).toFixed(2)}%</span>
+                                                </div>
                                             </div>
                                         </div>
                                         {/* One-liner Context */}
@@ -1380,12 +1378,16 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         </div>
                                     </div>
 
-                                    {/* Insider Metrics */}
+                                    {/* Insider Metrics - Real Buy/Sell Counts */}
                                     <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="text-[10px] text-gray-500 block mb-1">Net Insider Flow (90d)</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className={`text-lg font-mono font-bold ${institutions?.insider_signal?.net_flow > 0 ? 'text-emerald-600' : institutions?.insider_signal?.net_flow < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {institutions?.insider_signal?.net_flow > 0 ? '+' : ''}${formatLargeNumber(institutions?.insider_signal?.net_flow)}
+                                        <span className="text-[10px] text-gray-500 block mb-1">Buy / Sell (90d)</span>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-lg font-mono font-bold text-emerald-600">
+                                                {institutions?.insider_signal?.buy_count || 0}
+                                            </span>
+                                            <span className="text-gray-400">/</span>
+                                            <span className="text-lg font-mono font-bold text-red-600">
+                                                {institutions?.insider_signal?.sell_count || 0}
                                             </span>
                                         </div>
                                     </div>
@@ -1401,8 +1403,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                                 <div className="h-px bg-gray-100 dark:bg-gray-800 my-6"></div>
 
-                                {/* Tables Section - Stacked on Mobile, Side by Side on Large Desktop */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* Tables Section - Stacked Layout (Institution Top, Insider Bottom) */}
+                                <div className="grid grid-cols-1 gap-8">
                                     {/* Left: Top Institutional Holders */}
                                     <div className="flex flex-col h-full">
                                         <div className="flex items-center justify-between mb-4">
@@ -1521,8 +1523,16 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                 className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
                                             >
                                                 <option value="all">All Activity</option>
-                                                <option value="buy">Buys Only</option>
-                                                <option value="sell">Sells Only</option>
+                                                <option value="buy">Buys (Open Market)</option>
+                                                <option value="sell">Sells (Open Market)</option>
+                                                <option value="auto">Auto (10b5-1)</option>
+                                                <option value="grant">Grants/Awards</option>
+                                                <option value="option">Options</option>
+                                                <option value="tax">Tax</option>
+                                                <option value="gift">Gifts</option>
+                                                <option value="acquire">Acquisitions</option>
+                                                <option value="dispose">Dispositions</option>
+                                                <option value="vest">Vesting</option>
                                             </select>
                                         </div>
 
@@ -1533,6 +1543,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                         <tr>
                                                             <th className="py-2 px-3 font-medium">Date</th>
                                                             <th className="py-2 px-3 font-medium">Insider</th>
+                                                            <th className="py-2 px-3 font-medium">Position</th>
                                                             <th className="py-2 px-3 font-medium">Type</th>
                                                             <th className="py-2 px-3 font-medium text-right">Value</th>
                                                         </tr>
@@ -1540,10 +1551,38 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
                                                         {(() => {
                                                             let txs = institutions.insider_transactions;
-                                                            if (insiderFilter === 'buy') {
-                                                                txs = txs.filter((t: any) => t.Text.toLowerCase().includes('purchase') || t.Text.toLowerCase().includes('buy'));
-                                                            } else if (insiderFilter === 'sell') {
-                                                                txs = txs.filter((t: any) => t.Text.toLowerCase().includes('sale') || t.Text.toLowerCase().includes('sell'));
+
+                                                            // Granular Filtering Logic
+                                                            if (insiderFilter !== 'all') {
+                                                                txs = txs.filter((t: any) => {
+                                                                    const text = t.Text.toLowerCase();
+                                                                    const isAuto = t.isAutomatic;
+
+                                                                    switch (insiderFilter) {
+                                                                        case 'buy':
+                                                                            return !isAuto && (text.includes('purchase') || text.includes('buy'));
+                                                                        case 'sell':
+                                                                            return !isAuto && (text.includes('sale') || text.includes('sell'));
+                                                                        case 'auto':
+                                                                            return isAuto;
+                                                                        case 'grant':
+                                                                            return text.includes('grant') || text.includes('award');
+                                                                        case 'option':
+                                                                            return text.includes('option');
+                                                                        case 'tax':
+                                                                            return text.includes('tax');
+                                                                        case 'gift':
+                                                                            return text.includes('gift');
+                                                                        case 'acquire':
+                                                                            return text.includes('acquisition') || text.includes('acquire');
+                                                                        case 'dispose':
+                                                                            return text.includes('disposition') || text.includes('dispose');
+                                                                        case 'vest':
+                                                                            return text.includes('vest');
+                                                                        default:
+                                                                            return true;
+                                                                    }
+                                                                });
                                                             }
                                                             // Always slice for display unless "Show All"
                                                             const displayTxs = showAllInsider ? txs : txs.slice(0, 6);
@@ -1559,14 +1598,63 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                                             <td className="py-2 px-3 font-medium text-gray-900 dark:text-white truncate max-w-[100px]" title={t.Insider}>
                                                                                 {t.Insider}
                                                                             </td>
+                                                                            <td className="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-[80px]" title={t.Position}>
+                                                                                {t.Position}
+                                                                            </td>
                                                                             <td className="py-2 px-3">
-                                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${t.isAutomatic ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' :
-                                                                                    isSale ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' :
-                                                                                        isBuy ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10 dark:text-emerald-400' :
-                                                                                            'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                                                                                    }`}>
-                                                                                    {t.isAutomatic ? 'Auto' : isSale ? 'Sale' : isBuy ? 'Buy' : 'Other'}
-                                                                                </span>
+                                                                                {(() => {
+                                                                                    const text = t.Text.toLowerCase();
+                                                                                    let label = 'Other';
+                                                                                    let style = 'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+
+                                                                                    if (text.includes('tax')) {
+                                                                                        label = 'Tax';
+                                                                                        style = 'bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400';
+                                                                                    } else if (text.includes('gift')) {
+                                                                                        label = 'Gift';
+                                                                                        style = 'bg-purple-50 text-purple-600 dark:bg-purple-900/10 dark:text-purple-400';
+                                                                                    } else if (text.includes('grant') || text.includes('award')) {
+                                                                                        label = 'Grant';
+                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                    } else if (text.includes('option')) {
+                                                                                        label = 'Option';
+                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                    } else if (t.isAutomatic) {
+                                                                                        // For automatic trades, we want to know if it's a Buy or Sale
+                                                                                        if (isSale) {
+                                                                                            label = 'Auto Sale';
+                                                                                        } else if (isBuy) {
+                                                                                            label = 'Auto Buy';
+                                                                                        } else {
+                                                                                            label = 'Auto';
+                                                                                        }
+                                                                                        style = 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
+                                                                                    } else if (text.includes('acquisition') || text.includes('acquire')) {
+                                                                                        label = 'Acquire';
+                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                    } else if (text.includes('disposition') || text.includes('dispose')) {
+                                                                                        label = 'Dispose';
+                                                                                        style = 'bg-orange-50 text-orange-600 dark:bg-orange-900/10 dark:text-orange-400';
+                                                                                    } else if (text.includes('vest')) {
+                                                                                        label = 'Vest';
+                                                                                        style = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/10 dark:text-indigo-400';
+                                                                                    } else if (isSale) {
+                                                                                        label = 'Sale';
+                                                                                        style = 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400';
+                                                                                    } else if (isBuy) {
+                                                                                        label = 'Buy';
+                                                                                        style = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10 dark:text-emerald-400';
+                                                                                    }
+
+                                                                                    return (
+                                                                                        <span
+                                                                                            className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${style}`}
+                                                                                            title={t.Text}
+                                                                                        >
+                                                                                            {label}
+                                                                                        </span>
+                                                                                    );
+                                                                                })()}
                                                                             </td>
                                                                             <td className="py-2 px-3 text-right font-mono text-gray-900 dark:text-white">
                                                                                 ${formatLargeNumber(t.Value || 0)}
@@ -1576,7 +1664,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                                 })
                                                             ) : (
                                                                 <tr>
-                                                                    <td colSpan={4} className="py-4 text-center text-gray-500 italic">No activity matching filter.</td>
+                                                                    <td colSpan={5} className="py-4 text-center text-gray-500 italic">No activity matching filter.</td>
                                                                 </tr>
                                                             );
                                                         })()}

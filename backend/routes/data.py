@@ -5,12 +5,16 @@ from database import get_db
 from services import finance, analysis, simulation, search, earnings
 from services.search import search_ticker
 from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections, ScoreResult
+from services.groq_sentiment import get_groq_analyzer
 import yfinance as yf
+import requests
 import logging
 import json
 import os
 
 logger = logging.getLogger(__name__)
+
+# yf_session removed to allow yfinance to handle its own session
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
@@ -37,6 +41,7 @@ def get_quick_quote(ticker: str):
     Returns only essential real-time information with minimal API calls.
     Perfect for frequent polling without exhausting rate limits.
     """
+    from services import yahoo_client
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
@@ -59,7 +64,27 @@ def get_quick_quote(ticker: str):
             "timestamp": info.get('regularMarketTime', None)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching quote: {str(e)}")
+        # Fallback to yahoo_client on rate limit
+        if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
+            logger.info(f"Using yahoo_client fallback for {ticker} quick quote")
+            chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="1d")
+            if chart and chart.get("meta"):
+                meta = chart["meta"]
+                last_price = meta.get("regularMarketPrice", 0)
+                prev_close = meta.get("chartPreviousClose", 0)
+                change = last_price - prev_close if prev_close else 0
+                change_percent = (change / prev_close * 100) if prev_close else 0
+                return {
+                    "symbol": ticker.upper(),
+                    "currentPrice": last_price,
+                    "previousClose": prev_close,
+                    "change": change,
+                    "changePercent": change_percent,
+                    "marketState": "REGULAR", # Assumption for fallback
+                    "timestamp": meta.get("regularMarketTime")
+                }
+        logger.error(f"Error fetching quote for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/earnings/{ticker}")
 def get_earnings_analysis(ticker: str, db: Session = Depends(get_db)):
@@ -132,11 +157,38 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         import concurrent.futures
         
         # Define fetch wrappers to handle exceptions gracefully (Graceful Degradation)
+        from services import yahoo_client
+        import pandas as pd
+        
         def fetch_history():
             try:
                 return finance.get_stock_history(ticker, period, interval)
             except Exception as e:
                 logger.error(f"Error fetching history: {e}")
+                # Fallback to yahoo_client on rate limit
+                if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
+                    logger.info(f"Using yahoo_client fallback for {ticker} history")
+                    chart = yahoo_client.get_chart_data(ticker, interval=interval, range_=period)
+                    if chart and chart.get("timestamp"):
+                        # Convert to list of dicts format with CAPITALIZED keys (expected by analysis.py)
+                        timestamps = chart["timestamp"]
+                        quotes = chart.get("indicators", {}).get("quote", [{}])[0]
+                        history = []
+                        for i, ts in enumerate(timestamps):
+                            close_val = quotes.get("close", [None])[i] if i < len(quotes.get("close", [])) else None
+                            # Skip entries where 'Close' is None to avoid downstream errors
+                            if close_val is None:
+                                continue
+                                
+                            history.append({
+                                "Date": pd.Timestamp(ts, unit='s').isoformat(),
+                                "Open": quotes.get("open", [None])[i] if i < len(quotes.get("open", [])) else close_val,
+                                "High": quotes.get("high", [None])[i] if i < len(quotes.get("high", [])) else close_val,
+                                "Low": quotes.get("low", [None])[i] if i < len(quotes.get("low", [])) else close_val,
+                                "Close": close_val,
+                                "Volume": quotes.get("volume", [None])[i] if i < len(quotes.get("volume", [])) else 0,
+                            })
+                        return history
                 return []
                 
         def fetch_info():
@@ -144,6 +196,33 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 return finance.get_stock_info(ticker)
             except Exception as e:
                 logger.error(f"Error fetching stock info: {e}")
+                # Fallback to yahoo_client on rate limit
+                if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
+                    logger.info(f"Using yahoo_client fallback for {ticker} info")
+                    
+                    # Try chart data first for basic info as it's more reliable than quoteSummary
+                    chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="1d")
+                    info = {}
+                    if chart and chart.get("meta"):
+                        meta = chart["meta"]
+                        info['currentPrice'] = meta.get('regularMarketPrice') or meta.get('chartPreviousClose')
+                        info['previousClose'] = meta.get('chartPreviousClose')
+                        info['shortName'] = meta.get('shortName', ticker)
+                        info['longName'] = meta.get('longName', ticker)
+                        info['sector'] = meta.get('instrumentType', 'Financial Services') # Default for funds often missing sector
+                    
+                    # Try to supplement with quoteSummary if available
+                    summary = yahoo_client.get_quote_summary(ticker, modules="price,summaryDetail,financialData,defaultKeyStatistics")
+                    if summary:
+                        for module in ["price", "summaryDetail", "financialData", "defaultKeyStatistics"]:
+                            if module in summary:
+                                for key, val in summary[module].items():
+                                    if key not in info: # Don't overwrite what we got from chart
+                                        if isinstance(val, dict) and "raw" in val:
+                                            info[key] = val["raw"]
+                                        elif not isinstance(val, dict):
+                                            info[key] = val
+                    return info
                 return {}
 
         def fetch_news():
@@ -254,7 +333,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             inst_changing = "Flat"
 
-        current_price = history[-1]['Close'] if history else 0
+        # v5.5 Price handling: Ensure current_price is a float and not None
+        last_close = history[-1]['Close'] if history else None
+        current_price = float(last_close) if last_close is not None else 0.0
         
         # Handle sentiment safely - use default values if sentiment is None
         if sentiment_result:
@@ -642,16 +723,32 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             f"Institutional Quality: {'High' if inst_own > 60 else 'Low/Moderate'}"
         ]
 
+        # Generate AI Summary using Groq
+        try:
+            groq = get_groq_analyzer()
+            score_data_for_ai = {
+                'total_score': score_result.total_score,
+                'rating': score_result.rating,
+                'fundamentals_score': fund_score,
+                'trend_penalty': score_result.breakdown.get('TrendGate', 0),
+                'income_bonus': score_result.breakdown.get('IncomeBonus', 0),
+                'breakdown': score_result.details,
+                'outlook_context': {
+                    'short_term': short_term_outlook,
+                    'medium_term': medium_term_outlook,
+                    'long_term': long_term_outlook
+                }
+            }
+            ai_summary = groq.generate_score_summary(ticker, score_data_for_ai)
+        except Exception as e:
+            logger.warning(f"AI summary generation failed: {e}")
+            ai_summary = score_result.verdict_narrative
+        
         ai_analysis_response = {
             "rating": score_result.rating.upper(), # BUY/SELL
             "color": color,
             "score": score_result.total_score,
-            "justification": score_result.verdict_narrative,
-            "outlooks": {
-                "short_term": short_term_outlook,
-                "medium_term": medium_term_outlook,
-                "long_term": long_term_outlook
-            },
+            "justification": ai_summary,  # Use AI-generated summary
             "raw_breakdown": score_result.breakdown,
             "modifications": score_result.modifications,
             "score_explanation": score_explanation,
@@ -691,23 +788,57 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
 @router.get("/institutional/{ticker}")
 def get_institutional_data(ticker: str):
     try:
-        data = finance.get_institutional_holders(ticker)
-        return data
+        return finance.get_institutional_holders(ticker)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching institutional data for {ticker}: {e}")
+        # Return empty structure rather than 500 to keep UI alive
+        return {"holders": [], "total_institutional": 0, "status": "Error/Rate Limited"}
 
 @router.get("/simulation/{ticker}")
 def get_simulation(ticker: str):
     try:
-        history = finance.get_stock_history(ticker, period="1y")
+        from services import yahoo_client
+        import pandas as pd
+        try:
+            history = finance.get_stock_history(ticker, period="1y")
+        except Exception as e:
+            if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
+                logger.info(f"Using yahoo_client fallback for {ticker} simulation history")
+                chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="1y")
+                if chart and chart.get("timestamp"):
+                    timestamps = chart["timestamp"]
+                    quotes = chart.get("indicators", {}).get("quote", [{}])[0]
+                    history = []
+                    for i, ts in enumerate(timestamps):
+                        close_val = quotes.get("close", [None])[i] if i < len(quotes.get("close", [])) else None
+                        if close_val is None: continue
+                        history.append({
+                            "Date": pd.Timestamp(ts, unit='s').isoformat(),
+                            "Close": close_val,
+                            "Open": quotes.get("open", [None])[i] or close_val,
+                            "High": quotes.get("high", [None])[i] or close_val,
+                            "Low": quotes.get("low", [None])[i] or close_val,
+                            "Volume": quotes.get("volume", [None])[i] or 0
+                        })
+                    if not history: raise e
+                else:
+                    raise e
+            else:
+                raise e
+                
         sim_result = simulation.run_monte_carlo(history)
         
         # Also fetch analyst targets for combined response
-        analyst_targets = finance.get_analyst_targets(ticker)
+        try:
+            analyst_targets = finance.get_analyst_targets(ticker)
+        except:
+            analyst_targets = {}
+            
         sim_result["analyst_targets"] = analyst_targets
         
         return sim_result
     except Exception as e:
+        logger.error(f"Error in simulation for {ticker}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -715,11 +846,17 @@ def get_simulation(ticker: str):
 def get_sentiment(ticker: str):
     """
     Dedicated endpoint for sentiment analysis (lazy-loaded).
-    Returns sentiment calculated using Groq-only approach.
     """
     try:
-        news = finance.get_news(ticker)
-        sentiment_result = analysis.calculate_news_sentiment(news, deep_analysis=True)
+        try:
+            news = finance.get_news(ticker)
+        except Exception:
+            # Fallback to yahoo_client news if possible
+            from services import yahoo_client
+            news = yahoo_client.get_news(ticker)
+            
+        sentiment_result = analysis.calculate_news_sentiment(news, deep_analysis=True, ticker=ticker)
         return sentiment_result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in sentiment for {ticker}: {e}")
+        return {"label": "Neutral", "score": 0, "confidence": 0, "article_count": 0, "status": "Error/Rate Limited"}

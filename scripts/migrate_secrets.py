@@ -4,6 +4,7 @@ import sys
 
 # List of sensitive keys to migrate
 SENSITIVE_KEYS = [
+    "DB_USER",
     "DB_PASS",
     "JWT_SECRET_KEY",
     "GROQ_API_KEY",

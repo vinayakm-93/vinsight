@@ -17,7 +17,7 @@
 - **Spin Detection**: Bearish keyword list catches positive framing of negative news.
 - **AI Analyst**: Automated natural language summary of company financial health.
 
-## 3. VinSight Score (v7.3 - Wealth Manager Edition)
+## 3. VinSight Score (v7.4 - Wealth Manager Edition)
 A sophisticated "Fundamental Purist" algorithm designed for quarterly investors:
 - **Fundamentals (100% of Score)**: Valuation (PEG/Forward PE), Quality (Margins), Efficiency (ROE/ROA), Solvency (Debt/Current Ratio).
 - **Risk Gates (Penalties)**: 
@@ -37,7 +37,7 @@ A sophisticated "Fundamental Purist" algorithm designed for quarterly investors:
 - **6 Months**: Valuation/Growth focus (PEG, P/E, SMA200, Earnings Growth)
 - **12 Months**: Quality/Fundamental focus (Margins, Debt, 52W Range, Dividends)
 
-**Result**: Score 0-100 with ratings (Strong Buy ≥80 / Buy ≥65 / Hold ≥45 / Sell <45).
+**Result**: Score 0-100 with ratings (Strong Buy ≥85 / Buy ≥70 / Hold ≥50 / Sell <50).
 
 ## 4. Projections Tab (Monte Carlo Engine)
 - **Scenario Cards**: Bear (P10), Base (P50), Bull (P90) price targets displayed at top

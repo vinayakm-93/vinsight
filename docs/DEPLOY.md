@@ -42,7 +42,7 @@ Store sensitive keys in Google Secret Manager:
 # Use our helper script to upload local .env vars
 python3 scripts/migrate_secrets.py
 ```
-*Required Secrets:* `DB_PASS`, `JWT_SECRET_KEY`, `GROQ_API_KEY`, `FINNHUB_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `API_NINJAS_KEY`, `MAIL_PASSWORD`.
+*Required Secrets:* `DB_USER`, `DB_PASS`, `JWT_SECRET_KEY`, `GROQ_API_KEY`, `FINNHUB_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `API_NINJAS_KEY`, `MAIL_PASSWORD`.
 
 ### 3. Initialize Schema
 Run the initialization script locally (connected via Proxy) or via a one-off Cloud Run Job task to create tables.
