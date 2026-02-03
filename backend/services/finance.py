@@ -5,6 +5,7 @@ from cachetools import cached, TTLCache
 import concurrent.futures
 import time
 import requests
+from typing import Optional
 
 from services.disk_cache import stock_info_cache, price_cache, analysis_cache, holders_cache
 from services.finnhub_insider import is_available
