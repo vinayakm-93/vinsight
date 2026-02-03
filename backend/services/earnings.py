@@ -108,35 +108,6 @@ def analyze_earnings(ticker: str, db: Session):
     # Fetch latest transcript metadata from Data API
     data_pkg = get_transcript(ticker)
     
-    # --- MOCK DATA FALLBACK (For Dev/Demo since API is Premium only) ---
-    if (not data_pkg or not data_pkg.get('transcript')) and ticker.upper() == 'AAPL':
-        # Hardcoded mock for demonstration
-        print("DEBUG: Using MOCK transcript for AAPL")
-        transcript = """
-        Operator: Good day, and welcome to the Apple Inc. Fourth Quarter Fiscal Year 2024 Earnings Conference Call.
-        
-        Tim Cook: Good afternoon. Today Apple is reporting revenue of $89.5 billion for the September quarter, an iPhone revenue record. We achieved an all-time revenue record in Services. We now have our strongest lineup of products ever heading into the holiday season, including the iPhone 15 lineup and our first carbon neutral products. We are investing heavily in generative AI and see it as a core technology for our future products.
-        
-        Luca Maestri: Revenue was down 1% from last year. Foreign exchange had a negative impact. Gross margin was 45.2%, a record level. We returned over $25 billion to shareholders.
-        
-        Q&A Session
-        
-        Analyst: Can you talk about the demand in China? 
-        Tim Cook: We had a record quarter in China. We are seeing strong upgrades.
-        
-        Analyst: What about the risks with the Google antitrust trial affecting your Services revenue?
-        Luca Maestri: We believe our licensing arrangements are standard. We cannot speculate on legal outcomes, but Services growth remains very robust at 16%.
-        
-        Analyst: Are you seeing margin compression in hardware?
-        Luca Maestri: Actually, commodities are favorable. The main headwind is FX. We expect margins to sustain between 45-46%.
-        """
-        data_pkg = {
-            "transcript": transcript,
-            "quarter": "4",
-            "year": "2024",
-            "date": datetime.now().strftime("%Y-%m-%d")
-        }
-
     if not data_pkg or not data_pkg.get('transcript'):
         if cached_analysis:
              return {

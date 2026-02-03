@@ -12,7 +12,6 @@
 13: ### 🎨 UI: Earnings Dashboard v2.0
 14: - **Side-by-Side Analysis**: Redesigned the "Earnings" tab with a dual-card layout comparing management's pitch against historical Q&A data.
 15: - **Verdict Header**: Added a high-visibility Analyst Verdict card with sentiment-aware color coding.
-16: - **Mock Fallback Engine**: Implemented an automatic demo-mode fallback for AAPL to demonstrate the UI when API limits are hit.
 17: 
 18: ### 🔧 Backend & Performance
 19: - **Groq Llama 3.3 Integration**: Migrated earnings analysis to Llama 3.3 (70B) on Groq for sub-2s processing times.
