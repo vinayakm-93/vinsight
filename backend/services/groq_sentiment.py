@@ -365,6 +365,8 @@ Output EXACT JSON:
             rating = score_data.get('rating', 'Neutral')
             q_score = score_data.get('fundamentals_score', 0) # Mapped to Quality
             t_score = score_data.get('timing_score', 0) # Newly passed key
+            modifications = score_data.get('modifications', [])
+            missing_data = score_data.get('missing_data', [])
             
             # Format breakdown items for context
             breakdown_list = score_data.get('breakdown', [])
@@ -385,6 +387,10 @@ Output EXACT JSON:
             - Quality Score (Fundamentals): {q_score}/100 (Weight: 70%)
             - Timing Score (Technicals): {t_score}/100 (Weight: 30%)
             
+            CRITICAL ALERTS (Must Address if present):
+            - Risk Factors/Vetos: {', '.join(modifications) if modifications else 'None'}
+            - MISSING DATA (Score=0 for these): {', '.join(missing_data) if missing_data else 'None'}
+            
             KEY FACTOR BREAKDOWN:
             {breakdown_str}
             
@@ -394,16 +400,17 @@ Output EXACT JSON:
             - Long-Term (Valuation/Growth): {', '.join(long_term)}
             
             OUTPUT REQUIREMENTS (JSON ONLY):
-            1. "executive_summary": 2 decisive sentences. State the thesis clearly. Be cynical if valuation is high. Be aggressive if widespread fear but good fundamentals.
+            1. "executive_summary": 2 decisive sentences. State the thesis clearly. If data is missing or risks are present, Mention them as caveats.
             2. "factor_analysis": A dictionary with keys "quality" and "timing".
-               - "quality": 1 sentence analyzing valuation, margins, or solvency.
+               - "quality": 1 sentence analyzing valuation, margins, or solvency. Mention any missing fundamental data if relevant.
                - "timing": 1 sentence analyzing trend, momentum, or volume.
-            3. "risk_factors": A list of 2-3 specific risks (e.g. "Margin compression", "Overbought RSI", "Sector rotation"). bullet points style strings.
+            3. "risk_factors": A list of 2-3 specific risks (e.g. "Margin compression", "Data Gaps", "Sector rotation"). bullet points style strings.
             4. "outlook": A dictionary with keys "3m" (Tactical), "6m" (Catalyst), "12m" (Strategic). Max 10 words each.
             
             TONE:
             - Professional, sophisticated, decisive.
             - NO "I think" or "Basic". use terms like "multiple expansion", "margin contraction", "capitulation", "technically damaged".
+            - If Critical Alerts exist, be cautious/skeptical.
             
             Respond ONLY with the RAW JSON object.
             """

@@ -1,4 +1,25 @@
 # Changelog
+3: 
+4: ## [v9.1.0] - Senior Analyst Earnings AI (2026-02-02)
+5: 
+6: ### 🚀 Major Feature: Institutional Earnings Intelligence
+7: - **Senior Analyst Persona**: Re-engineered the earnings AI to act as a **Senior Wall Street Analyst (CFA)**. 
+8: - **Strategy vs. Truth Split**: Transcripts are now analyzed in two distinct segments:
+9:     - **Prepared Remarks**: Captures the CEO's scripted strategic narrative and growth pitch.
+10:     - **Q&A Session**: Analyzes unscripted answers to identify hidden risks and analyst "revelations."
+11: - **Retail-Ready Verdict**: Adds a decisive **Buy | Hold | Sell** rating and a one-sentence reasoning for instant retail investor clarity.
+12: 
+13: ### 🎨 UI: Earnings Dashboard v2.0
+14: - **Side-by-Side Analysis**: Redesigned the "Earnings" tab with a dual-card layout comparing management's pitch against historical Q&A data.
+15: - **Verdict Header**: Added a high-visibility Analyst Verdict card with sentiment-aware color coding.
+16: - **Mock Fallback Engine**: Implemented an automatic demo-mode fallback for AAPL to demonstrate the UI when API limits are hit.
+17: 
+18: ### 🔧 Backend & Performance
+19: - **Groq Llama 3.3 Integration**: Migrated earnings analysis to Llama 3.3 (70B) on Groq for sub-2s processing times.
+20: - **Structured JSON Schema**: Enforced a strict JSON output format for reliable UI rendering.
+21: - **Precision Error Mapping**: Updated UI to distinguish between "No Data" and "Premium Access Required" (API Ninjas).
+22: 
+23: ---
 
 ## [v9.0.0] - Dynamic Benchmarking & Unified UI (2026-02-02)
 
@@ -92,6 +113,11 @@
 
 ### 🏛️ Institutional Holdings (Smart Money)
 - **Unified Card**: Merged "Smart Money" signal, Net Change, and QoQ Reporting Period into a single, high-level summary card.
+- **Spin Detection**: Automated detection of "positive framing" on negative financial news.
+- **Senior Analyst Earnings AI**:
+    - **Institutional Breakdown**: Separates the "Management Pitch" (Prepared Remarks) from the "Analyst Interrogation" (Q&A).
+    - **CFA Persona**: AI acts as a Senior Wall Street Analyst translating complex calls for retail investors.
+    - **Verdict Engine**: Explicit Buy/Hold/Sell rating based on transcript tone and unscripted revelations.
 - **Reporting Period**: Added dynamic detection of the latest reporting quarter (e.g., "Q4 2025 Filings").
 
 ### 💼 Insider Activity (90-Day Discretionary)

@@ -1962,62 +1962,135 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 )}
 
                 {activeTab === 'earnings' && (
-                    <div>
+                    <div className="space-y-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <FileText className="text-orange-500" size={20} /> Earnings Call Summary <InfoTooltip text="AI-generated summary of the latest earnings call transcript." />
+                                <Zap className="text-yellow-500" size={20} /> AI Earnings Analysis
+                                <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using Llama 3.3. Separates management's prepared remarks from the Q&A session." />
                             </h3>
-                            {earningsData?.metadata && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400 font-mono bg-orange-50 dark:bg-orange-900/10 px-3 py-1.5 rounded-lg border border-orange-100 dark:border-orange-800/30 flex items-center gap-2">
-                                    <span className="font-bold text-gray-900 dark:text-white">Q{earningsData.metadata.quarter || '?'} {earningsData.metadata.year || ''}</span>
-                                </div>
-                            )}
                         </div>
 
                         {loadingEarnings ? (
-                            <div className="flex items-center gap-2 text-gray-500 italic text-sm py-4">
-                                <Loader className="animate-spin" size={16} /> Analyzing transcript (this may take a few seconds)...
+                            <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
+                                <Loader className="animate-spin mb-4 text-yellow-500" size={32} />
+                                <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
+                                <p className="text-xs mt-2 text-gray-400">Fetching from API Ninjas • Analyzing with Groq (Llama 3)</p>
                             </div>
                         ) : earningsData?.error ? (
-                            <div className="text-red-500 text-sm p-4 bg-red-50 dark:bg-red-900/10 rounded-lg">
-                                {earningsData.error}
-                            </div>
-                        ) : earningsData?.summary ? (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="p-4 rounded-xl border bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/30">
-                                    <h4 className="font-bold text-sm text-emerald-800 dark:text-emerald-400 mb-2 flex items-center gap-2">
-                                        <TrendingUp size={16} /> The Good (Bullish)
-                                    </h4>
-                                    <ul className="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 list-disc list-inside">
-                                        {earningsData.summary.bullish?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li>No highlights.</li>}
-                                    </ul>
-                                </div>
-                                <div className="p-4 rounded-xl border bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-800/30">
-                                    <h4 className="font-bold text-sm text-red-800 dark:text-red-400 mb-2 flex items-center gap-2">
-                                        <TrendingDown size={16} /> The Bad (Bearish)
-                                    </h4>
-                                    <ul className="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 list-disc list-inside">
-                                        {earningsData.summary.bearish?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li>No highlights.</li>}
-                                    </ul>
-                                </div>
-                                <div className="p-4 rounded-xl border bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-800/30">
-                                    <h4 className="font-bold text-sm text-yellow-800 dark:text-yellow-400 mb-2 flex items-center gap-2">
-                                        <AlertTriangle size={16} /> The Ugly (Risks)
-                                    </h4>
-                                    <ul className="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 list-disc list-inside">
-                                        {earningsData.summary.risks?.map((s: string, i: number) => (
-                                            <li key={i}>{s}</li>
-                                        )) || <li>No highlights.</li>}
-                                    </ul>
+                            <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800 text-center">
+                                <AlertTriangle className="text-red-500 mb-4" size={40} />
+                                <h4 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Analysis Failed</h4>
+                                <p className="text-gray-700 dark:text-gray-300 mb-4 max-w-lg">
+                                    {earningsData.error}
+                                </p>
+                                <div className="text-xs text-gray-500 bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 font-mono">
+                                    Error Code: PREMIUM_ACCESS_REQUIRED
                                 </div>
                             </div>
+                        ) : earningsData && earningsData.summary ? (
+                            <div className="space-y-6">
+                                {/* Verdict Header */}
+                                {earningsData.summary.verdict && (
+                                    <div className={`p-6 rounded-2xl border ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' :
+                                        earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800' :
+                                            'bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700'
+                                        }`}>
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Analyst Verdict</span>
+                                                    <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' :
+                                                        earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
+                                                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
+                                                        }`}>
+                                                        {earningsData.summary.verdict.rating}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xl font-medium text-gray-900 dark:text-white leading-relaxed">
+                                                    "{earningsData.summary.verdict.reasoning}"
+                                                </p>
+                                            </div>
+                                            <div className="shrink-0 text-right text-xs text-gray-400">
+                                                <div className="font-mono">FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}</div>
+                                                <div>Analyzed {new Date(earningsData.metadata?.last_api_check).toLocaleDateString()}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Left: Prepared Remarks (Management Pitch) */}
+                                    {earningsData.summary.prepared_remarks && (
+                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-blue-100 dark:border-blue-900/30 overflow-hidden shadow-sm">
+                                            <div className="px-5 py-4 border-b border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 flex justify-between items-center">
+                                                <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                                    <FileText size={18} className="text-blue-500" /> Prepared Remarks
+                                                </h4>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.prepared_remarks.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
+                                                    earningsData.summary.prepared_remarks.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                    {earningsData.summary.prepared_remarks.sentiment}
+                                                </span>
+                                            </div>
+                                            <div className="p-5">
+                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
+                                                    "{earningsData.summary.prepared_remarks.summary}"
+                                                </p>
+                                                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Key Strategic Points</h5>
+                                                <ul className="space-y-3">
+                                                    {earningsData.summary.prepared_remarks.key_points?.map((point: string, i: number) => (
+                                                        <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
+                                                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></div>
+                                                            <span className="leading-snug">{point}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Right: Q&A Session (The Truth) */}
+                                    {earningsData.summary.qa_session && (
+                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-purple-100 dark:border-purple-900/30 overflow-hidden shadow-sm">
+                                            <div className="px-5 py-4 border-b border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 flex justify-between items-center">
+                                                <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                                    <Info size={18} className="text-purple-500" /> Q&A Session
+                                                </h4>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.qa_session.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
+                                                    earningsData.summary.qa_session.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                    {earningsData.summary.qa_session.sentiment}
+                                                </span>
+                                            </div>
+                                            <div className="p-5">
+                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
+                                                    "{earningsData.summary.qa_session.summary}"
+                                                </p>
+                                                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Analyst Revelations</h5>
+                                                <ul className="space-y-3">
+                                                    {earningsData.summary.qa_session.revelations?.map((point: string, i: number) => (
+                                                        <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
+                                                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></div>
+                                                            <span className="leading-snug">{point}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         ) : (
-                            <div className="text-gray-500 italic text-sm">No earnings data available.</div>
+                            <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                <Zap className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
+                                <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No Earnings Analysis</h4>
+                                <p className="text-gray-500 text-center max-w-md mb-6">
+                                    We couldn't find a recent earnings transcript for {ticker}.
+                                    <br />Try a highly liquid stock like AAPL, MSFT, or TSLA.
+                                </p>
+                            </div>
                         )}
                     </div>
                 )}

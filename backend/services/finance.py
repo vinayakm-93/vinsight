@@ -193,7 +193,7 @@ def get_stock_history(ticker: str, period="1mo", interval="1d"):
         raise e
 
 @cached(cache_peg)
-def get_peg_ratio(ticker: str) -> float:
+def get_peg_ratio(ticker: str) -> Optional[float]:
     """
     Fetch PEG ratio (Price/Earnings to Growth) from yfinance.
     Returns 0 if not available.
@@ -206,20 +206,27 @@ def get_peg_ratio(ticker: str) -> float:
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
-        peg = info.get('pegRatio', 0) or info.get('trailingPegRatio', 0) or 0
+        peg = info.get('pegRatio') or info.get('trailingPegRatio')
         
         # Sometimes yfinance returns negative or very large PEG ratios (data issues)
         # Filter out unreasonable values
-        if isinstance(peg, dict):
-            return 0
+        if peg is None or isinstance(peg, dict) or peg < 0 or peg > 10:
+            # Fallback: Calculate manually if P/E and Growth are available
+            # PEG = P/E / (Annual Growth Rate * 100)
+            pe = info.get('trailingPE')
+            growth = info.get('earningsQuarterlyGrowth') # Approximation using recent growth
             
-        if peg < 0 or peg > 10:
-            return 0
+            if pe and growth and growth > 0:
+                manual_peg = pe / (growth * 100)
+                if manual_peg > 0 and manual_peg < 10:
+                    return manual_peg
+            
+            return None
         
         return peg
     except Exception as e:
         print(f"Error fetching PEG ratio for {ticker}: {e}")
-        return 0
+        return None
 
 
 def get_news(ticker: str):

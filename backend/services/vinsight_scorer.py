@@ -11,7 +11,7 @@ class Fundamentals:
     # 1. Valuation
     pe_ratio: float
     forward_pe: float
-    peg_ratio: float
+    peg_ratio: Optional[float]
     fcf_yield: float
     
     # 2. Profitability
@@ -25,14 +25,14 @@ class Fundamentals:
     
     # 4. Solvency / Health
     debt_to_equity: float
-    debt_to_ebitda: float
+    debt_to_ebitda: Optional[float]
     interest_coverage: float
     current_ratio: float
-    altman_z_score: float
+    altman_z_score: Optional[float]
     
     # 5. Growth
     earnings_growth_qoq: float
-    revenue_growth_3y: float
+    revenue_growth_3y: Optional[float]
     
     # 6. Conviction / Other
     inst_ownership: float
@@ -82,6 +82,7 @@ class ScoreResult:
     verdict_narrative: str
     breakdown: dict
     modifications: List[str]
+    missing_data: List[str] # New field
     details: Dict # Structured breakdown for UI
 
 # --- Sector Benchmarks Loader ---
@@ -110,6 +111,23 @@ class VinSightScorer:
     def __init__(self):
         self.sector_benchmarks, self.defaults, self.market_ref = _load_sector_benchmarks()
         self.details = []
+        self._ensure_log_dir()
+
+    def _ensure_log_dir(self):
+        log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_file = os.path.join(log_dir, 'missing_data.csv')
+        if not os.path.exists(self.log_file):
+            with open(self.log_file, 'w') as f:
+                f.write("timestamp,ticker,missing_field\n")
+
+    def _log_missing_data(self, ticker: str, field_name: str):
+        try:
+            from datetime import datetime
+            with open(self.log_file, 'a') as f:
+                f.write(f"{datetime.now().isoformat()},{ticker},{field_name}\n")
+        except Exception as e:
+            logging.error(f"Failed to log missing data: {e}")
 
     def evaluate(self, stock: StockData) -> ScoreResult:
         self.details = [] # Reset details log
@@ -117,6 +135,21 @@ class VinSightScorer:
         # 1. Map Raw Yahoo Sector to 1 of 10 Themes
         theme = self._map_sector_to_theme(stock.fundamentals.sector_name, stock.ticker)
         stock.fundamentals.sector_name = theme 
+        
+        missing_fields = []
+        # Check for missing critical data
+        if stock.fundamentals.peg_ratio is None:
+            self._log_missing_data(stock.ticker, "peg_ratio")
+            missing_fields.append("PEG Ratio")
+        if stock.fundamentals.debt_to_ebitda is None:
+            self._log_missing_data(stock.ticker, "debt_to_ebitda")
+            missing_fields.append("Debt/EBITDA")
+        if stock.fundamentals.altman_z_score is None:
+             self._log_missing_data(stock.ticker, "altman_z_score")
+             missing_fields.append("Altman Z-Score")
+        if stock.fundamentals.revenue_growth_3y is None:
+             self._log_missing_data(stock.ticker, "revenue_growth_3y")
+             missing_fields.append("Revenue Growth (3y)")
         
         # --- Phase 1: Quality Score (70% Weight) ---
         # Focus: Solvency, Efficiency, Valuation
@@ -138,7 +171,7 @@ class VinSightScorer:
 
         # 2. Valuation Veto
         # If PEG > 4.0, Max Quality Score = 50
-        if stock.fundamentals.peg_ratio > 4.0:
+        if stock.fundamentals.peg_ratio is not None and stock.fundamentals.peg_ratio > 4.0:
             if quality_score > 50:
                 quality_score = 50
                 modifications.append("VALUATION VETO: PEG > 4.0 cap applied")
@@ -170,7 +203,7 @@ class VinSightScorer:
         rating = self._get_rating(final_score)
         narrative = self._generate_narrative(stock.ticker, final_score, quality_score, timing_score, modifications)
         
-        return ScoreResult(final_score, rating, narrative, full_breakdown, modifications, self.details)
+        return ScoreResult(final_score, rating, narrative, full_breakdown, modifications, missing_fields, self.details)
 
     def _score_quality(self, f: Fundamentals) -> tuple[float, Dict]:
         """
@@ -514,13 +547,20 @@ def run_test_case():
             debt_to_equity=0.5,
             current_ratio=2.0,
             earnings_growth_qoq=0.15,
+            revenue_growth_3y=0.12, # Added
             inst_ownership=80.0,
             fcf_yield=0.04,
             eps_surprise_pct=0.10,
-            sector_name="Technology" # Should map to Mature Tech or High Growth Tech
+            sector_name="Technology",
+            gross_margin_trend="Rising", # Added
+            debt_to_ebitda=2.5, # Added
+            interest_coverage=8.0, # Added
+            altman_z_score=3.5 # Added
         ),
         technicals=Technicals(
             price=150.0, sma50=145.0, sma200=140.0, rsi=55.0,
+            relative_volume=1.2, # Added
+            distance_to_high=0.05, # Added
             momentum_label="Bullish", volume_trend="Rising"
         ),
         sentiment=Sentiment("Positive", 0.35, 10),

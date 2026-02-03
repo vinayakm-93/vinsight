@@ -22,7 +22,7 @@ graph TD
     Proxy -->|Forward + Cookies| BE
     BE -->|SQLAlchemy| DB
     BE -->|Sentiment| AI1
-    BE -->|Earnings| AI2
+    BE -->|Earnings| AI1
     BE -->|News + Sentiment| AV
     BE -->|Stock Data| Data
     Worker -->|Check Price Targets| BE

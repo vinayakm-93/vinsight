@@ -108,6 +108,35 @@ def analyze_earnings(ticker: str, db: Session):
     # Fetch latest transcript metadata from Data API
     data_pkg = get_transcript(ticker)
     
+    # --- MOCK DATA FALLBACK (For Dev/Demo since API is Premium only) ---
+    if (not data_pkg or not data_pkg.get('transcript')) and ticker.upper() == 'AAPL':
+        # Hardcoded mock for demonstration
+        print("DEBUG: Using MOCK transcript for AAPL")
+        transcript = """
+        Operator: Good day, and welcome to the Apple Inc. Fourth Quarter Fiscal Year 2024 Earnings Conference Call.
+        
+        Tim Cook: Good afternoon. Today Apple is reporting revenue of $89.5 billion for the September quarter, an iPhone revenue record. We achieved an all-time revenue record in Services. We now have our strongest lineup of products ever heading into the holiday season, including the iPhone 15 lineup and our first carbon neutral products. We are investing heavily in generative AI and see it as a core technology for our future products.
+        
+        Luca Maestri: Revenue was down 1% from last year. Foreign exchange had a negative impact. Gross margin was 45.2%, a record level. We returned over $25 billion to shareholders.
+        
+        Q&A Session
+        
+        Analyst: Can you talk about the demand in China? 
+        Tim Cook: We had a record quarter in China. We are seeing strong upgrades.
+        
+        Analyst: What about the risks with the Google antitrust trial affecting your Services revenue?
+        Luca Maestri: We believe our licensing arrangements are standard. We cannot speculate on legal outcomes, but Services growth remains very robust at 16%.
+        
+        Analyst: Are you seeing margin compression in hardware?
+        Luca Maestri: Actually, commodities are favorable. The main headwind is FX. We expect margins to sustain between 45-46%.
+        """
+        data_pkg = {
+            "transcript": transcript,
+            "quarter": "4",
+            "year": "2024",
+            "date": datetime.now().strftime("%Y-%m-%d")
+        }
+
     if not data_pkg or not data_pkg.get('transcript'):
         if cached_analysis:
              return {
@@ -118,7 +147,7 @@ def analyze_earnings(ticker: str, db: Session):
                     "last_api_check": cached_analysis.last_api_check.isoformat()
                 }
             }
-        return {"error": "Could not retrieve transcript (or ticker not supported)"}
+        return {"error": "Could not retrieve transcript (Premium Access Required)"}
 
     # Compare with Cache
     transcript = data_pkg['transcript']
@@ -144,13 +173,35 @@ def analyze_earnings(ticker: str, db: Session):
         transcript = transcript[:50000] + "...(truncated)"
     
     prompt = f"""
-    You are a hedge fund analyst. Read this earnings call transcript for {ticker}.
-    Output strictly VALID JSON with 3 keys: 
-    "bullish": [list of strings currently mentioned],
-    "bearish": [list of strings currently mentioned],
-    "risks": [list of strings currently mentioned]
-    
-    Do not use markdown formatting (no ```json). Just the raw JSON object.
+    Role: You are a Senior Wall Street Analyst (CFA) explaining results to a Retail Investor.
+    Task: Analyze this earnings call transcript for {ticker}.
+
+    CONTEXT:
+    - The "Prepared Remarks" are the scripted, optimistic pitch from the CEO/CFO.
+    - The "Q&A Session" is where the real truth comes out (analysts drilling for weakness).
+
+    INSTRUCTIONS:
+    1.  **Separate your analysis** into two distinct sections: "Prepared Remarks" and "Q&A".
+    2.  **Persona**: Be sophisticated but accessible. Use clean, plain English. Explain *why* a metric matters if it's technical.
+    3.  **Tone**: Objective, slightly skeptical (don't just believe the CEO hype), focused on *implication*.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {{
+      "prepared_remarks": {{
+        "sentiment": "Bullish|Bearish|Neutral",
+        "summary": "2-3 sentences capturing the main strategic narrative.",
+        "key_points": ["Bullet 1 (Strategy)", "Bullet 2 (Growth)", "Bullet 3 (Guidance)"]
+      }},
+      "qa_session": {{
+        "sentiment": "Bullish|Bearish|Neutral",
+        "summary": "2-3 sentences on the tone of the questions and management's ability to answer.",
+        "revelations": ["Bullet 1 (A hidden risk exposed)", "Bullet 2 (Clarification on guidance)", "Bullet 3"]
+      }},
+      "verdict": {{
+        "rating": "Buy|Hold|Sell",
+        "reasoning": "One final decisive sentence for the retail investor."
+      }}
+    }}
     
     Transcript:
     {transcript}
@@ -160,10 +211,10 @@ def analyze_earnings(ticker: str, db: Session):
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a financial analyst helper outputting JSON."},
+                {"role": "system", "content": "You are a Senior CFA Analyst. Output valid JSON only."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1,
+            temperature=0.2, # Slightly higher for "persona" but still low for JSON
             response_format={"type": "json_object"}
         )
         

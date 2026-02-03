@@ -409,7 +409,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             forward_pe=forward_pe,
             peg_ratio=peg,
             earnings_growth_qoq=earnings_growth,
-            revenue_growth_3y=advanced_metrics.get('revenue_growth_3y_cagr', 0.0), # NEW
+            revenue_growth_3y=advanced_metrics.get('revenue_growth_3y_cagr'), # None if missing
             sector_name=active_sector,
             profit_margin=profit_margin,
             operating_margin=operating_margin,
@@ -417,10 +417,10 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             roe=roe,
             roa=roa,
             debt_to_equity=debt_to_equity,
-            debt_to_ebitda=advanced_metrics.get('debt_to_ebitda', 0.0), # NEW
-            interest_coverage=advanced_metrics.get('interest_coverage', 100.0), # NEW
+            debt_to_ebitda=advanced_metrics.get('debt_to_ebitda'), # None if missing
+            interest_coverage=advanced_metrics.get('interest_coverage', 100.0), # 100 is safe default (no debt mood)
             current_ratio=current_ratio,
-            altman_z_score=advanced_metrics.get('altman_z_score', 3.0), # NEW
+            altman_z_score=advanced_metrics.get('altman_z_score'), # None if missing
             fcf_yield=fcf_yield,
             eps_surprise_pct=eps_surprise
         )
@@ -640,7 +640,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 fund_explanation.append(f"P/E of {pe:.1f} is below sector median ({sector_pe:.0f})")
             else:
                 fund_explanation.append(f"P/E of {pe:.1f} exceeds sector median ({sector_pe:.0f})")
-        if peg > 0:
+        if peg is not None and peg > 0:
             if peg < 1.0:
                 fund_explanation.append(f"PEG of {peg:.2f} suggests undervaluation")
             elif peg > 1.5:
@@ -760,7 +760,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                     'short_term': short_term_outlook,
                     'medium_term': medium_term_outlook,
                     'long_term': long_term_outlook
-                }
+                },
+                'modifications': score_result.modifications,
+                'missing_data': score_result.missing_data
             }
             ai_summary = groq.generate_score_summary(ticker, score_data_for_ai)
         except Exception as e:
@@ -774,6 +776,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             "justification": ai_summary,  # Use AI-generated summary
             "raw_breakdown": score_result.breakdown,
             "modifications": score_result.modifications,
+            "missing_data": score_result.missing_data,
             "score_explanation": score_explanation,
             "details": score_result.details, # New structured breakdown for UI
             "outlook_context": score_data_for_ai['outlook_context'] # Expose deterministic outlooks

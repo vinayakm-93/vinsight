@@ -12,6 +12,10 @@
     - **MSPR Tracking**: Monthly Share Purchase Ratio from SEC filings.
     - **10b5-1 Filter**: Distinguishes planned trades from discretionary executive action.
 - **Spin Detection**: Automated detection of "positive framing" on negative financial news.
+- **Senior Analyst Earnings AI**:
+    - **Institutional Breakdown**: Separates the "Management Pitch" (Prepared Remarks) from the "Analyst Interrogation" (Q&A).
+    - **CFA Persona**: AI acts as a Senior Wall Street Analyst translating complex calls for retail investors.
+    - **Verdict Engine**: Explicit Buy/Hold/Sell rating based on transcript tone and unscripted revelations.
 
 ## 3. VinSight Score v9.0
 Institutional-grade scoring with adaptive sector intelligence.
