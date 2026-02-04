@@ -785,9 +785,21 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 gap-6">
-                <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl h-96 animate-pulse flex items-center justify-center transition-colors duration-300">
-                    <span className="text-blue-500 font-bold">Loading Data...</span>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in duration-500">
+                <div className="relative">
+                    <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse"></div>
+                    <div className="relative bg-white dark:bg-gray-800 p-6 rounded-full shadow-lg border border-gray-100 dark:border-gray-700">
+                        <Loader className="animate-spin text-blue-500" size={40} />
+                    </div>
+                </div>
+                <div className="text-center space-y-2">
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Initializing VinSight Engine...</h3>
+                    <div className="text-gray-500 dark:text-gray-400 text-sm max-w-sm mx-auto">
+                        <p>Spinning up cloud instances and fetching real-time data.</p>
+                        <p className="mt-2 text-blue-500 font-medium bg-blue-50 dark:bg-blue-900/20 py-1 px-3 rounded-full inline-block">
+                            First load may take ~5-10 seconds
+                        </p>
+                    </div>
                 </div>
             </div>
         );
