@@ -1,6 +1,29 @@
 # Changelog
 3: 
-4: ## [v9.1.0] - Senior Analyst Earnings AI (2026-02-02)
+4: ## [v9.1.0] - Insider Intelligence & DIY Earnings (2026-02-03)
+
+### 🚀 Major Feature: Insider "Cluster Selling" Detection
+- **Heuristic Logic**: Backend now identifies **coordinated selling** patterns.
+- **Cluster Definition**: 3+ unique executives selling within a **14-day sliding window**.
+- **Visual Alert**:
+    - 🔴 **Cluster Selling**: 3+ sells within 14 days (Score: -8, Red Badge).
+    - 🟡 **Selling**: Net selling pressure without clustering (Score: -4, Yellow Badge).
+    - 🟢 **Buying**: Net buying pressure (Score: +6, Green Badge).
+
+### ⚡ Feature: DIY Earnings Scraper
+- **Source Independence**: Removed dependency on paid "API Ninjas" for transcripts.
+- **Search Engine**: Uses **Serper API** (primary) + DuckDuckGo (fallback) to find transcript URLs.
+- **Scraper**: Custom `BeautifulSoup` engine extracts "Management Remarks" and "Q&A" from Motley Fool articles.
+- **Perpetual Caching**: Scraped transcripts are saved in DB forever to minimize external requests.
+
+### 🎨 UI Improvements
+- **Clickable Logo**: "Vinsight" logo now redirects to Home (`/`).
+- **Heading Update**: Earnings tab header renamed to **"Earnings Call AI"**.
+- **Label Refinement**: Insider selling label now specifies "Sell by X insiders".
+
+---
+
+## [v9.0.1] - Senior Analyst Earnings AI (2026-02-02)
 5: 
 6: ### 🚀 Major Feature: Institutional Earnings Intelligence
 7: - **Senior Analyst Persona**: Re-engineered the earnings AI to act as a **Senior Wall Street Analyst (CFA)**. 
@@ -17,6 +40,7 @@
 19: - **Groq Llama 3.3 Integration**: Migrated earnings analysis to Llama 3.3 (70B) on Groq for sub-2s processing times.
 20: - **Structured JSON Schema**: Enforced a strict JSON output format for reliable UI rendering.
 21: - **Precision Error Mapping**: Updated UI to distinguish between "No Data" and "Premium Access Required" (API Ninjas).
+- **Rolled Back**: Removed Financial Modeling Prep (FMP) integration as their "Free" tier now blocks all transcript access (Legacy/Restricted). Reverted to API Ninjas logic (Premium-only).
 22: 
 23: ---
 

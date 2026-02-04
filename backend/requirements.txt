@@ -30,6 +30,8 @@ groq
 
 # Tools
 beautifulsoup4
+duckduckgo-search
+fake-useragent
 apscheduler
 cachetools
 jinja2

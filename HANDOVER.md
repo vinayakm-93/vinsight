@@ -35,6 +35,9 @@ VinSight is an institutional-grade stock analysis platform designed for serious 
 *   **Backend**: FastAPI (Python 3.11), SQLAlchemy, NumPy (Vectorized MC simulations).
 *   **AI Core**: Groq (Llama 3.3 70B), Gemini 1.5 Pro.
 *   **Data Sources**: yfinance (Technical/Consensus), Finnhub (Smart Money/News), Alpha Vantage (Global Financials).
+*   **Earnings Intelligence API**: 🛑 **Blocked on Free Tier**.
+    *   API Ninjas & FMP both require Premium for transcripts.
+    *   **Workaround**: Manual transcript paste feature (Future Work).
 
 ### Core Logic: `vinsight_scorer.py`
 The heart of the app is the `VinSightScorer` class.

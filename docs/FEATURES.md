@@ -14,6 +14,7 @@
 - **Spin Detection**: Automated detection of "positive framing" on negative financial news.
 - **Senior Analyst Earnings AI**:
     - **Institutional Breakdown**: Separates the "Management Pitch" (Prepared Remarks) from the "Analyst Interrogation" (Q&A).
+    - **DIY Scraper**: Custom-built multi-source fetching engine (Serper/DuckDuckGo/Google) targeting [Motley Fool](https://fool.com) transcripts.
     - **CFA Persona**: AI acts as a Senior Wall Street Analyst translating complex calls for retail investors.
     - **Verdict Engine**: Explicit Buy/Hold/Sell rating based on transcript tone and unscripted revelations.
 

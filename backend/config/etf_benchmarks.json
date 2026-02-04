@@ -1,0 +1,18 @@
+{
+    "defaults": {
+        "expense_ratio_cheap": 0.0010,
+        "expense_ratio_expensive": 0.0075,
+        "aum_min_liquid": 1000000000,
+        "concentration_safe": 0.40
+    },
+    "sectors": {
+        "Index Fund": {
+            "expense_ratio_cheap": 0.0005,
+            "concentration_safe": 0.30
+        },
+        "Thematic": {
+            "expense_ratio_cheap": 0.0050,
+            "concentration_safe": 0.60
+        }
+    }
+}

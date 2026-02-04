@@ -21,8 +21,8 @@ graph TD
     FE -->|/api/* requests| Proxy
     Proxy -->|Forward + Cookies| BE
     BE -->|SQLAlchemy| DB
-    BE -->|Sentiment| AI1
-    BE -->|Earnings| AI1
+    BE -->|Sentiment + Analysis| AI1
+    BE -->|Search & Scrape| Web[Serper/DDG + MotleyFool]
     BE -->|News + Sentiment| AV
     BE -->|Stock Data| Data
     Worker -->|Check Price Targets| BE

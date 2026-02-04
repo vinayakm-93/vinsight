@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
-import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List } from 'lucide-react'; // Renamed icon
+import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List, ExternalLink } from 'lucide-react'; // Renamed icon
 import { Shield } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
@@ -933,8 +933,8 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     </div>
 
                     <div className="flex-1 relative h-[500px]">
-                        <div className="absolute top-4 left-4 z-10 opacity-30 pointer-events-none">
-                            <span className="text-5xl font-bold tracking-tighter text-gray-300 dark:text-gray-700 select-none">Vinsight</span>
+                        <div className="absolute top-4 left-4 z-10 opacity-30 pointer-events-auto cursor-pointer" onClick={() => window.location.href = '/'}>
+                            <span className="text-5xl font-bold tracking-tighter text-gray-300 dark:text-gray-700 select-none hover:text-gray-400 dark:hover:text-gray-600 transition-colors">Vinsight</span>
                         </div>
 
                         <div className="h-full w-full p-2 relative">
@@ -1594,12 +1594,20 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     <div className="p-3">
                                         <div className="flex items-center justify-between gap-4 mb-1">
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-1.5 rounded-lg ${institutions?.insider_signal?.score > 0 ? 'bg-emerald-500/10 text-emerald-600' : institutions?.insider_signal?.score < 0 ? 'bg-red-500/10 text-red-600' : 'bg-gray-500/10 text-gray-500'}`}>
+                                                <div className={`p-1.5 rounded-lg ${institutions?.insider_signal?.score > 0 ? 'bg-emerald-500/10 text-emerald-600' :
+                                                    institutions?.insider_signal?.score <= -8 ? 'bg-red-500/10 text-red-600' :
+                                                        institutions?.insider_signal?.score < 0 ? 'bg-amber-500/10 text-amber-600' :
+                                                            'bg-gray-500/10 text-gray-500'
+                                                    }`}>
                                                     <Activity size={16} />
                                                 </div>
                                                 <div>
                                                     <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Insider</div>
-                                                    <div className={`text-sm font-bold leading-tight ${institutions?.insider_signal?.score > 0 ? 'text-emerald-600' : institutions?.insider_signal?.score < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                    <div className={`text-sm font-bold leading-tight ${institutions?.insider_signal?.score > 0 ? 'text-emerald-600' :
+                                                        institutions?.insider_signal?.score <= -8 ? 'text-red-600' :
+                                                            institutions?.insider_signal?.score < 0 ? 'text-amber-600' :
+                                                                'text-gray-600'
+                                                        }`}>
                                                         {institutions?.insider_signal?.label || "No Active Signal"}
                                                     </div>
                                                 </div>
@@ -1965,7 +1973,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                     <div className="space-y-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Zap className="text-yellow-500" size={20} /> AI Earnings Analysis
+                                <Zap className="text-yellow-500" size={20} /> Earnings Call AI
                                 <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using Llama 3.3. Separates management's prepared remarks from the Q&A session." />
                             </h3>
                         </div>
@@ -1974,7 +1982,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
                                 <Loader className="animate-spin mb-4 text-yellow-500" size={32} />
                                 <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
-                                <p className="text-xs mt-2 text-gray-400">Fetching from API Ninjas • Analyzing with Groq (Llama 3)</p>
+                                <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Groq (Llama 3)</p>
                             </div>
                         ) : earningsData?.error ? (
                             <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800 text-center">
@@ -1984,7 +1992,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     {earningsData.error}
                                 </p>
                                 <div className="text-xs text-gray-500 bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 font-mono">
-                                    Error Code: PREMIUM_ACCESS_REQUIRED
+                                    Status: Scraper Error
                                 </div>
                             </div>
                         ) : earningsData && earningsData.summary ? (
@@ -2013,6 +2021,23 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                             <div className="shrink-0 text-right text-xs text-gray-400">
                                                 <div className="font-mono">FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}</div>
                                                 <div>Analyzed {new Date(earningsData.metadata?.last_api_check).toLocaleDateString()}</div>
+                                                {earningsData.metadata?.source && (
+                                                    <div className="text-[10px] text-blue-500 mt-1">
+                                                        {earningsData.metadata.source.includes('http') ? (
+                                                            <a
+                                                                href={earningsData.metadata.source.match(/\((https?:\/\/[^)]+)\)/)?.[1] || '#'}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="hover:underline flex items-center justify-end gap-1"
+                                                            >
+                                                                Source: Motley Fool Transcript
+                                                                <ExternalLink size={10} />
+                                                            </a>
+                                                        ) : (
+                                                            <span>Source: {earningsData.metadata.source}</span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

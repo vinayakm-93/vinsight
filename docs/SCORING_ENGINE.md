@@ -45,6 +45,22 @@ Vetos override the weighted average to cap the maximum possible score if a fatal
 2.  **Valuation Veto**: `PEG Ratio > 4.0`. Quality Score capped at **50**.
 3.  **Downtrend Veto**: `Price < SMA200` AND `Price < SMA50`. Timing Score capped at **30**.
 
+### 5. Insider Signal Logic (Smart Money)
+**Release Date:** v9.1 (Feb 2026)
+*Philosophy: "One sell is random; three sells is a signal."*
+
+We analyze **only Discretionary Trades** (excluding 10b5-1 plans/gifts) over the last 90 days:
+
+1.  **Cluster Selling (Red Alert -8 pts)**
+    *   **Trigger**: 3+ unique executives selling within any **14-day sliding window**.
+    *   *Meaning:* Coordinated exit suggests upcoming bad news or shared lack of confidence.
+2.  **Net Selling (Yellow Warning -4 pts)**
+    *   **Trigger**: More sellers than buyers (Net Flow < 0), but no 14-day cluster detected.
+    *   *Meaning:* General bearish sentiment.
+3.  **Net Buying (Green Signal +6 pts)**
+    *   **Trigger**: Net Flow > 0.
+    *   *Meaning:* Executives are accumulating shares with their own money.
+
 ---
 
 ## Evolution History

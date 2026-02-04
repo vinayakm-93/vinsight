@@ -20,7 +20,7 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 ### 1. Prerequisites
 - Python 3.10+, Node.js 20+
-- API Keys: [Groq](https://console.groq.com), [Google AI](https://aistudio.google.com), [Alpha Vantage](https://www.alphavantage.co)
+- API Keys: [Groq](https://console.groq.com), [Google AI](https://aistudio.google.com), [Alpha Vantage](https://www.alphavantage.co), [Serper](https://serper.dev)
 
 ### 2. Setup
 ```bash

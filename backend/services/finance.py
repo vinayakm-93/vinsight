@@ -468,13 +468,42 @@ def calculate_insider_signal(transactions: list) -> dict:
         else:
             summary_text = f"{len(unique_buyers)} insider(s) accumulating shares."
     # SELLING SIGNALS
-    elif len(unique_sellers) >= 3 and sell_count > buy_count:
-        label = "Cluster Selling"
-        score = -8
-        summary_text = f"Cluster of {len(unique_sellers)} executives selling."
+    # SELLING SIGNALS
+    # Cluster Selling: 3+ sells within 14 days
+    is_cluster_selling = False
+    cluster_size = 0
+    if sell_count >= 3:
+        sell_dates = []
+        for t in transactions:
+            text = t.get('Text', '').lower()
+            if 'sale' in text and not t.get('isAutomatic', False):
+                 # Try to parse date
+                 d_str = t.get('Date', '')
+                 if d_str:
+                     try:
+                         # Handle "YYYY-MM-DD"
+                         from datetime import datetime
+                         dt = datetime.strptime(d_str.split(' ')[0], '%Y-%m-%d')
+                         sell_dates.append(dt)
+                     except:
+                         pass
+        
+        sell_dates.sort()
+        # Check for 3 sells in 14 days
+        if len(sell_dates) >= 3:
+            for i in range(len(sell_dates) - 2):
+                if (sell_dates[i+2] - sell_dates[i]).days <= 14:
+                    is_cluster_selling = True
+                    cluster_size = len(sell_dates) # Or specific cluster count
+                    break
+
+    if is_cluster_selling:
+        label = f"{len(sell_dates)} Cluster Selling"
+        score = -8 # Red
+        summary_text = f"High alert: {len(sell_dates)} insider sells detected (Cluster)."
     elif net_flow < 0:
-        label = "Selling"
-        score = -5
+        label = f"Sell by {len(unique_sellers)} insiders" 
+        score = -4 # Yellow
         summary_text = f"Net selling pressure by {len(unique_sellers)} insider(s)."
     else:
         label = "Mixed"

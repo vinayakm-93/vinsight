@@ -1,0 +1,18 @@
+{
+    "defaults": {
+        "network_activity_strong": 100000,
+        "hash_rate_trend_bullish": "Rising",
+        "volatility_max_safe": 0.80,
+        "social_volume_strong": 500
+    },
+    "sectors": {
+        "Layer 1": {
+            "network_activity_strong": 500000,
+            "volatility_max_safe": 0.60
+        },
+        "DeFi": {
+            "network_activity_strong": 50000,
+            "volatility_max_safe": 1.20
+        }
+    }
+}

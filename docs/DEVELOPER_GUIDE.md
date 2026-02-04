@@ -56,3 +56,4 @@ python3 vinsight_scorer.py
 For testing endpoints directly:
 - **FastAPI Docs**: `http://localhost:8000/docs` (Swagger UI)
 - **Monitoring**: Check `backend.log` for real-time API request tracing.
+- **[Earnings Scraper Guide](./DEV_SCRAPER.md)**: Architecture of the DIY transcript fetcher.
