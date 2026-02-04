@@ -46,6 +46,7 @@ The project documentation is organized for clarity:
 - **[Security & Compliance](docs/SECURITY.md)**: Security audits and rotation protocols.
 - **[Maintenance Log](docs/MAINTENANCE_LOG.md)**: Bug fix history and performance RCAs.
 - **[Setup & Deployment](docs/SETUP.md)**: Detailed environment and Google Cloud setup.
+  > **Note**: On Google Cloud Run, the first request may take 5-10s (Cold Start) to initialize the AI engine. A dedicated loading screen handles this interaction.
 
 ---
 
