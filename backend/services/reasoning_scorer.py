@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 from groq import Groq
 from services.vinsight_scorer import StockData, ScoreResult, VinSightScorer
