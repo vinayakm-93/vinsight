@@ -12,6 +12,7 @@ from fake_useragent import UserAgent
 # Env vars
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY") # Optional: For reliable search
+print(f"DEBUG: SERPER_API_KEY loaded: {'YES' if SERPER_API_KEY else 'NO (env var missing)'}")
 
 # Configure Groq
 if GROQ_API_KEY:
