@@ -5,6 +5,7 @@ from database import get_db
 from services import finance, analysis, simulation, search, earnings
 from services.search import search_ticker
 from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections, ScoreResult
+from services.reasoning_scorer import ReasoningScorer
 from services.groq_sentiment import get_groq_analyzer
 import yfinance as yf
 import requests
@@ -146,10 +147,11 @@ def get_stock_news(ticker: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/analysis/{ticker}")
-def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, include_simulation: bool = False, sector_override: str = None):
+def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, include_simulation: bool = False, sector_override: str = None, scoring_engine: str = "reasoning", persona: str = "CFA"):
     """
-    Technical analysis with optional sector override.
-    sector_override: None (auto-detect), 'Standard' (defaults), or specific sector name
+    Technical analysis with optional sector override and scoring engine selection.
+    scoring_engine: "reasoning" (LLM) or "formula" (Legacy)
+    persona: "CFA", "Momentum", "Income", "Value", "Growth"
     """
     try:
         # Use concurrent.futures to fetch independent data in parallel
@@ -260,7 +262,15 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             future_news = executor.submit(fetch_news)
             future_inst = executor.submit(fetch_institutional)
             future_adv = executor.submit(fetch_advanced)
-            # future_earn = executor.submit(fetch_earnings) # DB dependency tricky here
+            
+            # v9.0 Best Effort Loading for Earnings (Cache Only)
+            # We check DB for cached analysis. If missing, we skip it to avoid latency.
+            def fetch_cached_earnings():
+                try:
+                    return earnings.analyze_earnings(ticker, next(get_db())) # analyze_earnings handles cache check internally
+                except Exception:
+                    return None
+            future_earn = executor.submit(fetch_cached_earnings)
             
             # Wait for results
             history = future_hist.result()
@@ -268,6 +278,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             news = future_news.result()
             institutional = future_inst.result()
             advanced_metrics = future_adv.result()
+            earnings_analysis = future_earn.result()
 
         if not history:
              raise HTTPException(status_code=404, detail="No history data found")
@@ -400,6 +411,18 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             
         fcf_yield = fundamentals_info.get("fcf_yield", 0.0)
         
+        # v9.0 Data Heavy: Extract new metrics
+        price_to_book = fundamentals_info.get("priceToBook")
+        ev_to_ebitda = fundamentals_info.get("enterpriseToEbitda")
+        price_to_sales = fundamentals_info.get("priceToSalesTrailing12Months")
+        enterprise_to_revenue = fundamentals_info.get("enterpriseToRevenue")
+        payout_ratio = fundamentals_info.get("payoutRatio")
+        five_yr_div = fundamentals_info.get("fiveYearAvgDividendYield")
+        trail_div = fundamentals_info.get("trailingAnnualDividendYield")
+        short_ratio = fundamentals_info.get("shortRatio")
+        fifty_two_change = fundamentals_info.get("52WeekChange") # yf specific key
+        held_insiders = fundamentals_info.get("heldPercentInsiders")
+        
         # Fetch EPS Surprise (New helper in finance)
         eps_surprise = finance.get_earnings_surprise(ticker)
         
@@ -422,7 +445,18 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             current_ratio=current_ratio,
             altman_z_score=advanced_metrics.get('altman_z_score'), # None if missing
             fcf_yield=fcf_yield,
-            eps_surprise_pct=eps_surprise
+            eps_surprise_pct=eps_surprise,
+            # Extended Metrics
+            price_to_book=price_to_book,
+            ev_to_ebitda=ev_to_ebitda,
+            price_to_sales=price_to_sales,
+            enterprise_to_revenue=enterprise_to_revenue,
+            payout_ratio=payout_ratio,
+            five_year_avg_dividend_yield=five_yr_div,
+            trailing_annual_dividend_yield=trail_div,
+            short_ratio=short_ratio,
+            fifty_two_week_change=fifty_two_change,
+            held_percent_insiders=held_insiders
         )
 
         # --- Technicals ---
@@ -609,148 +643,66 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             projections=proj_data
         )
         
+        scorer_instance = None
+        score_result_raw = None
+        ai_analysis_response = None
+        
+        # Branch based on Scoring Engine
+        if scoring_engine == "reasoning":
+            try:
+                reasoning_scorer = ReasoningScorer()
+                # ReasoningScorer returns a dict fully formatted for UI usage (backward compatible)
+                ai_analysis_response = reasoning_scorer.evaluate(stock_data, persona, earnings_analysis)
+            except Exception as e:
+                logger.error(f"Reasoning Engine Failed: {e}. Falling back to formula.")
+                # Fallback handled inside evaluate? No, evaluate handles it.
+                # If evaluate itself blew up:
+                scoring_engine = "formula"
+
+        # LEGACY PATH (Run unconditionally for stability and fallback)
         scorer = VinSightScorer()
         score_result = scorer.evaluate(stock_data)
 
-        # 5. Format Output for Frontend (Backward Compatible wrapper)
-        rating_color_map = {
-            "Strong Buy": "emerald",
-            "Buy": "emerald",
-            "Hold": "yellow",
-            "Sell": "red"
-        }
-        
-        color = rating_color_map.get(score_result.rating, "yellow")
-        
-        # Build detailed score explanation for transparency
-        fund_score = score_result.breakdown.get('Fundamentals', 0)
-        tech_score = score_result.breakdown.get('Technicals', 0)
-        sent_score = score_result.breakdown.get('Sentiment', 0)
-        proj_score = score_result.breakdown.get('Projections', 0)
-        
-        # Generate human-readable explanations for each pillar
-        fund_explanation = []
-        benchmarks = scorer._get_benchmarks(active_sector)
-        sector_pe = benchmarks.get('pe_median', 20.0)
 
-        if pe and pe > 0:
-            if pe < 15:
-                fund_explanation.append(f"P/E of {pe:.1f} is undervalued (Graham value)")
-            elif pe < sector_pe:
-                fund_explanation.append(f"P/E of {pe:.1f} is below sector median ({sector_pe:.0f})")
-            else:
-                fund_explanation.append(f"P/E of {pe:.1f} exceeds sector median ({sector_pe:.0f})")
-        if peg is not None and peg > 0:
-            if peg < 1.0:
-                fund_explanation.append(f"PEG of {peg:.2f} suggests undervaluation")
-            elif peg > 1.5:
-                fund_explanation.append(f"PEG of {peg:.2f} indicates growth premium")
-        if inst_own > 70:
-            fund_explanation.append(f"Strong institutional backing ({inst_own:.0f}%)")
         
-        # New v6.0 Fundamentals Factors
-        margin_target = benchmarks.get('margin_healthy', 0.12)
-        if profit_margin:
-            if profit_margin >= margin_target:
-                fund_explanation.append(f"Healthy margins ({profit_margin*100:.1f}%) vs sector ({margin_target*100:.0f}%)")
-            else:
-                fund_explanation.append(f"Margins ({profit_margin*100:.1f}%) trail sector ({margin_target*100:.0f}%)")
-        
-        debt_target = benchmarks.get('debt_safe', 1.0)
-        if debt_to_equity:
-            if debt_to_equity <= debt_target:
-                fund_explanation.append(f"Prudent debt level ({debt_to_equity:.1f}x) vs peer max ({debt_target:.1f}x)")
-            else:
-                fund_explanation.append(f"Elevated debt ({debt_to_equity:.1f}x) vs peer max ({debt_target:.1f}x)")
-        
-        tech_explanation = []
-        tech_explanation.append(f"Momentum: {momentum}")
-        tech_explanation.append(f"RSI: {rsi:.0f}")
-        if vol_trend != "Weak/Mixed":
-            tech_explanation.append(f"Volume confirms: {vol_trend}")
-        else:
-            tech_explanation.append("Volume pattern is mixed")
-        
-        sent_explanation = []
-        sent_explanation.append(f"News sentiment: {sentiment_label}")
-        
-        # Format Source safely
-        if sentiment_result:
-            raw_source = sentiment_result.get('source', 'Unknown')
-            source_display = {
-                "finnhub": "Finnhub (Tier 1)",
-                "yfinance": "Yahoo Finance (Tier 2)",
-                "textblob": "TextBlob (Fallback)"
-            }.get(raw_source, raw_source)
-            sent_explanation.append(f"Source: {source_display}")
-        else:
-            sent_explanation.append("Source: Unknown (Fallback)")
+        if not ai_analysis_response:
+             # --- LEGACY FORMATTER BLOCK (Restored) ---
+             # 5. Format Output for Frontend (Backward Compatible wrapper)
+             rating_color_map = {
+                "Strong Buy": "emerald",
+                "Buy": "emerald",
+                "Hold": "yellow",
+                "Sell": "red"
+             }
              
-        sent_explanation.append(f"Insider activity: {ins_activity}")
-        if news_art_count < 3:
-            sent_explanation.append("Low volume penalty: < 3 articles (-2pts)")
-        elif news_art_count < 5:
-            sent_explanation.append("Low volume penalty: < 5 articles (-1pt)")
-        
-        proj_explanation = []
-        upside_pct = ((p50_final - current_price) / current_price) * 100 if current_price > 0 else 0
-        proj_explanation.append(f"Quarterly P50 Target: ${p50_final:.2f} ({'+' if upside_pct > 0 else ''}{upside_pct:.1f}%)")
-        
-        if p90_final > current_price:
-            bull_upside = ((p90_final - current_price) / current_price) * 100
-            proj_explanation.append(f"Bull Case (P90): ${p90_final:.2f} (+{bull_upside:.1f}%)")
-            
-        if p10_final < current_price:
-            bear_downside = ((current_price - p10_final) / current_price) * 100
-            proj_explanation.append(f"Bear Case (P10): ${p10_final:.2f} (-{bear_downside:.1f}%)")
-            
-        # VaR
-        var_risk = risk.get('var_95', 0)
-        var_amt = abs(var_risk * current_price)
-        proj_explanation.append(f"Daily Value at Risk (95%): ${var_amt:.2f}")
-        
-        score_explanation = {
-            "fundamentals": {
-                "score": f"{fund_score}/70",
-                "factors": fund_explanation
-            },
-            "sentiment": {
-                "score": f"{sent_score}/10",
-                "factors": sent_explanation
-            },
-            "projections": {
-                "score": f"{proj_score}/10",
-                "factors": proj_explanation
-            },
-            "technicals": {
-                "score": f"{tech_score}/10",
-                "factors": tech_explanation
-            }
-        }
-        
-        # Refined Outlooks
-        short_term_outlook = [
-            f"Momentum is {momentum.lower()}",
-            f"RSI ({rsi:.0f}) is {'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral'}",
-            f"Volume {vol_trend.lower()}"
-        ]
-        
-        medium_term_outlook = [
-            f"VinSight Rating: {score_result.rating}",
-            f"Market Regime: {'Bullish' if regime['bull_regime'] else 'Defensive/Bearish'}",
-            f"Sector: {active_sector}"
-        ]
-        
-        long_term_outlook = [
-            f"Valuation: {'Reasonable' if pe < 25 else 'Premium'}",
-            f"Projected Upside: {upside_pct:.1f}%",
-            f"Institutional Quality: {'High' if inst_own > 60 else 'Low/Moderate'}"
-        ]
+             color = rating_color_map.get(score_result.rating, "yellow")
+             
+             # Build detailed score explanation for transparency
+             fund_score = score_result.breakdown.get('Fundamentals', 0)
+             tech_score = score_result.breakdown.get('Technicals', 0)
+             sent_score = score_result.breakdown.get('Sentiment', 0)
+             proj_score = score_result.breakdown.get('Projections', 0)
 
-        # Generate AI Summary using Groq
-        try:
-            groq = get_groq_analyzer()
-            score_data_for_ai = {
+             # Prepare Data for Summary Generator
+             short_term_outlook = [
+                f"Momentum is {momentum.lower()}",
+                f"RSI ({rsi:.0f}) is {'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral'}",
+                f"Volume {vol_trend.lower()}"
+             ]
+             
+             medium_term_outlook = [
+                f"VinSight Rating: {score_result.rating}",
+                f"Market Regime: {'Bullish' if regime['bull_regime'] else 'Defensive/Bearish'}",
+                f"Sector: {active_sector}"
+             ]
+             
+             long_term_outlook = [
+                f"Valuation: {'Reasonable' if pe < 25 else 'Premium'}",
+                f"Projected Upside: {upside_pct:.1f}%",
+                f"Institutional Quality: {'High' if inst_own > 60 else 'Low/Moderate'}"
+             ]
+
+             score_data_for_ai = {
                 'total_score': score_result.total_score,
                 'rating': score_result.rating,
                 'fundamentals_score': score_result.breakdown.get('Quality Score', 0),
@@ -764,23 +716,38 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 'modifications': score_result.modifications,
                 'missing_data': score_result.missing_data
             }
-            ai_summary = groq.generate_score_summary(ticker, score_data_for_ai)
-        except Exception as e:
-            logger.warning(f"AI summary generation failed: {e}")
-            ai_summary = score_result.verdict_narrative
-        
-        ai_analysis_response = {
-            "rating": score_result.rating.upper(), # BUY/SELL
-            "color": color,
-            "score": score_result.total_score,
-            "justification": ai_summary,  # Use AI-generated summary
-            "raw_breakdown": score_result.breakdown,
-            "modifications": score_result.modifications,
-            "missing_data": score_result.missing_data,
-            "score_explanation": score_explanation,
-            "details": score_result.details, # New structured breakdown for UI
-            "outlook_context": score_data_for_ai['outlook_context'] # Expose deterministic outlooks
-        }
+
+             # Generate AI Summary (With Fallback)
+             ai_summary = "Analysis unavailable."
+             source_label = "Formula Fallback"
+             
+             try:
+                 groq = get_groq_analyzer()
+                 # New method returns tuple (summary, source)
+                 ai_summary, source_label = groq.generate_score_summary(ticker, score_data_for_ai)
+             except Exception as e:
+                 logger.warning(f"Legacy Summary Generation Failed: {e}")
+                 ai_summary = score_result.verdict_narrative
+                 source_label = "Formula Only"
+
+             # Construct the Response object manually
+             legacy_ai_analysis = {
+                "rating": score_result.rating,
+                "color": color,
+                "score": score_result.total_score,
+                "justification": ai_summary,
+                "raw_breakdown": score_result.breakdown,
+                "modifications": score_result.modifications,
+                "missing_data": score_result.missing_data,
+                "details": score_result.details,
+                "outlook_context": score_data_for_ai['outlook_context'],
+                "meta": {
+                    "source": source_label,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+             }
+
+             ai_analysis_response = legacy_ai_analysis
 
         # Prepare SMA dict for frontend
         sma_data = {

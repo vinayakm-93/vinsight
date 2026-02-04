@@ -1,6 +1,26 @@
 # Changelog
-3: 
-4: ## [v9.1.0] - Insider Intelligence & DIY Earnings (2026-02-03)
+
+## [v9.1.1] - AI Reasoning vs. Algo Baseline Split (2026-02-04)
+
+### 🚀 Major Feature: AI vs. Algorithmic Score Separation
+- **Dual-Layer Analysis**: Separated the LLM's subjective conviction from the objective mathematical baseline.
+- **AI Analyst Briefing**: The top section now displays scores derived independently by the AI Model (Llama 3.3/Gemini) based on 10-point component ratings.
+- **Algorithmic Baseline**: The bottom "Score Breakdown" section serves as the "Ground Truth" using the v9.0 foundation (70% Fundamental / 30% Technical).
+- **Visual Tagging**: High-visibility "v9.0 Foundation" tag and "Calculated Algo Score (70/30)" label added to the bottom section.
+
+### 🛡️ Reliability: SMTP & API Key Governance
+- **SMTP Fixed**: Confirmed functional mail delivery through authenticated Gmail SMTP.
+- **Provider Support**: Added support for both `MAIL_` and `SMTP_` environment variable prefixes.
+- **Key Validation**: Implemented `validate_keys.py` to health-check all integrated service keys (Groq, Gemini, Serper, Finnhub, EODHD).
+
+### 🎨 UI Refinement
+- **Tab Cleanup**: Removed duplicate Algorithmic Breakdown sections from the Sentiment tab.
+- **Score Mapping**: Fixed a bug where both sections were pulling from the same data object, ensuring divergence is visible.
+- **Executive Summary**: Repositioned AI Thesis next to the Score Ring for better UX.
+
+---
+
+## [v9.1.0] - Insider Intelligence & DIY Earnings (2026-02-03)
 
 ### 🚀 Major Feature: Insider "Cluster Selling" Detection
 - **Heuristic Logic**: Backend now identifies **coordinated selling** patterns.

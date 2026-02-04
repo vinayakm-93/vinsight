@@ -11,6 +11,7 @@ from fake_useragent import UserAgent
 
 # Env vars
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "").strip() # Optional: For reliable search
 print(f"DEBUG: SERPER_API_KEY loaded: {'YES' if SERPER_API_KEY else 'NO (env var missing)'}")
 
@@ -19,6 +20,18 @@ if GROQ_API_KEY:
     groq_client = Groq(api_key=GROQ_API_KEY)
 else:
     groq_client = None
+
+# Configure Gemini
+import google.generativeai as genai
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_model = genai.GenerativeModel('models/gemini-2.0-flash', generation_config={"response_mime_type": "application/json"})
+    except:
+        gemini_model = None
+else:
+    gemini_model = None
+
 
 def search_transcript_url(ticker: str, quarter: int = None, year: int = None):
     """
@@ -156,7 +169,7 @@ def get_transcript_data(ticker: str):
 
 def analyze_earnings(ticker: str, db: Session):
     """
-    Fetches transcript (DIY Scrape) and analyzes with Groq.
+    Fetches transcript (DIY Scrape) and analyzes with Groq -> Gemini Fallback.
     Implements Perpetual Caching (never expire old reports).
     """
     
@@ -171,19 +184,25 @@ def analyze_earnings(ticker: str, db: Session):
         # If the specific Q/Y is "N/A", we might want to re-scrape to fix it, but let's assume valid.
         days_since = (datetime.utcnow() - latest_cache.last_api_check).days
         if days_since < 60: # Conservative: if checked < 2 months ago, serve it.
+             # Parse existing content to see if source data is there, else default
+             try:
+                 content_json = json.loads(latest_cache.content)
+             except:
+                 content_json = {}
+
              return {
-                "summary": json.loads(latest_cache.content),
+                "summary": content_json,
                 "metadata": {
                     "quarter": latest_cache.quarter,
                     "year": latest_cache.year,
                     "last_api_check": latest_cache.last_api_check.isoformat(),
-                    "source": "Cache"
+                    "source": "Cache" # Ideally we stored source in DB, but cache is cache.
                 }
             }
 
     # --- Fetch New Data ---
-    if not groq_client: 
-        return {"error": "Missing GROQ_API_KEY."}
+    if not groq_client and not gemini_model: 
+        return {"error": "Missing AI API Keys (GROQ_API_KEY or GEMINI_API_KEY)."}
 
     data_pkg = get_transcript_data(ticker)
     
@@ -254,20 +273,47 @@ def analyze_earnings(ticker: str, db: Session):
     {transcript}
     """
     
+    data = None
+    source_label = "Unknown"
+
     try:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": "You are a CFA. Output JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.2,
-            response_format={"type": "json_object"}
-        )
+        # ATTEMPT 1: GROQ
+        if groq_client:
+            try:
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": "You are a CFA. Output JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.2,
+                    response_format={"type": "json_object"}
+                )
+                text = completion.choices[0].message.content
+                data = json.loads(text)
+                source_label = "Llama 3.3 (Groq)"
+            except Exception as e:
+                print(f"DEBUG: Groq Earnings Analysis Failed: {e}")
+                if not gemini_model: raise e # No fallback available
         
-        text = completion.choices[0].message.content
-        data = json.loads(text)
+        # ATTEMPT 2: GEMINI (Fallback or Primary if Groq missing)
+        if not data and gemini_model:
+            try:
+                # Gemini 1.5 Flash
+                response = gemini_model.generate_content(
+                    f"You are a CFA. Output JSON only.\n{prompt}",
+                    generation_config={"temperature": 0.2, "response_mime_type": "application/json"}
+                )
+                text = response.text
+                data = json.loads(text)
+                source_label = "Gemini 1.5 Flash (Fallback)" if groq_client else "Gemini 1.5 Flash"
+            except Exception as e:
+                print(f"DEBUG: Gemini Earnings Analysis Failed: {e}")
+                return {"error": f"AI Processing Failed (Both Providers): {str(e)}"}
         
+        if not data:
+             return {"error": "AI Processing Failed: No valid response."}
+
         # Save to DB (Perpetual)
         new_analysis = EarningsAnalysis(
             ticker=ticker,
@@ -285,7 +331,7 @@ def analyze_earnings(ticker: str, db: Session):
                 "quarter": q,
                 "year": y,
                 "last_api_check": datetime.utcnow().isoformat(),
-                "source": f"Scraper ({data_pkg['url']})"
+                "source": f"{source_label} via Scraper"
             }
         }
         

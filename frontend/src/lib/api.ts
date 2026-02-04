@@ -64,8 +64,8 @@ export const getHistory = async (ticker: string, period = "1mo", interval = "1d"
   return response.data;
 };
 
-export const getAnalysis = async (ticker: string, sectorOverride?: string, period: string = "1y", interval: string = "1d"): Promise<any> => {
-  const params: any = { period, interval, include_simulation: false };
+export const getAnalysis = async (ticker: string, sectorOverride?: string, period: string = "1y", interval: string = "1d", persona: string = "CFA", scoring_engine: string = "reasoning"): Promise<any> => {
+  const params: any = { period, interval, include_simulation: false, persona, scoring_engine };
   if (sectorOverride && sectorOverride !== 'Auto') {
     params.sector_override = sectorOverride;
   }

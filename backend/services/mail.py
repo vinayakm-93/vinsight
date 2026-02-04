@@ -28,25 +28,31 @@ logger.addHandler(console_handler)
 # Explicitly load from backend/.env
 load_dotenv("backend/.env")
 
-# For development, we can print to console if no real creds
-MOCK_MODE = os.getenv("MAIL_USERNAME") is None
+# Support both prefixes for better compatibility with .env templates
+MAIL_USER = os.getenv("MAIL_USERNAME") or os.getenv("SMTP_USERNAME")
+MAIL_PASS = os.getenv("MAIL_PASSWORD") or os.getenv("SMTP_PASSWORD")
+MAIL_SERVER = os.getenv("MAIL_SERVER") or os.getenv("SMTP_SERVER", "smtp.gmail.com")
+MAIL_PORT = int(os.getenv("MAIL_PORT") or os.getenv("SMTP_PORT", 587))
+MAIL_SENDER = os.getenv("MAIL_FROM") or os.getenv("EMAIL_FROM") or MAIL_USER
 
-# Only create real config if we have credentials, otherwise use dummy placeholder
-# to prevent pydantic validation errors on startup
+# For development, we can print to console if no real creds or using placeholders
+MOCK_MODE = (MAIL_USER is None) or ("your_email" in MAIL_USER)
+
+# Only create real config if we have credentials
 if not MOCK_MODE:
     conf = ConnectionConfig(
-        MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
-        MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
-        MAIL_FROM = os.getenv("MAIL_FROM"),
-        MAIL_PORT = 587,
-        MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_USERNAME = MAIL_USER,
+        MAIL_PASSWORD = MAIL_PASS,
+        MAIL_FROM = MAIL_SENDER,
+        MAIL_PORT = MAIL_PORT,
+        MAIL_SERVER = MAIL_SERVER,
         MAIL_STARTTLS = True,
         MAIL_SSL_TLS = False,
         USE_CREDENTIALS = True,
         VALIDATE_CERTS = False
     )
 else:
-    conf = None  # Will be checked before use
+    conf = None  # Will be handled by MOCK_MODE checks in methods
 
 
 # --- Email Templates ---

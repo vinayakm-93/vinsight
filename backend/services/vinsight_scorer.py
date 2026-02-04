@@ -39,6 +39,18 @@ class Fundamentals:
     eps_surprise_pct: float
     sector_name: str = "Technology"
 
+    # 7. Extended Metrics (Reasoning Scorer v9.0)
+    price_to_book: Optional[float] = None
+    ev_to_ebitda: Optional[float] = None
+    price_to_sales: Optional[float] = None
+    enterprise_to_revenue: Optional[float] = None
+    payout_ratio: Optional[float] = None
+    five_year_avg_dividend_yield: Optional[float] = None
+    trailing_annual_dividend_yield: Optional[float] = None
+    short_ratio: Optional[float] = None
+    fifty_two_week_change: Optional[float] = None
+    held_percent_insiders: Optional[float] = None
+
 @dataclass
 class Technicals:
     price: float

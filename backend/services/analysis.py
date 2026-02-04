@@ -149,7 +149,7 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
             from services.groq_sentiment import get_groq_analyzer
             groq = get_groq_analyzer()
             
-            if groq.is_available():
+            if groq.is_available:
                 context = ticker if ticker else "Company"
                 result = groq.analyze_batch(articles_to_analyze, context=context)
                 
@@ -236,8 +236,17 @@ def analyze_sentiment_ondemand(ticker: str) -> Dict:
     # 3. Analyze (Groq)
     start_time = datetime.now()
     groq = get_groq_analyzer()
-    if groq.is_available():
-        analysis = groq.analyze_dual_period(latest, historical, context=ticker)
+    if groq.is_available:
+        try:
+            analysis = groq.analyze_dual_period(latest, historical, context=ticker)
+        except Exception as e:
+            print(f"Groq/Gemini Analysis Failed: {e}")
+            analysis = {
+                "score_today": 0,
+                "score_weekly": 0,
+                "reasoning": "AI Analysis Failed. Using algorithmic fallback.",
+                "key_drivers": []
+            }
     else:
         # Fallback if Groq key missing
         analysis = {

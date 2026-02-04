@@ -8,7 +8,7 @@ import {
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List, ExternalLink } from 'lucide-react'; // Renamed icon
-import { Shield } from 'lucide-react';
+import { Shield, ShieldCheck } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,27 @@ const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
             {text}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
         </div>
+    </div>
+);
+
+// Skeleton Loader Component for AI Analysis
+const SkeletonReasoning = ({ persona }: { persona: string }) => (
+    <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-gray-50/50 dark:bg-gray-900/20 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-8 animate-pulse text-center space-y-6">
+        <div className="relative">
+            <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse"></div>
+            <div className="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-lg border border-gray-100 dark:border-gray-700">
+                <Loader className="animate-spin text-blue-500" size={32} />
+            </div>
+        </div>
+        <div className="space-y-2 max-w-md w-full">
+            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                Analyzing {persona} Strategy...
+            </h3>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full w-full"></div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full w-3/4 mx-auto"></div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full w-5/6 mx-auto"></div>
+        </div>
+        <p className="text-xs text-gray-400 italic">Synthesizing 70B parameter reasoning chain...</p>
     </div>
 );
 
@@ -43,6 +64,14 @@ const TIME_RANGES = [
     { label: 'Max', value: 'max', interval: '1wk' },
 ];
 
+const PERSONA_OPTIONS = [
+    { id: 'CFA', label: '🧐 CFA Analyst', desc: 'Balanced, valuation-focused' },
+    { id: 'Momentum', label: '🚀 Momentum Trader', desc: 'Trend, RSI, volume-focused' },
+    { id: 'Value', label: '💎 Deep Value', desc: 'Contrarian, margin-of-safety' },
+    { id: 'Growth', label: '🌱 Growth Investor', desc: 'Revenue, expansion-focused' },
+    { id: 'Income', label: '💰 Income Strategy', desc: 'Dividend yield, safety' }
+];
+
 export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection, onRequireAuth, onSelectStock }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
@@ -58,6 +87,11 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     const [loadingSummary, setLoadingSummary] = useState(false);
     const [sortColumn, setSortColumn] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+    // AI Reasoning State
+    const [selectedPersona, setSelectedPersona] = useState<string>('CFA');
+    const [useReasoning, setUseReasoning] = useState(true);
+    const [loadingAnalysis, setLoadingAnalysis] = useState(false);  // Dedicated loading state for AI re-refetch
 
     const [timeRange, setTimeRange] = useState(TIME_RANGES[6]); // Default 1Y
     const [chartType, setChartType] = useState<'area' | 'candle'>('area');
@@ -161,6 +195,50 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     useEffect(() => {
         getSectorBenchmarks().then(setSectorBenchmarks).catch(console.error);
     }, []);
+
+    // -------------------------------------------------------------------------
+    // PHASE 3: AI Logic Integration
+    // Re-fetch AI Analysis when Persona or Reasoning mode changes
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        // Only run if we are already viewing a ticker and have initial data
+        // This prevents double-fetch on mount (handled by initFetch) and runs only on user interaction
+        if (!ticker || !analysis) return;
+
+        const updateAI = async () => {
+            setLoadingAnalysis(true);
+            try {
+                // Fetch updated AI analysis
+                // Note: We use the dedicated API with new parameters
+                const data = await getAnalysis(
+                    ticker,
+                    selectedSector,
+                    timeRange.value,
+                    timeRange.interval,
+                    selectedPersona,
+                    useReasoning ? 'reasoning' : 'formula'
+                );
+
+                // Merge ONLY the AI part to avoid resetting other tabs or history
+                setAnalysis((prev: any) => ({
+                    ...prev,
+                    ai_analysis: data.ai_analysis
+                }));
+            } catch (error) {
+                console.error("Failed to update AI analysis:", error);
+            } finally {
+                setLoadingAnalysis(false);
+            }
+        };
+
+        // Debounce to improve UX and save API calls on rapid switching
+        const timeoutId = setTimeout(() => {
+            updateAI();
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [selectedPersona, useReasoning]);
+    // -------------------------------------------------------------------------
 
     const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections') => {
         setActiveTab(tab);
@@ -1001,7 +1079,9 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                 {activeTab === 'ai' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {/* 1. Hero Section: Recommendation Score */}
-                        {analysis?.ai_analysis ? (
+                        {loadingAnalysis ? (
+                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                        ) : analysis?.ai_analysis ? (
                             <div className="bg-white/80 dark:bg-gray-900/60 glass-panel rounded-2xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500">
                                 {/* Background Decorations */}
                                 <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
@@ -1010,9 +1090,38 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 <div className="flex items-center justify-between mb-3">
                                     <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
 
+                                    {/* Persona Selector */}
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Analyst Persona:</label>
+                                        <div className="relative group">
+                                            <select
+                                                value={selectedPersona}
+                                                onChange={(e) => setSelectedPersona(e.target.value)}
+                                                className="text-xs font-bold bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg pl-2 pr-7 py-1.5 text-gray-700 dark:text-gray-200 cursor-pointer hover:border-blue-500/50 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all appearance-none outline-none focus:ring-2 focus:ring-blue-500/20 backdrop-blur-sm"
+                                            >
+                                                {PERSONA_OPTIONS.map((opt) => (
+                                                    <option key={opt.id} value={opt.id}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400">
+                                                <ChevronDown size={10} />
+                                            </div>
+
+                                            {/* Tooltip for Persona Description */}
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900/95 backdrop-blur text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                                {PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.desc}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
+
                                     {/* Sector Override Dropdown - Moved here from Fundamentals */}
                                     <div className="flex items-center gap-2">
-                                        <label className="text-[10px] text-gray-500 font-medium">Compare Against:</label>
+                                        <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Benchmark:</label>
                                         <div className="relative">
                                             <select
                                                 value={selectedSector}
@@ -1021,7 +1130,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                     setSelectedSector(newSector);
                                                     setIsRecalculating(true);
                                                     try {
-                                                        const newAnalysis = await getAnalysis(ticker!, newSector);
+                                                        const newAnalysis = await getAnalysis(ticker!, newSector, timeRange.value, timeRange.interval, selectedPersona);
                                                         setAnalysis(newAnalysis);
                                                     } catch (err) {
                                                         console.error('Failed to recalculate:', err);
@@ -1038,7 +1147,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                 ))}
                                             </select>
                                             <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                                ▼
+                                                <ChevronDown size={10} />
                                             </div>
                                             {isRecalculating && (
                                                 <div className="absolute -right-5 top-1/2 -translate-y-1/2">
@@ -1060,7 +1169,24 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     <div className="space-y-4">
                                         {/* Top Row: Score + Veto Matrix */}
                                         {/* Top Row: Score + Veto Matrix (Unified Card) */}
-                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm w-full">
+                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 pt-12 shadow-sm w-full relative">
+
+                                            {/* AI Model Source Label (Absolute Top Right) */}
+                                            <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-gray-100/80 dark:bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 backdrop-blur-md shadow-sm">
+                                                {(() => {
+                                                    const source = analysis?.ai_analysis?.meta?.source || "Llama 3.1 70B";
+                                                    const isOffline = source.includes("Formula");
+                                                    return (
+                                                        <>
+                                                            <span className={`h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-gray-400' : source.includes('Gemini') ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
+                                                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
+                                                                {isOffline ? "Algorithmic (AI Offline)" : source}
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+
                                             {/* Top Section: Score Ring + Veto Matrix */}
                                             <div className="flex flex-col md:flex-row items-stretch gap-6">
                                                 {/* Left: Score Ring & Summary (70%) */}
@@ -1094,7 +1220,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                                         <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter text-center px-1">
                                                                             {(() => {
                                                                                 const strategy = fundWeight >= 90 ? "VALUE" : fundWeight >= 70 ? "FUND." : fundWeight <= 30 ? "TRADER" : "BALANCED";
-                                                                                return fundWeight === 70 ? 'CFA' : strategy;
+                                                                                return useReasoning ? selectedPersona : (fundWeight === 70 ? 'CFA' : strategy);
                                                                             })()}
                                                                         </span>
                                                                     </div>
@@ -1103,367 +1229,264 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                         })()}
                                                     </div>
                                                     <div className="flex-1">
-                                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{analysis.ticker}</h3>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">
-                                                                {(() => {
-                                                                    const strategy = fundWeight >= 90 ? "Value Purist" : fundWeight >= 70 ? "Fundamental" : fundWeight <= 30 ? "Trader" : "Balanced";
-                                                                    return fundWeight === 70 ? strategy : `${strategy} (Custom)`;
-                                                                })()}
-                                                            </span>
-                                                        </div>
+                                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
                                                         {(() => {
                                                             try {
-                                                                const content = typeof analysis.ai_analysis.justification === 'string' && analysis.ai_analysis.justification.trim().startsWith('{')
-                                                                    ? JSON.parse(analysis.ai_analysis.justification)
-                                                                    : null;
-                                                                return <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 font-medium leading-snug">
-                                                                    {content?.executive_summary || content?.score_explanation || "Analyzing score drivers..."}
-                                                                </p>;
+                                                                // Simple string display - no parsing needed
+                                                                const justification = typeof analysis.ai_analysis.justification === 'string'
+                                                                    ? analysis.ai_analysis.justification.replace(/^["']|["']$/g, '')
+                                                                    : "Analysis complete.";
+
+                                                                return (
+                                                                    <div className="flex flex-col gap-3">
+                                                                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
+                                                                            {justification || "Analyzing score drivers..."}
+                                                                        </p>
+
+                                                                        {/* Embedded Veto/Bonus Tags (if provided by backend) */}
+                                                                        {(analysis.ai_analysis.modifications?.length > 0) && (
+                                                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                                                {analysis.ai_analysis.modifications.map((mod: string, i: number) => {
+                                                                                    const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
+                                                                                    const isBonus = mod.includes("Bonus") || mod.includes("+");
+                                                                                    const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
+
+                                                                                    return (
+                                                                                        <span
+                                                                                            key={i}
+                                                                                            className={`px-2 py-1 rounded-md text-[9px] font-bold flex items-center gap-1.5 border backdrop-blur-sm ${isPenalty
+                                                                                                ? "bg-red-500/5 text-red-600 dark:text-red-400 border-red-500/20"
+                                                                                                : isBonus
+                                                                                                    ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                                                                    : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+                                                                                                }`}
+                                                                                        >
+                                                                                            {isPenalty ? <TrendingDown size={10} className="text-red-500" /> : isBonus ? <Zap size={10} className="text-emerald-500" /> : null}
+                                                                                            {displayText}
+                                                                                        </span>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
                                                             } catch (e) { return null; }
                                                         })()}
                                                     </div>
                                                 </div>
-
-                                                {/* Divider */}
-                                                <div className="hidden md:block w-px bg-gray-200 dark:bg-gray-700"></div>
-
-                                                {/* Right: Veto Matrix (30%) */}
-                                                <div className="md:w-[30%] flex flex-col justify-center min-w-[200px]">
-                                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Veto Matrix / Modifiers</h4>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {analysis.ai_analysis.modifications?.map((mod: string, i: number) => {
-                                                            const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
-                                                            const isBonus = mod.includes("Bonus") || mod.includes("+");
-                                                            const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
-
-                                                            return (
-                                                                <span
-                                                                    key={i}
-                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1.5 border transition-all duration-300 hover:scale-105 backdrop-blur-sm ${isPenalty
-                                                                        ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
-                                                                        : isBonus
-                                                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
-                                                                            : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
-                                                                        }`}
-                                                                >
-                                                                    {isPenalty ? <TrendingDown size={14} className="text-red-500 animate-pulse" /> : isBonus ? <Zap size={14} className="text-emerald-500 animate-pulse" /> : null}
-                                                                    {displayText}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                        {(!analysis.ai_analysis.modifications || analysis.ai_analysis.modifications.length === 0) && (
-                                                            <span className="text-xs text-gray-400 italic">No active modifiers</span>
-                                                        )}
-                                                    </div>
-                                                </div>
                                             </div>
 
-                                            {/* Merged Strategy Mixer Section */}
-                                            <div className="w-full h-px bg-gray-200 dark:bg-gray-800/50 my-3"></div>
+                                            {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
+                                            {!useReasoning && (
+                                                <div className="w-full">
+                                                    <div className="w-full h-px bg-gray-200 dark:bg-gray-800/50 my-3"></div>
 
-                                            <div className="w-full">
-                                                {/* Unified All-in-One Header */}
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 px-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-1 bg-blue-500/10 rounded-lg">
-                                                            <Sliders size={14} className="text-blue-600 dark:text-blue-400" />
+                                                    {/* Unified All-in-One Header */}
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 px-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="p-1 bg-blue-500/10 rounded-lg">
+                                                                <Sliders size={14} className="text-blue-600 dark:text-blue-400" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider">Strategy Mixer</h4>
+                                                                <p className="text-[8px] text-gray-500 uppercase font-bold tracking-tight">Active Weighting Profile</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <h4 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider">Strategy Mixer</h4>
-                                                            <p className="text-[8px] text-gray-500 uppercase font-bold tracking-tight">Active Weighting Profile</p>
+
+                                                        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                                                            <div className="flex flex-col items-center px-2">
+                                                                <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Technical</span>
+                                                                <span className="text-xs font-black text-blue-500">{100 - fundWeight}%</span>
+                                                            </div>
+                                                            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
+                                                            <div className="flex flex-col items-center px-2">
+                                                                <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Fundamental</span>
+                                                                <span className="text-xs font-black text-emerald-500">{fundWeight}%</span>
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-700/50">
-                                                        <div className="flex flex-col items-center px-2">
-                                                            <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Technical</span>
-                                                            <span className="text-xs font-black text-blue-500">{100 - fundWeight}%</span>
+                                                    {/* Slider Container */}
+                                                    <div className="relative pt-3 pb-1 px-1">
+                                                        {/* Labels for ends */}
+                                                        <div className="absolute top-0 left-0 text-[7px] font-black text-blue-500/60 uppercase tracking-widest flex items-center gap-1">
+                                                            <TrendingUp size={8} /> Trader Focus
                                                         </div>
-                                                        <div className="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
-                                                        <div className="flex flex-col items-center px-2">
-                                                            <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Fundamental</span>
-                                                            <span className="text-xs font-black text-emerald-500">{fundWeight}%</span>
+                                                        <div className="absolute top-0 right-0 text-[7px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center gap-1">
+                                                            Investor Focus <Shield size={9} className="text-emerald-500" />
+                                                        </div>
+
+                                                        <input
+                                                            type="range"
+                                                            min="0"
+                                                            max="100"
+                                                            value={fundWeight}
+                                                            onChange={(e) => setFundWeight(parseInt(e.target.value))}
+                                                            className="w-full premium-slider mt-2"
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center mt-1 px-1">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                                                                {fundWeight < 40 ? "Momentum Optimized" : fundWeight > 60 ? "Quality Centric" : "Balanced Alpha"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                                                                CFA v5.0 Engine
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
-
-                                                {/* Slider Container */}
-                                                <div className="relative pt-3 pb-1 px-1">
-                                                    {/* Labels for ends */}
-                                                    <div className="absolute top-0 left-0 text-[7px] font-black text-blue-500/60 uppercase tracking-widest flex items-center gap-1">
-                                                        <TrendingUp size={8} /> Trader Focus
-                                                    </div>
-                                                    <div className="absolute top-0 right-0 text-[7px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center gap-1">
-                                                        Investor Focus <Shield size={9} className="text-emerald-500" />
-                                                    </div>
-
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="100"
-                                                        value={fundWeight}
-                                                        onChange={(e) => setFundWeight(parseInt(e.target.value))}
-                                                        className="w-full premium-slider mt-2"
-                                                    />
-                                                </div>
-
-                                                <div className="flex justify-between items-center mt-1 px-1">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-                                                            {fundWeight < 40 ? "Momentum Optimized" : fundWeight > 60 ? "Quality Centric" : "Balanced Alpha"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-                                                            CFA v5.0 Engine
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Right: Score Anchor Text & Badges */}
                                     {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
                                     <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-3">
+                                        <div className="flex items-center gap-2 mb-4">
                                             <div className="p-1 rounded bg-blue-500/10 text-blue-500">
                                                 <Zap size={12} className="animate-pulse" />
                                             </div>
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Analyst Briefing</span>
-                                            <div className="ml-auto flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">
-                                                <span className="h-1 w-1 rounded-full bg-emerald-500"></span>
-                                                <span className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter">Llama 3.1 70B</span>
-                                            </div>
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Analyst Briefing</span>
                                         </div>
 
-                                        {(() => {
-                                            try {
-                                                // safely parse or fall back
-                                                const content = typeof analysis.ai_analysis.justification === 'string'
-                                                    && analysis.ai_analysis.justification.trim().startsWith('{')
-                                                    ? JSON.parse(analysis.ai_analysis.justification)
-                                                    : null;
+                                        <div className="space-y-6">
+                                            {/* 1. Executive Summary */}
+                                            {/* 1. Executive Summary (Removed) */}
 
-                                                if (!content) {
-                                                    // Fallback
-                                                    return (
-                                                        <div className="pl-4 border-l-2 border-gray-300 dark:border-gray-600">
-                                                            <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
-                                                                {analysis.ai_analysis.justification}
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                }
-
-                                                return (
-                                                    <div className="space-y-4">
-                                                        {/* Factor Analysis Row */}
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            <div className="bg-emerald-50/30 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-800/30 p-3">
-                                                                <div className="flex justify-between items-center mb-1">
-                                                                    <h4 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                                                                        <Activity size={12} /> Quality Analysis
-                                                                    </h4>
-                                                                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                                                                        {(analysis.ai_analysis as any).raw_breakdown?.['Quality Score']?.toFixed(1) || '0.0'}/100
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug font-medium">
-                                                                    {content.factor_analysis?.quality || "Analyzing valuation and fundamentals..."}
-                                                                </p>
-                                                            </div>
-                                                            <div className="bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800/30 p-3">
-                                                                <div className="flex justify-between items-center mb-1">
-                                                                    <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                                                                        <TrendingUp size={12} /> Timing Analysis
-                                                                    </h4>
-                                                                    <span className="text-xs font-black text-blue-600 dark:text-blue-400">
-                                                                        {(analysis.ai_analysis as any).raw_breakdown?.['Timing Score']?.toFixed(1) || '0.0'}/100
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug font-medium">
-                                                                    {content.factor_analysis?.timing || "Analyzing trend and momentum..."}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Risk Factors (Bullet Points) */}
-                                                        <div className="bg-amber-50/30 dark:bg-amber-900/5 rounded-lg border-l-[3px] border-amber-500 pl-4 py-2">
-                                                            <h4 className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
-                                                                Key Risk Factors
-                                                            </h4>
-                                                            <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-0.5">
-                                                                {Array.isArray(content.risk_factors)
-                                                                    ? content.risk_factors.map((risk: string, idx: number) => (
-                                                                        <li key={idx}>{risk}</li>
-                                                                    ))
-                                                                    : <li>{content.risk || "None identified"}</li>
-                                                                }
-                                                            </ul>
-                                                        </div>
-
-                                                        {/* Outlooks Grid (Minimal Cards) */}
-                                                        {/* Outlooks Grid (Premium Cards) */}
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                                                            {/* 3 Months */}
-                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-blue-300 dark:hover:border-blue-700/50 transition-all duration-300">
-                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                                    <TrendingUp size={40} className="text-blue-500" />
-                                                                </div>
-                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> 3 Months (Tactical)
-                                                                </h5>
-                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
-                                                                    {content.outlook?.["3m"] || content.outlook_3m}
-                                                                </p>
-                                                                {/* Added Details */}
-                                                                {analysis.ai_analysis.outlook_context?.short_term && (
-                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-                                                                        {analysis.ai_analysis.outlook_context.short_term.slice(0, 3).map((item: string, i: number) => (
-                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
-                                                                                <span className="w-1 h-1 rounded-full bg-blue-400 mt-1 flex-shrink-0"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-
-                                                            {/* 6 Months */}
-                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-purple-300 dark:hover:border-purple-700/50 transition-all duration-300">
-                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                                    <Zap size={40} className="text-purple-500" />
-                                                                </div>
-                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span> 6 Months (Catalyst)
-                                                                </h5>
-                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
-                                                                    {content.outlook?.["6m"] || content.outlook_6m}
-                                                                </p>
-                                                                {/* Added Details */}
-                                                                {analysis.ai_analysis.outlook_context?.medium_term && (
-                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-                                                                        {analysis.ai_analysis.outlook_context.medium_term.slice(0, 3).map((item: string, i: number) => (
-                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
-                                                                                <span className="w-1 h-1 rounded-full bg-purple-400 mt-1 flex-shrink-0"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-
-                                                            {/* 12 Months */}
-                                                            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 p-3 hover:border-emerald-300 dark:hover:border-emerald-700/50 transition-all duration-300">
-                                                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                                    <Target size={40} className="text-emerald-500" />
-                                                                </div>
-                                                                <h5 className="relative z-10 text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 12 Months (Strategic)
-                                                                </h5>
-                                                                <p className="relative z-10 text-xs text-gray-700 dark:text-gray-300 font-medium leading-relaxed mb-2">
-                                                                    {content.outlook?.["12m"] || content.outlook_12m}
-                                                                </p>
-                                                                {/* Added Details */}
-                                                                {analysis.ai_analysis.outlook_context?.long_term && (
-                                                                    <ul className="relative z-10 space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-                                                                        {analysis.ai_analysis.outlook_context.long_term.slice(0, 3).map((item: string, i: number) => (
-                                                                            <li key={i} className="text-[10px] text-gray-500 dark:text-gray-400 flex items-start gap-1.5 leading-tight">
-                                                                                <span className="w-1 h-1 rounded-full bg-emerald-400 mt-1 flex-shrink-0"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                            {/* 2. Split Cards: Quality vs Timing */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Quality Card */}
+                                                <div className="bg-emerald-50/30 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-800/30 p-4 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h4 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                            <Shield size={12} /> Fundamental Quality
+                                                        </h4>
+                                                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                                            {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
+                                                        </span>
                                                     </div>
-                                                );
+                                                    {/* Mini bar chart visual */}
+                                                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+                                                        <div
+                                                            className="h-full bg-emerald-500 rounded-full"
+                                                            style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                                        Aggregation of Valuation, Growth, and Profitability metrics.
+                                                    </p>
+                                                </div>
 
-                                            } catch (e) {
-                                                console.error("JSON Parse Error or AI Failed", e);
+                                                {/* Timing Card */}
+                                                <div className="bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800/30 p-4 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                            <TrendingUp size={12} /> Technical Timing
+                                                        </h4>
+                                                        <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                                                            {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
+                                                        </span>
+                                                    </div>
+                                                    {/* Mini bar chart visual */}
+                                                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+                                                        <div
+                                                            className="h-full bg-blue-500 rounded-full"
+                                                            style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                                        Aggregation of Momentum, Trend, and Relative Volume.
+                                                    </p>
+                                                </div>
+                                            </div>
 
-                                                // Fallback: Render Deterministic Outlooks if available
-                                                if (analysis.ai_analysis.outlook_context) {
-                                                    const oc = analysis.ai_analysis.outlook_context;
-                                                    return (
-                                                        <div className="space-y-4">
-                                                            <div className="bg-orange-50 dark:bg-orange-900/10 border-l-4 border-orange-500 p-3 rounded-r-lg">
-                                                                <p className="text-xs text-orange-700 dark:text-orange-400 font-bold">
-                                                                    AI Analyst Unavailable. Showing algorithmic outlooks.
-                                                                </p>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Short Term (Technical)</h5>
-                                                                    <ul className="space-y-1">
-                                                                        {oc.short_term?.map((item: string, i: number) => (
-                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                                                                <span className="w-1 h-1 rounded-full bg-blue-500"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Medium Term (Sector)</h5>
-                                                                    <ul className="space-y-1">
-                                                                        {oc.medium_term?.map((item: string, i: number) => (
-                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                                                                <span className="w-1 h-1 rounded-full bg-purple-500"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                                                    <h5 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Long Term (Fundamental)</h5>
-                                                                    <ul className="space-y-1">
-                                                                        {oc.long_term?.map((item: string, i: number) => (
-                                                                            <li key={i} className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                                                                <span className="w-1 h-1 rounded-full bg-emerald-500"></span> {item}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
+                                            {/* 3 & 4. Risks & Opportunities (Side-by-Side) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Risks */}
+                                                {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
+                                                    <div className="bg-rose-50/30 dark:bg-rose-900/5 rounded-lg border-l-[3px] border-rose-500 pl-4 py-3 h-full">
+                                                        <h4 className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                                                            <AlertTriangle size={12} /> Key Risk Factors
+                                                        </h4>
+                                                        <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-1">
+                                                            {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
+                                                                <li key={idx}>{risk}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
 
-                                                return <p className="text-xs text-red-400">Analysis unavailable.</p>;
-                                            }
-                                        })()}
+                                                {/* Opportunities */}
+                                                {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
+                                                    <div className="bg-emerald-50/30 dark:bg-emerald-900/5 rounded-lg border-l-[3px] border-emerald-500 pl-4 py-3 h-full">
+                                                        <h4 className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                                                            <Zap size={12} /> Key Opportunities
+                                                        </h4>
+                                                        <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-1">
+                                                            {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
+                                                                <li key={idx}>{opp}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-48 flex items-center justify-center bg-gray-50 dark:bg-gray-800/30 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-                                <div className="flex items-center gap-3 text-gray-500">
-                                    <Loader className="animate-spin text-blue-500" size={24} />
-                                    <p>Conducting v5.0 Analysis...</p>
-                                </div>
-                            </div>
+                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
                         )}
 
 
 
                         {/* 2.5 Detailed Breakdown Table (Sectioned) */}
                         {analysis?.ai_analysis?.details && (
-                            <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-                                <div className="p-4 border-b border-gray-200 dark:border-gray-700/50">
-                                    <h4 className="font-bold flex items-center gap-2 text-sm text-gray-900 dark:text-white">
-                                        <Grid size={16} className="text-gray-500" /> Detailed Score Breakdown
-                                        <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider ml-2">Target vs Actual</span>
-                                    </h4>
+                            <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-purple-500/10 rounded-lg">
+                                            <Grid size={16} className="text-purple-500" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                                Algorithmic Score Breakdown
+                                                <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v9.0 Foundation</span>
+                                            </h4>
+                                            <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Mathematical Multi-Factor Baseline</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Calculated Algo Score (70/30)</span>
+                                        <span className="text-lg font-mono font-black text-purple-600 dark:text-purple-400">
+                                            {Math.round(
+                                                ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * 0.7) +
+                                                ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * 0.3)
+                                            )}
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="p-4 space-y-4">
 
                                     {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
                                     <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                        <summary className="flex cursor-pointer items-center justify-between p-3 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors select-none">
-                                            <div className="flex items-center gap-2">
-                                                <Shield size={16} className="text-emerald-500" />
-                                                <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Fundamental Quality</h5>
+                                        <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
+                                                    <ShieldCheck size={16} />
+                                                </div>
+                                                <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
                                             </div>
-                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs">▼</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                    {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
+                                                </span>
+                                                <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                            </div>
                                         </summary>
                                         <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
                                             <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
@@ -1507,12 +1530,19 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
 
                                     {/* SECTION 2: TIMING (TECHNICAL) */}
                                     <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                        <summary className="flex cursor-pointer items-center justify-between p-3 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors select-none">
-                                            <div className="flex items-center gap-2">
-                                                <TrendingUp size={16} className="text-blue-500" />
+                                        <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
+                                                    <TrendingUp size={16} />
+                                                </div>
                                                 <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
                                             </div>
-                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs">▼</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                                                    {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                                </span>
+                                                <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                            </div>
                                         </summary>
                                         <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
                                             <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
@@ -1999,11 +2029,17 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <div className="space-y-6">
                                 {/* Verdict Header */}
                                 {earningsData.summary.verdict && (
-                                    <div className={`p-6 rounded-2xl border ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' :
+                                    <div className={`relative p-6 rounded-2xl border ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' :
                                         earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800' :
                                             'bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700'
                                         }`}>
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
+                                        {/* Quarter Badge (Top Right) */}
+                                        <div className="absolute top-4 right-4 text-xs font-mono font-bold text-gray-400 opacity-60">
+                                            FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}
+                                        </div>
+
+                                        <div className="flex flex-col gap-4">
                                             <div>
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Analyst Verdict</span>
@@ -2014,24 +2050,26 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                                         {earningsData.summary.verdict.rating}
                                                     </span>
                                                 </div>
-                                                <p className="text-xl font-medium text-gray-900 dark:text-white leading-relaxed">
+                                                <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 leading-relaxed">
                                                     "{earningsData.summary.verdict.reasoning}"
                                                 </p>
                                             </div>
-                                            <div className="shrink-0 text-right text-xs text-gray-400">
-                                                <div className="font-mono">FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}</div>
+
+                                            {/* Analyzed Source (Bottom Right) */}
+                                            <div className="flex items-center justify-end gap-3 mt-2 text-[10px] text-gray-500 opacity-80">
                                                 <div>Analyzed {new Date(earningsData.metadata?.last_api_check).toLocaleDateString()}</div>
+                                                <span className="text-gray-300 dark:text-gray-700">•</span>
                                                 {earningsData.metadata?.source && (
-                                                    <div className="text-[10px] text-blue-500 mt-1">
+                                                    <div className="text-blue-500">
                                                         {earningsData.metadata.source.includes('http') ? (
                                                             <a
                                                                 href={earningsData.metadata.source.match(/\((https?:\/\/[^)]+)\)/)?.[1] || '#'}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="hover:underline flex items-center justify-end gap-1"
+                                                                className="hover:underline flex items-center gap-1"
                                                             >
-                                                                Source: Motley Fool Transcript
-                                                                <ExternalLink size={10} />
+                                                                Source: Cache
+                                                                <ExternalLink size={9} />
                                                             </a>
                                                         ) : (
                                                             <span>Source: {earningsData.metadata.source}</span>
@@ -2242,6 +2280,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                     )}
                                 </div>
 
+
                                 {/* Insider MSPR Section */}
                                 {sentimentData.insider_mspr_label && sentimentData.insider_mspr_label !== 'No Data' && (
                                     <div className="p-5 rounded-xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
@@ -2296,7 +2335,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                         </div>
                                         <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
                                         <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-medium">
-                                            <span>Llama 3.3 (Reasoning)</span>
+                                            <span>{sentimentData.source || 'Llama 3.3 (Reasoning)'}</span>
                                         </div>
                                     </div>
                                 </div>

@@ -18,6 +18,9 @@ You strictly need these keys for the app to function correctly:
 3.  **Groq API**: For fast AI sentiment analysis.
 4.  **Google Gemini**: For deep reasoning analysis.
 5.  **Finnhub API**: For institutional data and real-time news.
+6.  **Serper API**: For DIY earnings transcript scraping.
+7.  **EODHD API**: For accurate insider transaction data.
+8.  **SMTP (Gmail)**: App Password for email alerts.
 
 ### 3. Backend (FastAPI)
 

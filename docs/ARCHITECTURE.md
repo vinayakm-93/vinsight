@@ -15,16 +15,18 @@ graph TD
     AI2[Gemini API]
     AV[Alpha Vantage API]
     Data[yfinance]
+    Mail[SMTP Server]
     Worker[Cloud Run Job: Market Watcher]
 
     User -->|HTTP| FE
     FE -->|/api/* requests| Proxy
     Proxy -->|Forward + Cookies| BE
     BE -->|SQLAlchemy| DB
-    BE -->|Sentiment + Analysis| AI1
+    BE -->|AI Conviction| AI1
     BE -->|Search & Scrape| Web[Serper/DDG + MotleyFool]
     BE -->|News + Sentiment| AV
     BE -->|Stock Data| Data
+    BE -->|Trigger Alerts| Mail
     Worker -->|Check Price Targets| BE
 ```
 
@@ -36,11 +38,12 @@ graph TD
 | **Backend** | Python 3.11, FastAPI, Pydantic, SQLAlchemy |
 | **Database** | Cloud SQL (PostgreSQL 15) for Prod; SQLite for Local |
 | **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, Alpha Vantage |
+| **Email** | FAST-Mail (SMTP/Gmail) |
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
 ## 3. Core Engine Logic
 - **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0), Weighting profiles, and Vetos.
-- **AI Sentiment Hybrid**: Parallel analysis using FinBERT (fast) and Groq (deep) with temporal weighting and spin detection.
+- **AI vs. Algo Separation**: The system decouples the **LLM's qualitative reasoning** (top briefing) from the **algorithmic quantitative baseline** (bottom breakdown), providing users with both objective metrics and subjective analyst thesis.
 
 ## 4. Infrastructure & Security
 - **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.

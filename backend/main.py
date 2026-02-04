@@ -7,7 +7,8 @@ from slowapi.errors import RateLimitExceeded
 import os
 import logging
 
-load_dotenv() # Load environment variables from .env file
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(env_path) # Load environment variables from backend/.env explicitly
 
 from database import init_db
 from rate_limiter import limiter
