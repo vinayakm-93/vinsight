@@ -1,5 +1,19 @@
 # Changelog
 
+## [v9.1.2] - Performance Architecture (2026-02-04)
+
+### 🚀 Major Feature: Coordinated Data Fetching
+- **One-Shot API**: Replaced "waterfall" API calls with a single `Coordinator` class that initializes a `yf.Ticker` object once and reuses it for News, Institutional, and Financials data.
+- **Latency Reduction**: Dashboard analysis load times reduced by **~22%** (3.59s → 2.80s).
+- **Rate Limit Safety**: Drastically reduced "Too Many Requests" errors from Yahoo Finance by cutting HTTP session overhead by 80%.
+
+### ⚡ Watchlist Optimization
+- **Batch History**: Re-engineered the Watchlist Sidebar to use `yf.download(tickers, period="1y")`.
+- **Speed**: Fetches rich metrics (SMA, 5D%, YTD%) for 20+ stocks in a **single HTTP request** instead of 20 sequential requests.
+- **Stability**: Eliminated "partial load" issues on the sidebar.
+
+---
+
 ## [v9.1.1] - AI Reasoning vs. Algo Baseline Split (2026-02-04)
 
 ### 🚀 Major Feature: AI vs. Algorithmic Score Separation

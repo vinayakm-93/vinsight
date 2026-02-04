@@ -116,7 +116,7 @@ async def get_batch_prices_endpoint(request: BatchStockRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch-stock")
-def get_batch_stock_details(payload: dict):
+async def get_batch_stock_details(payload: dict):
     """
     Fetch details for multiple stocks in one request.
     Payload: { "tickers": ["AAPL", "MSFT", ...] }
@@ -154,131 +154,23 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
     persona: "CFA", "Momentum", "Income", "Value", "Growth"
     """
     try:
-        # Use concurrent.futures to fetch independent data in parallel
-        # 1. History, Info, News, Institutional can be fetched concurrently
-        import concurrent.futures
+        # v9.1 Optimization: Use Coordinated Fetcher (Single Ticker Instance)
+        # This replaces the old "waterfall" of 5 separate Ticker() instantiations.
+        data_bundle = finance.fetch_coordinated_analysis_data(ticker)
         
-        # Define fetch wrappers to handle exceptions gracefully (Graceful Degradation)
-        from services import yahoo_client
-        import pandas as pd
+        history = data_bundle.get('history', [])
+        fundamentals_info = data_bundle.get('info', {})
+        news = data_bundle.get('news', [])
+        institutional = data_bundle.get('institutional', {})
+        advanced_metrics = data_bundle.get('advanced', {})
         
-        def fetch_history():
-            try:
-                return finance.get_stock_history(ticker, period, interval)
-            except Exception as e:
-                logger.error(f"Error fetching history: {e}")
-                # Fallback to yahoo_client on rate limit
-                if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
-                    logger.info(f"Using yahoo_client fallback for {ticker} history")
-                    chart = yahoo_client.get_chart_data(ticker, interval=interval, range_=period)
-                    if chart and chart.get("timestamp"):
-                        # Convert to list of dicts format with CAPITALIZED keys (expected by analysis.py)
-                        timestamps = chart["timestamp"]
-                        quotes = chart.get("indicators", {}).get("quote", [{}])[0]
-                        history = []
-                        for i, ts in enumerate(timestamps):
-                            close_val = quotes.get("close", [None])[i] if i < len(quotes.get("close", [])) else None
-                            # Skip entries where 'Close' is None to avoid downstream errors
-                            if close_val is None:
-                                continue
-                                
-                            history.append({
-                                "Date": pd.Timestamp(ts, unit='s').isoformat(),
-                                "Open": quotes.get("open", [None])[i] if i < len(quotes.get("open", [])) else close_val,
-                                "High": quotes.get("high", [None])[i] if i < len(quotes.get("high", [])) else close_val,
-                                "Low": quotes.get("low", [None])[i] if i < len(quotes.get("low", [])) else close_val,
-                                "Close": close_val,
-                                "Volume": quotes.get("volume", [None])[i] if i < len(quotes.get("volume", [])) else 0,
-                            })
-                        return history
-                return []
-                
-        def fetch_info():
-            try:
-                return finance.get_stock_info(ticker)
-            except Exception as e:
-                logger.error(f"Error fetching stock info: {e}")
-                # Fallback to yahoo_client on rate limit
-                if "Too Many Requests" in str(e) or "Rate limited" in str(e) or "429" in str(e):
-                    logger.info(f"Using yahoo_client fallback for {ticker} info")
-                    
-                    # Try chart data first for basic info as it's more reliable than quoteSummary
-                    chart = yahoo_client.get_chart_data(ticker, interval="1d", range_="1d")
-                    info = {}
-                    if chart and chart.get("meta"):
-                        meta = chart["meta"]
-                        info['currentPrice'] = meta.get('regularMarketPrice') or meta.get('chartPreviousClose')
-                        info['previousClose'] = meta.get('chartPreviousClose')
-                        info['shortName'] = meta.get('shortName', ticker)
-                        info['longName'] = meta.get('longName', ticker)
-                        info['sector'] = meta.get('instrumentType', 'Financial Services') # Default for funds often missing sector
-                    
-                    # Try to supplement with quoteSummary if available
-                    summary = yahoo_client.get_quote_summary(ticker, modules="price,summaryDetail,financialData,defaultKeyStatistics")
-                    if summary:
-                        for module in ["price", "summaryDetail", "financialData", "defaultKeyStatistics"]:
-                            if module in summary:
-                                for key, val in summary[module].items():
-                                    if key not in info: # Don't overwrite what we got from chart
-                                        if isinstance(val, dict) and "raw" in val:
-                                            info[key] = val["raw"]
-                                        elif not isinstance(val, dict):
-                                            info[key] = val
-                    return info
-                return {}
-
-        def fetch_news():
-            try:
-                return finance.get_news(ticker)
-            except Exception as e:
-                logger.error(f"Error fetching news: {e}")
-                return []
-
-
-        def fetch_institutional():
-            try:
-                return finance.get_institutional_holders(ticker)
-            except Exception as e:
-                logger.error(f"Error fetching institutional: {e}")
-                return {}
-
-        def fetch_earnings():
-             try:
-                 return earnings.analyze_earnings(ticker, next(get_db()))
-             except Exception as e:
-                 logger.error(f"Error fetching earnings: {e}")
-                 return {}
-
-        def fetch_advanced():
-            try:
-                return finance.get_advanced_metrics(ticker)
-            except Exception as e:
-                logger.error(f"Error fetching advanced metrics: {e}")
-                return {} # Fallbacks handled below
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_hist = executor.submit(fetch_history)
-            future_info = executor.submit(fetch_info)
-            future_news = executor.submit(fetch_news)
-            future_inst = executor.submit(fetch_institutional)
-            future_adv = executor.submit(fetch_advanced)
-            
-            # v9.0 Best Effort Loading for Earnings (Cache Only)
-            # We check DB for cached analysis. If missing, we skip it to avoid latency.
-            def fetch_cached_earnings():
-                try:
-                    return earnings.analyze_earnings(ticker, next(get_db())) # analyze_earnings handles cache check internally
-                except Exception:
-                    return None
-            future_earn = executor.submit(fetch_cached_earnings)
-            
-            # Wait for results
-            history = future_hist.result()
-            fundamentals_info = future_info.result()
-            news = future_news.result()
-            institutional = future_inst.result()
-            advanced_metrics = future_adv.result()
-            earnings_analysis = future_earn.result()
+        # Parallel fetch for Earnings (Requires DB, so stays separate but lightweight)
+        # We use a quick check for cached earnings status to avoid blocking
+        earnings_analysis = None
+        try:
+            earnings_analysis = earnings.analyze_earnings(ticker, next(get_db()))
+        except Exception:
+            pass # Non-critical if fails
 
         if not history:
              raise HTTPException(status_code=404, detail="No history data found")

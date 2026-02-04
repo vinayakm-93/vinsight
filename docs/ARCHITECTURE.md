@@ -25,7 +25,7 @@ graph TD
     BE -->|AI Conviction| AI1
     BE -->|Search & Scrape| Web[Serper/DDG + MotleyFool]
     BE -->|News + Sentiment| AV
-    BE -->|Stock Data| Data
+    BE -->|Stock Data (v9.1 Coordinated)| Data
     BE -->|Trigger Alerts| Mail
     Worker -->|Check Price Targets| BE
 ```
