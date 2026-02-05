@@ -2016,7 +2016,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Zap className="text-yellow-500" size={20} /> Earnings Call AI
-                                <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using Llama 3.3. Separates management's prepared remarks from the Q&A session." />
+                                <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using hybrid AI (Llama 3.3 + Gemini 2.0). Separates management's prepared remarks from the Q&A session." />
                             </h3>
                         </div>
 
@@ -2024,7 +2024,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
                                 <Loader className="animate-spin mb-4 text-yellow-500" size={32} />
                                 <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
-                                <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Groq (Llama 3)</p>
+                                <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Hybrid AI (Llama 3 / Gemini)</p>
                             </div>
                         ) : (earningsData?.error || earningsData?.error_code) ? (
                             <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50/50 dark:bg-red-900/5 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30 text-center animate-in zoom-in-95 duration-300">
@@ -2198,7 +2198,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Activity className="text-purple-500" size={20} /> AI News Analysis
-                                <InfoTooltip text="Dual-period analysis powered by Finnhub (News) + Groq (Reasoning). Scores range from -1 (Bearish) to +1 (Bullish)." />
+                                <InfoTooltip text="Dual-period analysis powered by Finnhub (News) + Hybrid AI (Groq/Gemini). Scores range from -1 (Bearish) to +1 (Bullish)." />
                             </h3>
                             {sentimentData && (
                                 <div className="flex items-center gap-3">
@@ -2222,7 +2222,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 <Newspaper className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
                                 <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to Analyze</h4>
                                 <p className="text-gray-500 text-center max-w-md mb-6">
-                                    Analyze the last 7 days of news for {ticker} using Groq AI.
+                                    Analyze the last 7 days of news for {ticker} using Hybrid AI.
                                     <br /> This will generate a "Today's Pulse" and "Weekly Trend" score.
                                 </p>
                                 <button
@@ -2236,7 +2236,7 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                             <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
                                 <Loader className="animate-spin mb-4 text-purple-500" size={32} />
                                 <p className="font-medium text-gray-700 dark:text-gray-300">analyzing 7 days of news...</p>
-                                <p className="text-xs mt-2 text-gray-400">Fetching Finnhub • running Groq Llama 3 • calculating scores</p>
+                                <p className="text-xs mt-2 text-gray-400">Fetching Finnhub • Running Hybrid AI Analysis • Calculating Scores</p>
                             </div>
                         ) : (
                             <div className="space-y-6">

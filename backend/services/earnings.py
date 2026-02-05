@@ -45,7 +45,10 @@ def search_transcript_url(ticker: str, quarter: int = None, year: int = None):
         queries.append(f"{ticker} earnings transcript Motley Fool")
     else:
         queries.append(f"{ticker} Q{quarter} {year} earnings call transcript site:fool.com")
+        queries.append(f"{ticker} Q{quarter} {year} earnings transcript")
         queries.append(f"{ticker} {ticker} Q{quarter} {year} transcript")
+        queries.append(f"{ticker} transcript Motley Fool")
+        queries.append(f"{ticker} earnings call transcript")
 
     # 1. Try Serper (Reliable)
     if SERPER_API_KEY:
@@ -140,6 +143,10 @@ def extract_transcript_from_fool(url: str):
         if not article_body:
              article_body = soup.find('div', class_='tailwind-article-body')
              selector_used = "tailwind-article-body"
+        
+        if not article_body:
+             article_body = soup.find('div', class_='transcripts')
+             selector_used = "transcripts"
         
         full_text = ""
         if article_body:
