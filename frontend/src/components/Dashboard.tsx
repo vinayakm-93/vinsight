@@ -2026,16 +2026,39 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
                                 <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
                                 <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Groq (Llama 3)</p>
                             </div>
-                        ) : earningsData?.error ? (
-                            <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800 text-center">
-                                <AlertTriangle className="text-red-500 mb-4" size={40} />
-                                <h4 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2">Analysis Failed</h4>
-                                <p className="text-gray-700 dark:text-gray-300 mb-4 max-w-lg">
-                                    {earningsData.error}
+                        ) : (earningsData?.error || earningsData?.error_code) ? (
+                            <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50/50 dark:bg-red-900/5 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30 text-center animate-in zoom-in-95 duration-300">
+                                <AlertTriangle className="text-red-500 mb-4 scale-110 drop-shadow-sm" size={48} />
+                                <h4 className="text-xl font-black text-red-700 dark:text-red-400 mb-2 uppercase tracking-tight">Analysis Blocked</h4>
+                                <p className="text-gray-800 dark:text-gray-200 font-bold mb-1 max-w-lg">
+                                    {earningsData.error || "An unexpected error occurred during processing."}
                                 </p>
-                                <div className="text-xs text-gray-500 bg-white dark:bg-gray-800 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 font-mono">
-                                    Status: Scraper Error
+                                {earningsData.detail && (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md italic">
+                                        {earningsData.detail}
+                                    </p>
+                                )}
+                                <div className="flex flex-col md:flex-row items-center gap-3">
+                                    <div className="flex flex-col items-center px-4 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                                        <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Error Code</span>
+                                        <span className="text-sm font-mono font-black text-gray-700 dark:text-gray-300">{earningsData.error_code || "UNKNOWN_ERROR"}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setLoadingEarnings(true);
+                                            getEarnings(ticker!).then(setEarningsData).finally(() => setLoadingEarnings(false));
+                                        }}
+                                        className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center gap-2"
+                                    >
+                                        <Loader className={loadingEarnings ? "animate-spin" : ""} size={16} />
+                                        Retry Analysis
+                                    </button>
                                 </div>
+                                <p className="mt-8 text-[11px] text-gray-400 max-w-sm">
+                                    {earningsData.error_code === 'TRANSCRIPT_NOT_FOUND' ? "Suggestion: Ensure the ticker is correct and the company has recently held an earnings call indexed on Motley Fool." :
+                                        earningsData.error_code === 'MISSING_AI_KEYS' ? "Developer Tip: Check your .env file for GROQ_API_KEY or GEMINI_API_KEY." :
+                                            "Note: Frequent retries may be subject to rate limits on underlying search engines."}
+                                </p>
                             </div>
                         ) : earningsData && earningsData.summary ? (
                             <div className="space-y-6">

@@ -17,7 +17,7 @@ class GroqSentimentAnalyzer:
     """
     Dual-Provider Sentiment Analyzer (Groq Llama 3.3 + Gemini 1.5 Flash).
     Primary: Groq (Llama 3.3 70B)
-    Fallback: Gemini 1.5 Flash
+    Fallback: Gemini 2.0 Flash
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -155,7 +155,7 @@ class GroqSentimentAnalyzer:
                     response_content = completion.choices[0].message.content
                     logger.debug("Groq sentiment analysis successful.")
                 except Exception as e:
-                    logger.warning(f"Groq Sentiment Failed: {e}. Trying Gemini...")
+                    logger.warning(f"Groq Sentiment Analysis Failed: {e}. Falling back to Gemini 2.0 Flash...")
                     if self.gemini_model:
                         try:
                             # For Gemini, the system instruction is often part of the prompt or handled by model config.
@@ -622,8 +622,8 @@ Output EXACT JSON:
                                 max_tokens=600
                             )
                             response_text = completion.text
-                            source_label = "Gemini 1.5 Flash (Fallback)"
-                            logger.debug("Gemini summary generation successful.")
+                            source_label = "Gemini 2.0 Flash (Fallback)"
+                            logger.info(f"Successfully generated summary via {source_label}")
                         except Exception as gemini_e:
                             logger.error(f"Gemini Summary Gen Failed: {gemini_e}. No fallback available.")
                             raise gemini_e
@@ -639,8 +639,8 @@ Output EXACT JSON:
                     max_tokens=600
                 )
                 response_text = completion.text
-                source_label = "Gemini 1.5 Flash"
-                logger.debug("Gemini summary generation successful.")
+                source_label = "Gemini 2.0 Flash"
+                logger.info(f"Gemini 2.0 summary generation successful.")
             else:
                 logger.error("No LLM client available for summary generation.")
                 return self._generate_fallback_summary(score_data), "Formula Fallback"

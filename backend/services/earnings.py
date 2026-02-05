@@ -36,58 +36,79 @@ else:
 def search_transcript_url(ticker: str, quarter: int = None, year: int = None):
     """
     Finds the Motley Fool transcript URL using Serper (if avail) or DuckDuckGo.
+    Includes explicit timeouts, retries, and broadening queries.
     """
+    # Try different query variations to increase success rate
+    queries = []
     if not quarter or not year:
-        # Default to "latest" if not specified (though specific is better for caching)
-        query = f"{ticker} earnings call transcript site:fool.com"
+        queries.append(f"{ticker} earnings call transcript site:fool.com")
+        queries.append(f"{ticker} earnings transcript Motley Fool")
     else:
-        query = f"{ticker} Q{quarter} {year} earnings call transcript site:fool.com"
-    
-    print(f"DEBUG: Searching for transcript: '{query}'")
+        queries.append(f"{ticker} Q{quarter} {year} earnings call transcript site:fool.com")
+        queries.append(f"{ticker} {ticker} Q{quarter} {year} transcript")
 
     # 1. Try Serper (Reliable)
     if SERPER_API_KEY:
-        try:
-            url = "https://google.serper.dev/search"
-            payload = json.dumps({"q": query})
-            headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
-            response = requests.post(url, headers=headers, data=payload)
-            results = response.json()
-            if 'organic' in results:
-                for item in results['organic']:
-                    link = item.get('link', '')
-                    if "fool.com" in link and "transcript" in link:
-                        return link
-        except Exception as e:
-            print(f"DEBUG: Serper Search failed: {e}")
+        for q in queries[:1]: # Only use the best query with Serper to save credits
+            for attempt in range(2):
+                try:
+                    url = "https://google.serper.dev/search"
+                    payload = json.dumps({"q": q})
+                    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
+                    response = requests.post(url, headers=headers, data=payload, timeout=5)
+                    results = response.json()
+                    if 'organic' in results:
+                        for item in results['organic']:
+                            link = item.get('link', '')
+                            if "fool.com" in link and "transcript" in link:
+                                print(f"DEBUG: Found URL via Serper: {link}")
+                                return link
+                    break 
+                except Exception as e:
+                    print(f"DEBUG: Serper Search attempt {attempt+1} failed: {e}")
 
-    # 2. Try DuckDuckGo (Free, sometimes flaky)
-    try:
-        from duckduckgo_search import DDGS
-        results = DDGS().text(query, max_results=5)
-        for r in results:
-            link = r.get('href', '')
-            if "fool.com" in link and "transcript" in link:
-                return link
-    except Exception as e:
-        print(f"DEBUG: DDG Search failed: {e}")
+    # 2. Try DuckDuckGo (Modern DDGS pattern + Retries)
+    from duckduckgo_search import DDGS
+    for q in queries:
+        print(f"DEBUG: Attempting DuckDuckGo Search: '{q}'")
+        for attempt in range(2):
+            try:
+                with DDGS(timeout=5) as ddgs:
+                    results = list(ddgs.text(q, max_results=5))
+                    print(f"DEBUG: DDG found {len(results)} total results for '{q}' (attempt {attempt+1})")
+                    for r in results:
+                        link = r.get('href', '')
+                        if "fool.com" in link and "transcript" in link:
+                            print(f"DEBUG: SUCCESS: Found Fool.com URL via DDG: {link}")
+                            return link
+                break 
+            except Exception as e:
+                print(f"DEBUG: DDG Search attempt {attempt+1} for '{q}' failed: {e}")
 
     # 3. Try Generic Google Search (Fallback)
     try:
         from googlesearch import search
-        # search() yields URLs
-        for url in search(query, num_results=5):
-            if "fool.com" in url and "transcript" in url:
-                return url
+        for q in queries:
+            print(f"DEBUG: Attempting Google Search Scraper for '{q}'...")
+            try:
+                # Using a strict timeout for the generator
+                for url in search(q, num_results=5, timeout=5):
+                    if "fool.com" in url and "transcript" in url:
+                        print(f"DEBUG: SUCCESS: Found Fool.com URL via Google Scraping: {url}")
+                        return url
+            except:
+                continue
     except Exception as e:
         print(f"DEBUG: Google Search failed: {e}")
 
+    print(f"DEBUG: CRITICAL: All search attempts exhausted for {ticker}. Check internet or site changes.")
     return None
 
 def extract_transcript_from_fool(url: str):
     """
     Scrapes the transcript text from a Motley Fool URL.
     """
+    print(f"DEBUG: SCRAPER: Starting extraction from: {url}")
     try:
         ua = UserAgent()
         headers = {
@@ -95,32 +116,49 @@ def extract_transcript_from_fool(url: str):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
         
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            print(f"DEBUG: Failed to fetch {url} - Status {resp.status_code}")
+        # Increase timeout and add retry for scraping
+        for attempt in range(2):
+            try:
+                resp = requests.get(url, headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    print(f"DEBUG: SCRAPER: Successfully fetched page (200 OK)")
+                    break
+                print(f"DEBUG: SCRAPER Error: Status {resp.status_code} (attempt {attempt+1})")
+            except Exception as e:
+                 print(f"DEBUG: SCRAPER Exception for {url}: {e} (attempt {attempt+1})")
+        
+        if 'resp' not in locals() or resp.status_code != 200:
+            print("DEBUG: SCRAPER: Giving up after 2 attempts.")
             return None
         
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         # Fool.com structure
         article_body = soup.find('div', class_='article-body')
+        selector_used = "article-body"
+        
         if not article_body:
              article_body = soup.find('div', class_='tailwind-article-body')
+             selector_used = "tailwind-article-body"
         
         full_text = ""
         if article_body:
+            print(f"DEBUG: SCRAPER: Extracting via primary selector '{selector_used}'")
             # Add newlines between paragraphs
             for p in article_body.find_all(['p', 'h2', 'h3']):
                 full_text += p.get_text() + "\n\n"
         else:
+            print("DEBUG: SCRAPER WARNING: Content div not found. Falling back to generic <p> tag scraping.")
             # Fallback
             paragraphs = soup.find_all('p')
             full_text = "\n".join([p.get_text() for p in paragraphs])
             
-        return full_text.strip()
+        cleaned_text = full_text.strip()
+        print(f"DEBUG: SCRAPER SUCCESS: Extracted {len(cleaned_text)} characters of text.")
+        return cleaned_text if len(cleaned_text) > 100 else None
 
     except Exception as e:
-        print(f"DEBUG: Scraping exception: {e}")
+        print(f"DEBUG: SCRAPER CRITICAL ERROR: {e}")
         return None
 
 def get_transcript_data(ticker: str):
@@ -202,14 +240,28 @@ def analyze_earnings(ticker: str, db: Session):
 
     # --- Fetch New Data ---
     if not groq_client and not gemini_model: 
-        return {"error": "Missing AI API Keys (GROQ_API_KEY or GEMINI_API_KEY)."}
+        return {
+            "error": "Missing AI API Keys (GROQ_API_KEY or GEMINI_API_KEY).",
+            "error_code": "MISSING_AI_KEYS"
+        }
 
     data_pkg = get_transcript_data(ticker)
     
     if not data_pkg:
-        return {"error": "Could not locate transcript. Try adding SERPER_API_KEY for reliable search."}
+        return {
+            "error": "Could not locate transcript link on Motley Fool.",
+            "error_code": "TRANSCRIPT_NOT_FOUND",
+            "detail": "Search engines (Serper/DDG) failed to find the transcript URL."
+        }
 
-    transcript = data_pkg['transcript']
+    transcript = data_pkg.get('transcript')
+    if not transcript or len(transcript) < 500:
+        return {
+            "error": "Scraping failed or yielded insufficient content.",
+            "error_code": "SCRAPE_FAILED",
+            "detail": f"Transcript found at {data_pkg.get('url')} but content extraction failed."
+        }
+
     q = data_pkg['quarter']
     y = data_pkg['year']
     
@@ -292,8 +344,9 @@ def analyze_earnings(ticker: str, db: Session):
                 text = completion.choices[0].message.content
                 data = json.loads(text)
                 source_label = "Llama 3.3 (Groq)"
+                print(f"DEBUG: {source_label} Analysis Successful.")
             except Exception as e:
-                print(f"DEBUG: Groq Earnings Analysis Failed: {e}")
+                print(f"DEBUG: Groq Earnings Analysis Failed/Rate-Limited: {e}. Falling back to Gemini 2.0...")
                 if not gemini_model: raise e # No fallback available
         
         # ATTEMPT 2: GEMINI (Fallback or Primary if Groq missing)
@@ -306,13 +359,22 @@ def analyze_earnings(ticker: str, db: Session):
                 )
                 text = response.text
                 data = json.loads(text)
-                source_label = "Gemini 1.5 Flash (Fallback)" if groq_client else "Gemini 1.5 Flash"
+                source_label = "Gemini 2.0 Flash (Fallback)" if groq_client else "Gemini 2.0 Flash"
+                print(f"DEBUG: {source_label} Analysis Successful.")
             except Exception as e:
                 print(f"DEBUG: Gemini Earnings Analysis Failed: {e}")
-                return {"error": f"AI Processing Failed (Both Providers): {str(e)}"}
+                return {
+                    "error": "AI Strategy Analysis Failed",
+                    "error_code": "AI_STRATEGY_FAILED",
+                    "detail": f"Both Groq and Gemini providers failed: {str(e)}"
+                }
         
         if not data:
-             return {"error": "AI Processing Failed: No valid response."}
+             return {
+                 "error": "AI Extraction Failed",
+                 "error_code": "EMPTY_AI_RESPONSE",
+                 "detail": "LLM returned no valid JSON content."
+             }
 
         # Save to DB (Perpetual)
         new_analysis = EarningsAnalysis(
