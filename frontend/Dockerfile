@@ -5,6 +5,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # ARG NEXT_PUBLIC_API_URL removed as we now use runtime ENV for server-side proxying
+ARG MY_BACKEND_URL
+ENV MY_BACKEND_URL=$MY_BACKEND_URL
 
 COPY . .
 RUN npm run build

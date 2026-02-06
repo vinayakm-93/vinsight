@@ -118,7 +118,7 @@ cd frontend
 cat > cloudbuild.yaml <<EOF
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE', '.']
+  args: ['build', '--build-arg', 'MY_BACKEND_URL=$BACKEND_URL', '-t', 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE', '.']
 images:
 - 'gcr.io/$PROJECT_ID/$FRONTEND_SERVICE'
 EOF
