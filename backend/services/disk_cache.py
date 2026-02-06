@@ -8,8 +8,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = Path("cache_data")
-CACHE_DIR.mkdir(exist_ok=True)
+# Use /tmp/vinsight_cache in production (Cloud Run) because the app dir is read-only
+if os.getenv("ENV") == "production":
+    CACHE_DIR = Path("/tmp/vinsight_cache")
+else:
+    CACHE_DIR = Path("cache_data")
+
+CACHE_DIR.mkdir(exist_ok=True, parents=True)
 
 class DiskCache:
     """
