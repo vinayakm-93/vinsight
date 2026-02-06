@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '--build-arg', 'MY_BACKEND_URL=https://vinsight-backend-wddr2kfz3a-uc.a.run.app', '-t', 'gcr.io/vinsight-ai/vinsight-frontend', '.']
+images:
+- 'gcr.io/vinsight-ai/vinsight-frontend'
