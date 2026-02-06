@@ -367,21 +367,21 @@ Respond ONLY with the JSON.
             return self._empty_result()
             
         # Format lists
-        latest_text = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in latest_items[:10]])
-        if not latest_text:
-            latest_text = "No significant news in the last 24 hours."
+        latest_text_joined = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in latest_items[:10]])
+        if not latest_text_joined:
+            latest_text_joined = "No significant news in the last 24 hours."
             
-        historical_text = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in historical_items[:15]])
-        if not historical_text:
-            historical_text = "No significant news in the last week."
+        historical_text_joined = "\n".join([f"- {item.get('title')} ({item.get('summary', '')[:600]}...)" for item in historical_items[:15]])
+        if not historical_text_joined:
+            historical_text_joined = "No significant news in the last week."
             
         prompt_content = f"""You are a sophisticated financial analyst. Analyze the dual-period sentiment for {context}.
 
 PERIOD 1: LAST 24 HOURS (Immediate Pulse)
-{latest_text}
+{latest_text_joined}
 
 PERIOD 2: LAST 7 DAYS (Weekly Context)
-{historical_text}
+{historical_text_joined}
 
 Analyze the sentiment for BOTH periods separately.
 - "Today's Score": Reaction to the immediate news.

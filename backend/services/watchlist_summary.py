@@ -50,12 +50,13 @@ def generate_watchlist_summary(watchlist_name: str, stocks_data: List[Dict], new
             if news_sections:
                 news_str = "\n\n## RECENT NEWS & CATALYSTS\n" + "\n".join(news_sections)
 
+        formatted_stocks_str = "\n".join(formatted_stocks)
         prompt = f"""
 You are the Executive Research Director at a premier quantitative hedge fund. 
 Provide a high-conviction, professional market intelligence briefing for the "{watchlist_name}" watchlist.
 
 ### REAL-TIME PORTFOLIO DATA
-{"\n".join(formatted_stocks)}
+{formatted_stocks_str}
 {news_str}
 
 ### STRICT INSTRUCTIONS:
