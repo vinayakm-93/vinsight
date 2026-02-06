@@ -46,42 +46,68 @@ def migrate():
                     return
             
             try:
-                # 1. Watchlists position
+                # --- Watchlists Schema ---
                 logger.info("Checking 'watchlists' schema...")
                 if is_postgres:
                     result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='watchlists'"))
                 else:
                     result = conn.execute(text("PRAGMA table_info(watchlists)"))
                 
-                columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+                wl_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
                 
-                if 'position' not in columns:
+                if 'position' not in wl_columns:
                     logger.info("Adding 'position' to 'watchlists'")
                     conn.execute(text("ALTER TABLE watchlists ADD COLUMN position INTEGER DEFAULT 0"))
+                    conn.commit()
                 
-                if 'last_summary_at' not in columns:
-                    logger.info("Adding summary columns to 'watchlists'")
+                if 'last_summary_at' not in wl_columns:
+                    logger.info("Adding 'last_summary_at' to 'watchlists'")
                     conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_at TIMESTAMP"))
+                    conn.commit()
+                
+                if 'last_summary_text' not in wl_columns:
+                    logger.info("Adding 'last_summary_text' to 'watchlists'")
                     conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_text TEXT"))
-                    conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_stocks VARCHAR"))
+                    conn.commit()
 
-                # 2. Users alerts & vip
+                if 'last_summary_stocks' not in wl_columns:
+                    logger.info("Adding 'last_summary_stocks' to 'watchlists'")
+                    conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_stocks VARCHAR"))
+                    conn.commit()
+
+                # --- Users Schema ---
                 logger.info("Checking 'users' schema...")
                 if is_postgres:
                     result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users'"))
                 else:
                     result = conn.execute(text("PRAGMA table_info(users)"))
                 
-                columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+                u_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
                 
-                if 'is_vip' not in columns:
-                    logger.info("Adding alert tracking & VIP to 'users'")
+                # Granular checks to avoid partial failure
+                if 'alerts_triggered_this_month' not in u_columns:
+                    logger.info("Adding 'alerts_triggered_this_month' to 'users'")
                     conn.execute(text("ALTER TABLE users ADD COLUMN alerts_triggered_this_month INTEGER DEFAULT 0"))
+                    conn.commit()
+                
+                if 'alert_limit' not in u_columns:
+                    logger.info("Adding 'alert_limit' to 'users'")
                     conn.execute(text("ALTER TABLE users ADD COLUMN alert_limit INTEGER DEFAULT 30"))
-                    conn.execute(text("ALTER TABLE users ADD COLUMN last_alert_reset TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+                    conn.commit()
+                
+                if 'last_alert_reset' not in u_columns:
+                    logger.info("Adding 'last_alert_reset' to 'users'")
+                    if is_postgres:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN last_alert_reset TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+                    else:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN last_alert_reset TIMESTAMP DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW'))"))
+                    conn.commit()
+                
+                if 'is_vip' not in u_columns:
+                    logger.info("Adding 'is_vip' to 'users'")
                     conn.execute(text("ALTER TABLE users ADD COLUMN is_vip BOOLEAN DEFAULT FALSE"))
+                    conn.commit()
 
-                conn.commit()
                 logger.info("Migration check complete.")
                     
             except Exception as e:
