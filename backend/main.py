@@ -43,6 +43,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
+    try:
+        from migrate import migrate
+        migrate()
+    except Exception as e:
+        logger.error(f"Migration failed during startup: {e}")
+        
     init_db()
     # MarketWatcher moved to Cloud Run Job
     logger.info(f"Server started in {ENV} mode with rate limiting enabled")

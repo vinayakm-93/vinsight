@@ -27,13 +27,12 @@ def migrate():
         else:
             SQLALCHEMY_DATABASE_URL = "sqlite:///./finance.db"
     
-    logger.info(f"Connecting to database (Type: {'SQLite' if 'sqlite' in SQLALCHEMY_DATABASE_URL else 'Postgres'})...")
+    logger.info(f"Connecting to database...")
     
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     
     try:
         with engine.connect() as conn:
-            # For PostgreSQL, use advisory lock
             is_postgres = "postgresql" in SQLALCHEMY_DATABASE_URL
             lock_acquired = False
             
@@ -47,30 +46,46 @@ def migrate():
                     return
             
             try:
-                # Check for 'position' column in 'watchlists'
-                logger.info("Checking schema...")
-                if "sqlite" in SQLALCHEMY_DATABASE_URL:
-                    result = conn.execute(text("PRAGMA table_info(watchlists)"))
-                    columns = [row[1] for row in result.fetchall()]
+                # 1. Watchlists position
+                logger.info("Checking 'watchlists' schema...")
+                if is_postgres:
+                    result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='watchlists'"))
                 else:
-                    result = conn.execute(text("""
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name='watchlists' AND column_name='position';
-                    """))
-                    columns = [row[0] for row in result.fetchall()]
+                    result = conn.execute(text("PRAGMA table_info(watchlists)"))
+                
+                columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
                 
                 if 'position' not in columns:
-                    logger.info("Migrating: Adding 'position' column to 'watchlists' table")
+                    logger.info("Adding 'position' to 'watchlists'")
                     conn.execute(text("ALTER TABLE watchlists ADD COLUMN position INTEGER DEFAULT 0"))
-                    conn.commit()
-                    logger.info("Migration successful")
+                
+                if 'last_summary_at' not in columns:
+                    logger.info("Adding summary columns to 'watchlists'")
+                    conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_at TIMESTAMP"))
+                    conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_text TEXT"))
+                    conn.execute(text("ALTER TABLE watchlists ADD COLUMN last_summary_stocks VARCHAR"))
+
+                # 2. Users alerts & vip
+                logger.info("Checking 'users' schema...")
+                if is_postgres:
+                    result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users'"))
                 else:
-                    logger.info("Column 'position' already exists, no migration needed")
+                    result = conn.execute(text("PRAGMA table_info(users)"))
+                
+                columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+                
+                if 'is_vip' not in columns:
+                    logger.info("Adding alert tracking & VIP to 'users'")
+                    conn.execute(text("ALTER TABLE users ADD COLUMN alerts_triggered_this_month INTEGER DEFAULT 0"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN alert_limit INTEGER DEFAULT 30"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN last_alert_reset TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_vip BOOLEAN DEFAULT FALSE"))
+
+                conn.commit()
+                logger.info("Migration check complete.")
                     
             except Exception as e:
                 logger.error(f"Migration error: {e}")
-                # Don't re-raise, checking other things
                 
             finally:
                 if is_postgres and lock_acquired:
