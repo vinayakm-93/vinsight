@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import WatchlistComponent from "../components/Watchlist";
 import Dashboard from "../components/Dashboard";
 import { AuthModal } from '../components/AuthModal';
+import { Watchlist } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { User as UserIcon, LogOut, Sun, Moon, Monitor, PanelLeft } from 'lucide-react';
@@ -13,6 +14,7 @@ import { User as UserIcon, LogOut, Sun, Moon, Monitor, PanelLeft } from 'lucide-
 export default function Home() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [watchlistStocks, setWatchlistStocks] = useState<string[]>([]);
+  const [activeWatchlist, setActiveWatchlist] = useState<Watchlist | null>(null);
   const { user, logout } = useAuth();
   const { theme, setTheme, effectiveTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -108,6 +110,7 @@ export default function Home() {
               <WatchlistComponent
                 onSelectStock={setSelectedTicker}
                 onWatchlistChange={setWatchlistStocks}
+                onActiveWatchlistChange={setActiveWatchlist}
               />
             </div>
           )}
@@ -117,6 +120,7 @@ export default function Home() {
             <Dashboard
               ticker={selectedTicker}
               watchlistStocks={watchlistStocks}
+              activeWatchlist={activeWatchlist}
               onClearSelection={() => setSelectedTicker(null)}
               onRequireAuth={() => setShowAuthModal(true)}
               onSelectStock={setSelectedTicker}

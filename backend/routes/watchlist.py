@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import datetime
 from pydantic import BaseModel
 import shutil
 import os
 import uuid
 import logging
 from database import get_db
-from models import Watchlist, Stock
-from services import importer
+from services import importer, finance, watchlist_summary, finnhub_news
+import concurrent.futures
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -256,3 +258,193 @@ async def import_stocks(watchlist_id: int, file: UploadFile = File(...), db: Ses
     stock_list = db_watchlist.stocks.split(",") if db_watchlist.stocks else []
     stock_list = [s for s in stock_list if s]
     return WatchlistOut(id=db_watchlist.id, name=db_watchlist.name, stocks=stock_list)
+
+@router.get("/{watchlist_id}/summary")
+def get_watchlist_summary(
+    watchlist_id: int, 
+    refresh: bool = False,
+    symbols: Optional[str] = None, # For Guest Watchlists (virtual)
+    db: Session = Depends(get_db), 
+    user: Optional[User] = Depends(auth.get_current_user_optional),
+    request: Request = None
+):
+    """
+    Get or generate an AI summary for a watchlist.
+    Rate limited to 1 hour per refresh, unless user is VIP.
+    """
+    # 1. Fetch Watchlist
+    db_watchlist = None
+    if watchlist_id == -1:
+        # Virtual Guest Watchlist
+        from services.disk_cache import DiskCache
+        guest_cache = DiskCache("guest_summaries")
+        guest_uuid = request.headers.get("X-Guest-UUID", "anonymous")
+        cache_key = f"summary_{guest_uuid}"
+        
+        # Load virtual watchlist data from request or default
+        # The frontend sends standard symbols for ID -1
+        # For refresh, we'll generate. For non-refresh, we check cache.
+        
+        cached_data = guest_cache.get(cache_key)
+        
+        # Mock a DB object for cleaner logic downstream
+        class VirtualWatchlist:
+            def __init__(self, name, stocks, last_summary_at=None, last_summary_text=None, last_summary_stocks=None):
+                self.id = -1
+                self.name = name
+                self.stocks = stocks
+                self.last_summary_at = last_summary_at
+                self.last_summary_text = last_summary_text
+                self.last_summary_stocks = last_summary_stocks
+
+        if cached_data:
+            db_watchlist = VirtualWatchlist(
+                name="Guest Watchlist",
+                stocks=symbols or cached_data.get('stocks', ""), # Use provided symbols or cached
+                last_summary_at=cached_data.get('at'),
+                last_summary_text=cached_data.get('text'),
+                last_summary_stocks=cached_data.get('stocks')
+            )
+        else:
+            db_watchlist = VirtualWatchlist("Guest Watchlist", symbols or "AAPL,NVDA,MSFT")
+    else:
+        query = db.query(Watchlist).filter(Watchlist.id == watchlist_id)
+        if user:
+            query = query.filter(Watchlist.user_id == user.id)
+        db_watchlist = query.first()
+
+    if not db_watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found or unauthorized")
+
+    # 2. Check VIP Status
+    is_vip = False
+    if user and user.is_vip:
+        is_vip = True
+    
+    # 3. Check for existing summary and recent refresh
+    now = datetime.datetime.utcnow() # Naive UTC for DB compatibility
+    cooldown_seconds = 3600 # 1 hour
+    
+    can_refresh = True
+    time_left = 0
+    
+    if db_watchlist.last_summary_at:
+        elapsed = (now - db_watchlist.last_summary_at).total_seconds()
+        if elapsed < cooldown_seconds and not is_vip:
+            can_refresh = False
+            time_left = int(cooldown_seconds - elapsed)
+
+    # 4. Generate if requested and allowed, or if no summary exists
+    should_generate = False
+    if refresh:
+        if can_refresh:
+            should_generate = True
+        else:
+            # If user wants refresh but is rate limited, we return the existing one with a warning
+            pass 
+    elif not db_watchlist.last_summary_text:
+        # First time generation is allowed if it was never generated
+        # or we can apply the same rate limit to first-time generation to prevent burst (unlikely problem)
+        should_generate = True
+
+    if should_generate:
+        logger.info(f"Generating new AI summary for watchlist {watchlist_id}")
+        
+        # Get Stock Data
+        symbols_list = db_watchlist.stocks.split(",") if db_watchlist.stocks else []
+        symbols_list = [s.strip() for s in symbols_list if s.strip()]
+        
+        if not symbols_list:
+            raise HTTPException(status_code=400, detail="Cannot summarize an empty watchlist")
+            
+        stocks_data = finance.get_batch_stock_details(symbols_list)
+        
+        # Prepare Movers (Top 3 Gainers / Bottom 3 Losers)
+        stocks_with_change = [s for s in stocks_data if s.get('regularMarketChangePercent') is not None]
+        sorted_stocks = sorted(stocks_with_change, key=lambda x: x['regularMarketChangePercent'], reverse=True)
+        
+        top_movers = sorted_stocks[:3]
+        bottom_movers = sorted_stocks[-3:] if len(sorted_stocks) > 3 else []
+        movers_symbols = list(set([s['symbol'] for s in top_movers + bottom_movers]))
+        
+        # Parallel News Fetching for Movers
+        news_results = {}
+        sources_used = set()
+        
+        def fetch_enriched_news(symbol):
+            # 1. Finnhub (Detailed)
+            fh_data = finnhub_news.fetch_company_news(symbol, days=3)
+            articles = fh_data.get('latest', []) + fh_data.get('historical', [])
+            if articles:
+                sources_used.add("Finnhub")
+                return articles[:5]
+            
+            # 2. Yahoo (Fallback)
+            try:
+                y_news = finance.get_news(symbol)
+                if y_news:
+                    sources_used.add("Yahoo Finance")
+                    return y_news[:5]
+            except:
+                pass
+            return []
+
+        if movers_symbols:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(movers_symbols), 6)) as executor:
+                future_to_symbol = {executor.submit(fetch_enriched_news, sym): sym for sym in movers_symbols}
+                for future in concurrent.futures.as_completed(future_to_symbol):
+                    sym = future_to_symbol[future]
+                    try:
+                        news_results[sym] = future.result()
+                    except Exception as e:
+                        logger.error(f"Failed to fetch news for {sym}: {e}")
+        
+        # Call AI Service with News
+        ai_data = watchlist_summary.generate_watchlist_summary(
+            db_watchlist.name, 
+            stocks_data, 
+            news_data=news_results
+        )
+        summary_text = ai_data["text"]
+        model_name = ai_data["model"]
+        
+        # Update DB or Cache
+        if db_watchlist.id == -1:
+            from services.disk_cache import DiskCache
+            guest_cache = DiskCache("guest_summaries")
+            guest_uuid = request.headers.get("X-Guest-UUID", "anonymous")
+            cache_key = f"summary_{guest_uuid}"
+            guest_cache.set(cache_key, {
+                "text": summary_text,
+                "at": now,
+                "stocks": ",".join(symbols_list)
+            })
+            # Sync back to virtual object for return
+            db_watchlist.last_summary_text = summary_text
+            db_watchlist.last_summary_at = now
+        else:
+            db_watchlist.last_summary_text = summary_text
+            db_watchlist.last_summary_at = now
+            db_watchlist.last_summary_stocks = ",".join(symbols_list)
+            db.commit()
+            db.refresh(db_watchlist)
+        
+        source_label = " & ".join(sorted(list(sources_used))) if sources_used else "Technical Metrics"
+        
+        return {
+            "summary": db_watchlist.last_summary_text,
+            "last_summary_at": db_watchlist.last_summary_at.isoformat() + "Z" if db_watchlist.last_summary_at else None,
+            "symbols": symbols_list,
+            "refreshed": True,
+            "source": f"Research Node: {source_label} | {model_name}"
+        }
+
+    # 5. Return existing summary
+    return {
+        "summary": db_watchlist.last_summary_text,
+        "last_summary_at": db_watchlist.last_summary_at.isoformat() + "Z" if db_watchlist.last_summary_at else None,
+        "symbols": db_watchlist.last_summary_stocks.split(",") if db_watchlist.last_summary_stocks else [],
+        "refreshed": False,
+        "cooldown_remaining": time_left if refresh and not can_refresh else 0,
+        "source": "Market Intelligence"
+    }

@@ -28,6 +28,7 @@ class User(Base):
     alerts_triggered_this_month = Column(Integer, default=0)
     alert_limit = Column(Integer, default=30) # Default limit: 30 alerts per month
     last_alert_reset = Column(DateTime, default=datetime.utcnow)
+    is_vip = Column(Boolean, default=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -53,6 +54,11 @@ class Watchlist(Base):
     stocks = Column(String, default="") # Comma separated tickers
     position = Column(Integer, default=0)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Nullable for guest lists/backward compatibility
+
+    # AI Summary Fields
+    last_summary_at = Column(DateTime, nullable=True)
+    last_summary_text = Column(Text, nullable=True)
+    last_summary_stocks = Column(String, nullable=True) # Symbols included in the summary
 
     user = relationship("User", back_populates="watchlists")
     

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
-import axios from 'axios';
 import {
     getWatchlists,
     createWatchlist,
@@ -45,6 +44,7 @@ import { CSS } from '@dnd-kit/utilities';
 interface WatchlistProps {
     onSelectStock?: (symbol: string) => void;
     onWatchlistChange?: (stocks: string[]) => void;
+    onActiveWatchlistChange?: (watchlist: Watchlist | null) => void;
 }
 
 // --- Sortable Helper Components ---
@@ -219,7 +219,7 @@ function SortableStockRow({
 
 // --- Main Component ---
 
-export default function WatchlistComponent({ onSelectStock, onWatchlistChange }: WatchlistProps) {
+export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange }: WatchlistProps) {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [activeWatchlistId, setActiveWatchlistId] = useState<number | null>(null);
 
@@ -271,6 +271,15 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
             },
         })
     );
+
+    const activeWatchlist = watchlists.find(w => w.id === activeWatchlistId);
+
+    // Report active watchlist to parent
+    useEffect(() => {
+        if (onActiveWatchlistChange) {
+            onActiveWatchlistChange(activeWatchlist || null);
+        }
+    }, [activeWatchlist, onActiveWatchlistChange]);
 
     const handleWatchlistDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -638,10 +647,8 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
         e.target.value = '';
     };
 
-    const activeWatchlist = watchlists.find(w => w.id === activeWatchlistId);
-
     return (
-        <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 h-full flex flex-col relative overflow-hidden transition-colors duration-300" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
+        <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl p-3 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 h-full flex flex-col relative overflow-hidden transition-all duration-500" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
             <div className="flex justify-between items-center mb-4 shrink-0">
                 <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
                     {user ? "My Watchlist" : "Watchlist"}
@@ -790,6 +797,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange }:
                             </div>
                         )}
                     </div>
+
 
                     {/* Stock List */}
                     <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">

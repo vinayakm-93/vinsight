@@ -1,6 +1,6 @@
 # VinSight Product Requirements Document (PRD)
 
-**Version:** 9.0 (Dynamic Benchmark Model)
+**Version:** 9.4 (Institutional Upgrade)
 **Status:** Live in Production
 
 ## 1. Executive Summary
@@ -27,9 +27,9 @@ VinSight is an AI-powered financial analytics platform that democratizes institu
 - **Monte Carlo Engine**: Simulating 10,000+ price paths to define Bull/Base/Bear scenarios.
 - **Risk Metrics**: Probability of loss, Value at Risk (VaR), and Analyst Consensus integration.
 
-### 3.4 Active Monitoring
-- User-defined price and sentiment alerts.
-- Real-time watchlist performance tracking.
+### 3.4 Institutional UI (AI Strategist)
+- **High-Density Briefing**: Specialized AI-generated briefings for portfolios.
+- **Premium Aesthetics**: Glassmorphism, institutional-grade typography, and minimal visual noise.
 
 ## 4. User Experience Goals
 - **High-Density Data**: Dashboard must show critical "at-a-glance" status without overwhelming users.
@@ -43,4 +43,3 @@ VinSight is an AI-powered financial analytics platform that democratizes institu
 
 ---
 See **[Architecture Overview](./ARCHITECTURE.md)** for technical implementation details.
-

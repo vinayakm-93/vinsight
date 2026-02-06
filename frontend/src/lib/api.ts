@@ -10,6 +10,25 @@ const api = axios.create({
   },
 });
 
+// Guest UUID tracking for rate limiting
+const getGuestUUID = () => {
+  if (typeof window === 'undefined') return null;
+  let uuid = localStorage.getItem('vinsight_guest_uuid');
+  if (!uuid) {
+    uuid = crypto.randomUUID();
+    localStorage.setItem('vinsight_guest_uuid', uuid);
+  }
+  return uuid;
+};
+
+api.interceptors.request.use((config) => {
+  const uuid = getGuestUUID();
+  if (uuid && config.headers) {
+    config.headers['X-Guest-UUID'] = uuid;
+  }
+  return config;
+});
+
 export interface Watchlist {
   id: number;
   name: string;
@@ -52,6 +71,24 @@ export const reorderWatchlists = async (ids: number[]): Promise<void> => {
 
 export const reorderStocks = async (watchlistId: number, symbols: string[]): Promise<void> => {
   await api.post(`/api/watchlists/${watchlistId}/reorder`, { symbols });
+};
+
+export interface WatchlistSummary {
+  summary: string;
+  last_summary_at: string;
+  symbols: string[];
+  refreshed: boolean;
+  cooldown_remaining?: number;
+  source?: string;
+}
+
+export const getWatchlistSummary = async (watchlistId: number, refresh: boolean = false, symbols?: string[]): Promise<WatchlistSummary> => {
+  const params: any = { refresh };
+  if (symbols && symbols.length > 0) {
+    params.symbols = symbols.join(',');
+  }
+  const response = await api.get<WatchlistSummary>(`/api/watchlists/${watchlistId}/summary`, { params });
+  return response.data;
 };
 
 export const searchStocks = async (query: string): Promise<any[]> => {

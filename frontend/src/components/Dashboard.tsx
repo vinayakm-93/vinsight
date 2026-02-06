@@ -12,6 +12,8 @@ import { Shield, ShieldCheck } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
+import { Watchlist } from '../lib/api';
+import WatchlistSummaryCard from './WatchlistSummaryCard';
 
 const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
@@ -50,6 +52,7 @@ interface DashboardProps {
     onClearSelection?: () => void;
     onRequireAuth?: () => void;
     onSelectStock?: (ticker: string) => void;
+    activeWatchlist?: Watchlist | null;
 }
 
 const TIME_RANGES = [
@@ -72,7 +75,14 @@ const PERSONA_OPTIONS = [
     { id: 'Income', label: '💰 Income Strategy', desc: 'Dividend yield, safety' }
 ];
 
-export default function Dashboard({ ticker, watchlistStocks = [], onClearSelection, onRequireAuth, onSelectStock }: DashboardProps) {
+export default function Dashboard({
+    ticker,
+    watchlistStocks = [],
+    onClearSelection,
+    onRequireAuth,
+    onSelectStock,
+    activeWatchlist
+}: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
     const [simulation, setSimulation] = useState<any>(null);
@@ -522,7 +532,17 @@ export default function Dashboard({ ticker, watchlistStocks = [], onClearSelecti
     if (!ticker) {
         return (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 shadow-xl transition-colors duration-300">
+                {/* AI Watchlist Summary Relocated from Sidebar */}
+                {activeWatchlist && activeWatchlist.stocks.length > 0 && (
+                    <WatchlistSummaryCard
+                        watchlistId={activeWatchlist.id}
+                        watchlistName={activeWatchlist.name}
+                        stockCount={activeWatchlist.stocks.length}
+                        symbols={activeWatchlist.stocks}
+                    />
+                )}
+
+                <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-8 shadow-2xl transition-all duration-500">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                             <Activity className="text-blue-500" /> Watchlist Overview

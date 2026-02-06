@@ -1093,22 +1093,34 @@ def get_batch_stock_details(tickers: list):
                                 ytd_change = ((current - start_price) / start_price) * 100
                     except: pass
                 
-                # PE/EPS - Hard to get from fast_info, fall back to "info" lazily or skip if slow
-                # For dashboard table, PE is often displayed.
-                # Accessing .info triggers a request per stock. 
-                # Optimization: For simple dashboard tables, maybe skip or fetch async if critical?
-                # Let's try to get it from info but catch timeout?
-                # Actually, skipping PE for batch speed is better, or use cached info.
+                # PE/EPS - Optimized fetch for dashboard
+                # Check persistent cache first
+                cached_info = stock_info_cache.get(f"info_{ticker}")
+                pe = None
+                eps = None
+                sector = None
+                peg = None
                 
-                # Let's just use 0/None for now to keep it fast, or maybe t_obj.info (slow)
-                # Given user wants SPEED, we rely on fast_info.
-                # If we really need PE, we'd need separate calls.
-                # Check if we have cached info?
+                if cached_info:
+                    pe = cached_info.get('trailingPE')
+                    eps = cached_info.get('trailingEps')
+                    sector = cached_info.get('sector')
+                    peg = cached_info.get('pegRatio')
                 
-                info = {} # Empty by default to skip heavy call
-                # If you want to enable slow info fetch, uncomment:
-                # try: info = t_obj.info
-                # except: pass
+                # If not in cache or missing fields, and ticker object is available, fetch lazily
+                if (pe is None or eps is None or sector is None or peg is None):
+                    try:
+                        info_data = t_obj.info
+                        pe = pe if pe is not None else info_data.get('trailingPE')
+                        eps = eps if eps is not None else info_data.get('trailingEps')
+                        sector = sector if sector is not None else info_data.get('sector')
+                        peg = peg if peg is not None else info_data.get('pegRatio')
+                        
+                        # Update cache with new info if we just fetched it
+                        if info_data:
+                            stock_info_cache.set(f"info_{ticker}", info_data)
+                    except:
+                        pass
                 
                 results.append({
                     "symbol": ticker,
@@ -1122,8 +1134,10 @@ def get_batch_stock_details(tickers: list):
                     "ytdChangePercent": ytd_change,
                     "sma20": sma20,
                     "sma50": sma50,
-                    "trailingEps": info.get('trailingEps'),
-                    "trailingPE": info.get('trailingPE'),
+                    "trailingEps": eps,
+                    "trailingPE": pe,
+                    "pegRatio": peg,
+                    "sector": sector,
                     "fiftyTwoWeekHigh": fi.year_high
                 })
                 
