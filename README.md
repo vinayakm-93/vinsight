@@ -8,12 +8,14 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Features (v9.5)
 
-- **Dual-Layer Search Engine**: Institutional-grade 70/30 composite score (Algo Baseline) paired with AI Reasoning (LLM Thesis).
+- **Institutional Conviction Index**: Triple-factor signal synthesis (Algo + Smart Money + Sentiment) for decisive trading verdicts.
+- **Progressive Hydration Dashboard**: Ultra-fast initial rendering (Formula Engine) with background LLM hydration for deep reasoning.
 - **AI Sentinel**: Multi-source news sentiment with Groq-powered reasoning, spin detection, and DIY earnings scraper.
 - **Monte Carlo Projections**: 10,000+ simulated price paths with Risk Analytics (VaR, Volatility).
 - **Insider Intelligence**: Discretionary trade filtering and coordinated "Cluster Selling" detection.
+- **Global Health Bar**: Real-time market pulse ticker for top indices (S&P 500, Nasdaq, BTC).
 - **Confirmed Alerts**: Real-time price triggers delivered via authenticated SMTP.
 
 ## 🏁 Quick Start

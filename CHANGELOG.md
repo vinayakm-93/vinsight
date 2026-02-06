@@ -1,5 +1,30 @@
 # Changelog
 
+## [v9.5.0] - High-Performance Analytics & Conviction Index (2026-02-06)
+
+### 🚀 Performance: Progressive Dashboard Architect
+- **Zero-Block Rendering**: Re-engineered the Dashboard fetcher to prioritize fast market data and mathematical scores. 
+- **AI Background Processing**: LLM reasoning now fetches in the background via a separate thread/hook, preventing slower AI providers from blocking the initial page load.
+- **Micro-Skeletons**: Implemented granular loading states for individual AI components (Briefing, Sentiment) to maintain a responsive interactive feel.
+
+### 📊 Major Feature: Institutional Conviction Index
+- **Multi-Factor Synthesis**: Introduced a new "Conviction Index" card that mathematically blends:
+    - **Algo Score (40%)**: Core fundamental/technical ground truth.
+    - **Smart Money Signal (30%)**: Institutional and Insider movement strength.
+    - **AI Sentiment (30%)**: Real-time news narrative pulse.
+- **Dynamic Verdicts**: High-contrast progress bars and labels (Extreme / Strong / Moderate / Bearish) for instant trader decision-making.
+
+### 🎨 UI & Search Enhancements
+- **Global Health Bar**: Added a premium "Global Pulse" ticker at the top of the application for instant context on major indices (S&P 500, Nasdaq, BTC).
+- **Search Context 2.0**: Watchlist search results now feature **Asset Class** (ETF/Index/Equity) and **Exchange** (NYSE/NASDAQ/etc.) badges.
+- **Glassmorphism 2.0**: Enhanced backdrop-blur and translucent borders across all new analytics cards for a state-of-the-art terminal aesthetic.
+
+### 🔧 Reliability & Fixes
+- **Watchlist Stability**: Fixed several JSX edge cases in the search dropdown where large result lists would overlap action menus.
+- **Real-time Polish**: Optimized sidebar price polling to ensure fluid movements and accurate performance percentages.
+
+---
+
 ## [v9.4.0] - Institutional AI Strategist (2026-02-05)
 
 ### 🎨 UI: Premium AI Strategist Redesign

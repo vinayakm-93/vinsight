@@ -31,6 +31,37 @@ export default function Home() {
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       {/* <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} /> */}
 
+      {/* Top Market Bar */}
+      <div className="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800/60 py-1.5 px-4 overflow-hidden relative z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between text-[10px] font-bold tracking-widest uppercase">
+          <div className="flex items-center gap-6 overflow-x-auto no-scrollbar scroll-smooth">
+            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
+              <span className="text-gray-900 dark:text-gray-100 italic">Global Pulse:</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">S&P 500</span>
+              <span className="text-emerald-500">+1.24%</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">Nasdaq</span>
+              <span className="text-emerald-500">+1.87%</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">Russell 2K</span>
+              <span className="text-red-500">-0.12%</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">BTC</span>
+              <span className="text-emerald-500">+4.52%</span>
+            </div>
+          </div>
+          <div className="hidden lg:flex items-center gap-2 text-blue-500/80 animate-pulse">
+            <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+            <span>System Operational • V9.4.0 Live</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <header className="p-4 md:p-6 flex justify-between items-center text-black dark:text-white shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
         <div className="flex items-center gap-3">

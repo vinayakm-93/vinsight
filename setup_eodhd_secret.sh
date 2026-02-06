@@ -5,8 +5,17 @@
 set -e
 
 PROJECT_ID="vinsight-ai"
-SECRET_NAME="EODHD_API_KEY"
-API_KEY="697edb91324594.05500263"
+# Check for API_KEY env var
+if [ -z "$EODHD_API_KEY" ]; then
+    echo -ne "${YELLOW}Enter your EODHD API Key: ${NC}"
+    read -r API_KEY
+    if [ -z "$API_KEY" ]; then
+        echo "Error: API_KEY is required."
+        exit 1
+    fi
+else
+    API_KEY=$EODHD_API_KEY
+fi
 
 # Colors
 GREEN='\033[0;32m'

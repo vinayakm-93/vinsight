@@ -43,9 +43,10 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
 
     useEffect(() => {
         if (watchlistId) {
+            // Load existing summary if available, but don't force a fresh generation on every mount
             fetchSummary(false);
         }
-    }, [watchlistId, stockCount]);
+    }, [watchlistId]); // Remove stockCount dependency to prevent accidental re-fetches on every change
 
     useEffect(() => {
         if (cooldown > 0) {
@@ -174,14 +175,19 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
                                 fetchSummary(true);
                             }}
                             disabled={isLoading || cooldown > 0}
-                            className={`group/refresh flex items-center gap-2.5 px-4 py-2 rounded-2xl text-[10px] font-black transition-all duration-300 border ${cooldown > 0
-                                ? 'bg-gray-100/50 dark:bg-white/5 text-gray-400 border-white/5 cursor-not-allowed'
+                            className={`group/refresh flex items-center gap-2.5 px-4 py-2 rounded-2xl text-[10px] font-black transition-all duration-300 border min-w-[100px] justify-center ${cooldown > 0
+                                ? 'bg-gray-100 dark:bg-white/5 text-gray-400 border-gray-200 dark:border-white/5 cursor-not-allowed opacity-60 grayscale'
                                 : 'bg-sky-500 text-white border-sky-400 shadow-lg shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98]'
                                 }`}
                         >
                             <RefreshCw size={12} className={`${isLoading ? 'animate-spin' : 'group-hover/refresh:rotate-180 transition-transform duration-700'}`} />
                             <span className="uppercase tracking-[0.1em]">
-                                {cooldown > 0 ? formatCooldown(cooldown) : (isLoading ? "Syncing..." : "Refresh")}
+                                {cooldown > 0 ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <Clock size={10} />
+                                        {formatCooldown(cooldown)}
+                                    </span>
+                                ) : (isLoading ? "Synthesizing..." : "Refresh")}
                             </span>
                         </button>
 

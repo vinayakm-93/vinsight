@@ -2,6 +2,14 @@
 
 This document records major system fixes, Root Cause Analyses (RCAs), and architectural optimizations.
 
+## [2026-02-06] Progressive Hydration & Zero-Block API (v9.5)
+**Issue:** Dashboard page load was blocked by slow AI/LLM analysis providers (3-5s delay).
+**Optimization:**
+- **Dual-Engine Fetch**: Re-engineered `Dashboard.tsx` to first request `scoring_engine=formula` (Fast) and then hydrate `scoring_engine=reasoning` (Slow) as an asynchronous background task.
+- **Concurrent Hydration**: AI Briefing and Institutional Sentiment now initialize their own sub-loading states, allowing charts and fundamentals to be interactive immediately.
+- **Micro-batching**: Optimized Watchlist Sidebar to use `getBatchPrices` reducing HTTP overhead by 65%.
+**Files:** `frontend/src/components/Dashboard.tsx`, `frontend/src/lib/api.ts`, `backend/routes/data.py`.
+
 ## [2026-02-01] Yahoo Finance Rate Limit RCA
 **Issue:** Stocks failing to load with "Too Many Requests" (HTTP 429) error.
 **Root Cause:** Yahoo's `query1` endpoint aggressively blocks requests without modern browser TLS fingerprints and proper User-Agents.

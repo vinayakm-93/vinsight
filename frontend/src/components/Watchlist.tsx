@@ -238,6 +238,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
     const { user } = useAuth();
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // UI State
@@ -449,6 +450,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             return;
         }
 
+        setIsSearching(true);
         searchTimeout.current = setTimeout(async () => {
             try {
                 const results = await searchStocks(searchQuery);
@@ -456,6 +458,8 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                 setShowResults(true);
             } catch (e) {
                 console.error(e);
+            } finally {
+                setIsSearching(false);
             }
         }, 300); // Debounce
 
@@ -648,7 +652,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
     };
 
     return (
-        <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl p-3 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 h-full flex flex-col relative overflow-hidden transition-all duration-500" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
+        <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl p-3 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 h-full flex flex-col relative transition-all duration-500" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
             <div className="flex justify-between items-center mb-4 shrink-0">
                 <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
                     {user ? "My Watchlist" : "Watchlist"}
@@ -765,7 +769,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             {activeWatchlist && (
                 <div className="space-y-3 flex-1 flex flex-col min-h-0">
                     {/* Add Stock / Search */}
-                    <div className="relative shrink-0 z-20" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative shrink-0 z-50">
                         <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
                         <input
                             type="text"
@@ -775,29 +779,49 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                             placeholder="Add symbol..."
                             className="w-full bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                         />
+                        {isSearching && (
+                            <div className="absolute right-3 top-2.5">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                        )}
+
                         {/* Search Results Dropdown */}
-                        {showResults && searchResults.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                                {searchResults.map((result) => (
-                                    <div
-                                        key={result.symbol}
-                                        onClick={() => handleAddStock(result.symbol)}
-                                        className="px-4 py-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700/50 last:border-0 flex justify-between items-center group"
-                                    >
-                                        <div>
-                                            <div className="font-bold text-white flex items-center gap-2">
-                                                {result.symbol}
-                                                <span className="text-xs font-normal text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">{result.exchange}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-400">{result.name}</div>
-                                        </div>
-                                        <Plus size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        {showResults && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-[60] animate-in fade-in slide-in-from-top-1">
+                                {searchResults.length > 0 ? (
+                                    <div className="flex flex-col">
+                                        {searchResults.map((result: any, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => handleAddStock(result.symbol)}
+                                                className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-left border-b border-gray-100 dark:border-gray-800 last:border-0 group"
+                                            >
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-black text-gray-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase">{result.symbol}</span>
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
+                                                            {result.quoteType === 'ETF' ? 'ETF' : result.quoteType || 'EQUITY'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[180px]">{result.shortname || result.longname || result.name}</span>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{result.exchange}</span>
+                                                    <div className="p-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <Plus size={14} />
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
                                     </div>
-                                ))}
+                                ) : searchQuery.length > 0 && !isSearching && (
+                                    <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                                        No results found for "{searchQuery}"
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
-
 
                     {/* Stock List */}
                     <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">

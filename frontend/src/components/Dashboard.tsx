@@ -312,16 +312,22 @@ export default function Dashboard({
         }
     };
 
-    // Initial Load - Full (Optimized: Single Request)
+    // Initial Load - Progressive (Fast Baseline + Background AI)
     useEffect(() => {
         if (!ticker) return;
         const initFetch = async () => {
             setLoading(true);
-            // Don't set loadingHistory here to avoid double spinners, but we are fetching history too.
             try {
-                // Fetch ALL data in one shot: Analysis, History, News, Inst, Details
-                // We pass current timeRange to ensure history matches chart
-                const analData = await getAnalysis(ticker, selectedSector, timeRange.value, timeRange.interval);
+                // PHASE 1: Fast Baseline (Scoring Engine = Formula)
+                // This fetches chart history, news, and quick scores without LLM wait
+                const analData = await getAnalysis(
+                    ticker,
+                    selectedSector,
+                    timeRange.value,
+                    timeRange.interval,
+                    selectedPersona,
+                    'formula' // FAST
+                );
 
                 setAnalysis(analData);
 
@@ -334,16 +340,48 @@ export default function Dashboard({
                 // Set Fundamentals (Stock Details)
                 if (analData.stock_details) setFundamentals(analData.stock_details);
 
-                // Set Comparison if needed (still separate call if distinct, but SPY is cached usually)
+                // Set Comparison if needed
                 if (showComparison) {
                     getHistory('^GSPC', timeRange.value, timeRange.interval).then(setComparisonData).catch(console.error);
+                }
+
+                // PHASE 2: Background AI Intelligence (Scoring Engine = Reasoning)
+                // Trigger deep analysis if enabled, without blocking the UI
+                if (useReasoning) {
+                    triggerDeepAI();
                 }
 
             } catch (e) { console.error(e); }
             finally { setLoading(false); }
         };
         initFetch();
-    }, [ticker]); // Intentionally removed other deps to keep this as "Initial Load"
+    }, [ticker]);
+
+    // Dedicated function to fetch deep AI analysis without blocking main dashboard
+    const triggerDeepAI = async () => {
+        if (!ticker) return;
+        setLoadingAnalysis(true);
+        try {
+            const data = await getAnalysis(
+                ticker,
+                selectedSector,
+                timeRange.value,
+                timeRange.interval,
+                selectedPersona,
+                'reasoning' // SLOW / DEEP
+            );
+
+            // Merge ONLY the AI part to avoid resetting other tabs
+            setAnalysis((prev: any) => ({
+                ...prev,
+                ai_analysis: data.ai_analysis
+            }));
+        } catch (error) {
+            console.error("Deep AI Analysis failed:", error);
+        } finally {
+            setLoadingAnalysis(false);
+        }
+    };
 
     // Dynamic Chart Update (Only when timeRange changes AFTER initial load)
     // We need to track if it's the initial load to avoid double fetching history.
@@ -1305,6 +1343,59 @@ export default function Dashboard({
                                                             } catch (e) { return null; }
                                                         })()}
                                                     </div>
+                                                </div>
+
+                                                {/* RIGHT: Institutional Conviction Index (NEW) */}
+                                                <div className="w-full md:w-56 flex flex-col justify-end gap-3 p-4 bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-500/10 transition-colors"></div>
+                                                    <div className="flex items-center justify-between relative z-10">
+                                                        <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Conviction Index</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-tighter">Live Analysis</span>
+                                                        </div>
+                                                    </div>
+                                                    {(() => {
+                                                        const score = analysis.ai_analysis.score;
+                                                        const instSignal = (institutions?.insider_signal?.score || 0) * 5 + 50; // Scaled to 0-100
+                                                        const sentScore = (analysis.sentiment?.news_sentiment_score || 0) * 50 + 50; // Scaled to 0-100
+                                                        const conviction = (score * 0.4) + (instSignal * 0.3) + (sentScore * 0.3);
+
+                                                        let label = "MODERATE";
+                                                        let color = "text-amber-500";
+                                                        if (conviction >= 75) { label = "EXTREME"; color = "text-emerald-500 font-black"; }
+                                                        else if (conviction >= 60) { label = "STRONG"; color = "text-emerald-400"; }
+                                                        else if (conviction < 40) { label = "BEARISH"; color = "text-red-500"; }
+
+                                                        return (
+                                                            <div className="relative z-10">
+                                                                <div className="flex items-baseline gap-2">
+                                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${color} drop-shadow-sm`}>
+                                                                        {conviction.toFixed(0)}%
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-bold ${color}`}>
+                                                                        {label}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="w-full h-1 bg-gray-200 dark:bg-gray-700/50 rounded-full mt-2 overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full bg-gradient-to-r ${conviction >= 60 ? 'from-emerald-500 to-blue-500' : conviction < 40 ? 'from-red-500 to-amber-500' : 'from-amber-500 to-emerald-500'} transition-all duration-1000 ease-out`}
+                                                                        style={{ width: `${conviction}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <div className="flex justify-between mt-2">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[8px] text-gray-400 font-bold uppercase">Smart Money</span>
+                                                                        <span className="text-[10px] text-gray-600 dark:text-gray-300 font-bold">{(instSignal).toFixed(0)}</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className="text-[8px] text-gray-400 font-bold uppercase">Sentiment</span>
+                                                                        <span className="text-[10px] text-gray-600 dark:text-gray-300 font-bold">{(sentScore).toFixed(0)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 

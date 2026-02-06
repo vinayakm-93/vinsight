@@ -445,6 +445,6 @@ def get_watchlist_summary(
         "last_summary_at": db_watchlist.last_summary_at.isoformat() + "Z" if db_watchlist.last_summary_at else None,
         "symbols": db_watchlist.last_summary_stocks.split(",") if db_watchlist.last_summary_stocks else [],
         "refreshed": False,
-        "cooldown_remaining": time_left if refresh and not can_refresh else 0,
+        "cooldown_remaining": time_left if time_left > 0 else 0,
         "source": "Market Intelligence"
     }

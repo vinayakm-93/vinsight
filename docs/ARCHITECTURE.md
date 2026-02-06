@@ -43,6 +43,8 @@ graph TD
 
 ## 3. Core Engine Logic
 - **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0), Weighting profiles, and Vetos.
+- **Tri-Layer Signal Synthesis**: v9.5 introduces a three-layer signal model where the **Institutional Conviction Index** sits atop the **AI Reasoning Layer** and the **Algorithmic Baseline**.
+- **Progressive Hydration Pattern**: To optimize page performance, the system uses a dual-engine fetch strategy. Light mathematical data (Algo Baseline) is prioritized for immediate rendering, while heavy LLM reasoning (AI Layer) is lazy-loaded in the background without blocking the UI.
 - **AI vs. Algo Separation**: The system decouples the **LLM's qualitative reasoning** (top briefing) from the **algorithmic quantitative baseline** (bottom breakdown), providing users with both objective metrics and subjective analyst thesis.
 
 ## 4. Infrastructure & Security

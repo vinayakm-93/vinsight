@@ -1,6 +1,6 @@
-# VinSight Project Handover (v9.4 - Institutional UI)
-**Date:** February 05, 2026
-**Status:** **Production Ready** (Institutional AI Strategist)
+# VinSight Project Handover (v9.5 - High-Performance Analytics)
+**Date:** February 06, 2026
+**Status:** **Production Ready** (Ultra-Fast Dashboard & Conviction Index)
 **Target Audience:** Engineering Team / Next Agent
 
 ---
@@ -11,15 +11,17 @@ The system has been matured with a **Premium Institutional UI** for the AI Strat
 ---
 
 ## 2. Completed Work
-### Scoring Architecture
-- **AI Reasoning**: The top section displays scores generated from the LLM's own internal logic + component ratings (0-10).
-- **Algo Baseline (v9.0)**: The bottom section (Algorithmic Breakdown) uses the strict 70/30 mathematical engine. It is explicitly labeled as the "Foundation" with v9.0 versioning.
-- **Separation**: Fixed a mapping bug where AI and Algo sections were showing identical scores. They now diverge properly based on the model's subjective view.
+### Scoring Architecture (v9.5)
+- **Institutional Conviction Index**: A new composite metric: `(AI_Score * 0.4) + (Institutional_Signal * 0.3) + (Sentiment_Score * 0.3)`. It provides a "High Conviction" vs "Bearish" verdict independently of the base score.
+- **AI Reasoning (Top Briefing)**: Displays scores derived from LLM components (0-10).
+- **Algo Baseline (v9.0)**: The strict 70/30 mathematical engine used as a grounding truth.
+- **Progressive Hydration**: The UI now loads the Algo Baseline instantly and hydrates AI components as background tasks finish.
 
-### UI & UX (v9.4)
-- **Institutional AI Strategist**: Redesigned the briefing briefing to look and feel like an institutional terminal (minimal bubbles, bold semantic colors, refined headers).
-- **Vibrant Header**: Restored the high-contrast blue "Refresh" button and synchronized the "LIVE INTEL" status indicators.
-- **Typography**: Unified headers and list items with optimized vertical rhythm and tracking.
+### UI & UX (v9.5)
+- **Global Pulse**: Top-tier market ticker showing S&P 500, Nasdaq, and BTC in real-time.
+- **Search Context**: Search results now include Asset Class (Equity/ETF) and Exchange badges.
+- **Institutional Conviction Card**: A dedicated high-density card for rapid signal synthesis.
+- **Micro-Animations**: Coordinated price flashes and spinner transitions during background hydration.
 
 ### Reliability & Infrastructure
 - **SMTP Fixed**: Confirmed functional mail delivery through Gmail SMTP (App Passwords).
@@ -38,18 +40,18 @@ The system has been matured with a **Premium Institutional UI** for the AI Strat
 ## 4. Next Session Instructions (Context Prompt)
 *Copy and paste this into the next chat to retain context:*
 
-> **SYSTEM CONTEXT RESTORE: VinSight v9.4**
+> **SYSTEM CONTEXT RESTORE: VinSight v9.5**
 >
 > **Current State:**
-> -   **Dual Scoring**: `raw_breakdown` = AI Conviction; `algo_breakdown` = Mathematical Engine (v9.0). Use these keys specifically in the UI.
-> -   **Institutional UI**: AI Strategist uses high-density typography (h2: 20px, h3: 15px) and minimal visual clutter.
-> -   **SMTP**: Functional using `SMTP_USERNAME` and `SMTP_PASSWORD` in `.env`.
-> -   **Validation**: Run `python backend/validate_keys.py` to check service connectivity.
+> -   **Progressive Hydration**: Dashboard loads `scoring_engine=formula` first, then triggers `scoring_engine=reasoning` in background.
+> -   **Conviction Index**: Blended signal `(40% Algo, 30% Smart Money, 30% Sentiment)`.
+> -   **Search Badges**: Watchlist search results show `quoteType` (ETF vs Equity) and `exchange`.
+> -   **Global Pulse**: Top ticker in `page.tsx` for market health.
 >
 > **Rules:**
-> 1.  Maintain the separation of AI Briefing (Top) and Algo Baseline (Bottom).
-> 2.  Do NOT hardcode keys; use Secret Manager for Cloud and `.env` for Local.
-> 3.  Keep the "v9.0 Foundation" tag on the table at the bottom of the card.
+> 1.  Maintain the separate API calls for "Fast Data" vs "Deep AI".
+> 2.  Ensure background AI calls do not block the UI (set `loading` state per-component).
+> 3.  Maintain labels for "Smart Money" vs "Sentiment" in the conviction card.
 
 ---
 **Handover Signature:**
