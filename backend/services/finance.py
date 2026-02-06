@@ -1016,37 +1016,42 @@ def get_batch_prices(tickers: list):
 
 def get_batch_stock_details(tickers: list):
     """
-    Fetch details for multiple stocks in parallel (Optimized v9.2).
-    Uses yf.download() for single-shot history retrieval + yf.Tickers for info.
+    Fetch details for multiple stocks in parallel (Optimized v9.5).
+    Uses yf.download() for single-shot history retrieval + ThreadPool for processing.
     """
     if not tickers: return []
     
+    # Check for batch cache to avoid heavy reprocessing
+    # Sort tickers to make key deterministic
+    sorted_tickers = sorted(tickers)
+    cache_key = f"batch_details_{'_'.join(sorted_tickers)}"
+    cached_batch = analysis_cache.get(cache_key) # Re-use analysis cache with shorter TTL?
+    # Actually, let's just use a local memory cache or short-lived disk cache
+    if cached_batch:
+        return cached_batch
+        
     results = []
     try:
-        # 1. Fetch History for ALL tickers in ONE call
-        # group_by='ticker' makes it easy to access data per symbol
-        # auto_adjust=True gives us adjusted closes appropriate for returns
+        # 1. Fetch History for ALL tickers in ONE call (Fastest way)
+        # We fetch 1y to cover YTD, SMAs, and 6mo metrics
         hist_data = yf.download(tickers, period="1y", group_by='ticker', progress=False, auto_adjust=True)
         
-        # 2. Fetch Info (Fast Access)
+        # 2. Fetch Ticker objects in bulk
         batch = yf.Tickers(" ".join(tickers))
         
-        for ticker in tickers:
+        def process_ticker_item(ticker):
             try:
-                # Helper to get scalar from 1-level or 2-level DF
-                # If only 1 ticker in list, columns are (Open, High...), not (AAPL, Open)
+                # Get history slice for this ticker
                 if len(tickers) == 1:
                     df = hist_data
                 else:
                     try:
                         df = hist_data[ticker]
                     except KeyError:
-                         # Ticker might be missing in history download (delisted/error)
-                         df = pd.DataFrame()
+                        df = pd.DataFrame()
                 
-                # Get basic info
+                # Get basic info from batch or fallback
                 t_obj = batch.tickers.get(ticker) or yf.Ticker(ticker)
-                # fast_info is faster than .info dictionary
                 fi = t_obj.fast_info
                 
                 current = fi.last_price
@@ -1067,7 +1072,7 @@ def get_batch_stock_details(tickers: list):
                     
                     def get_pct(days):
                         if len(closes) > days:
-                            past = closes.iloc[-days-1] # -days-1 to mimic N trading days ago roughly
+                            past = closes.iloc[-days-1] 
                             if past > 0:
                                 return ((current - past) / past) * 100
                         return None
@@ -1076,16 +1081,13 @@ def get_batch_stock_details(tickers: list):
                     one_month = get_pct(21)
                     six_month = get_pct(126)
                     
-                    # SMA
                     if len(closes) >= 20:
                         sma20 = closes.rolling(window=20).mean().iloc[-1]
                     if len(closes) >= 50:
                         sma50 = closes.rolling(window=50).mean().iloc[-1]
                         
-                    # YTD
                     try:
-                        current_year = pd.Timestamp.now().year
-                        # Find last close of previous year
+                        current_year = datetime.now().year
                         last_year_end = df[df.index.year == (current_year - 1)]
                         if not last_year_end.empty:
                             start_price = last_year_end['Close'].iloc[-1]
@@ -1093,13 +1095,9 @@ def get_batch_stock_details(tickers: list):
                                 ytd_change = ((current - start_price) / start_price) * 100
                     except: pass
                 
-                # PE/EPS - Optimized fetch for dashboard
-                # Check persistent cache first
+                # Metadata (PE/EPS/Sector) - Concurrent friendly
                 cached_info = stock_info_cache.get(f"info_{ticker}")
-                pe = None
-                eps = None
-                sector = None
-                peg = None
+                pe, eps, sector, peg = None, None, None, None
                 
                 if cached_info:
                     pe = cached_info.get('trailingPE')
@@ -1107,7 +1105,7 @@ def get_batch_stock_details(tickers: list):
                     sector = cached_info.get('sector')
                     peg = cached_info.get('pegRatio')
                 
-                # If not in cache or missing fields, and ticker object is available, fetch lazily
+                # Lazily fetch if missing
                 if (pe is None or eps is None or sector is None or peg is None):
                     try:
                         info_data = t_obj.info
@@ -1115,14 +1113,11 @@ def get_batch_stock_details(tickers: list):
                         eps = eps if eps is not None else info_data.get('trailingEps')
                         sector = sector if sector is not None else info_data.get('sector')
                         peg = peg if peg is not None else info_data.get('pegRatio')
-                        
-                        # Update cache with new info if we just fetched it
                         if info_data:
                             stock_info_cache.set(f"info_{ticker}", info_data)
-                    except:
-                        pass
+                    except: pass
                 
-                results.append({
+                return {
                     "symbol": ticker,
                     "currentPrice": current,
                     "regularMarketChange": (current - prev_close) if prev_close else 0,
@@ -1139,13 +1134,22 @@ def get_batch_stock_details(tickers: list):
                     "pegRatio": peg,
                     "sector": sector,
                     "fiftyTwoWeekHigh": fi.year_high
-                })
-                
-            except Exception as inner_e:
-                print(f"Error processing batch ticker {ticker}: {inner_e}")
+                }
+            except Exception as e:
+                logger.error(f"Error processing {ticker} in batch: {e}")
+                return None
+
+        # Process all tickers in parallel for processing metadata/info
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(tickers), 20)) as executor:
+            item_results = list(executor.map(process_ticker_item, tickers))
+            results = [r for r in item_results if r]
+            
+        # Store in cache for 5 minutes (300s)
+        if results:
+            analysis_cache.set(cache_key, results) # Use analysis cache for batch storage
                 
     except Exception as e:
-        print(f"Batch download error: {e}")
+        logger.error(f"Batch detail fetch error: {e}")
         return []
 
     return results

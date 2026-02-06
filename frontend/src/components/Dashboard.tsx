@@ -436,19 +436,29 @@ export default function Dashboard({
         const fetchSummary = async () => {
             setLoadingSummary(true);
             try {
-                // Use new batch endpoint to reduce API calls from N to 1
-                const results = await getBatchStockDetails(watchlistStocks);
+                // PHASE 1: Ultra-Fast Basic Prices (Minimal Data)
+                // This gives the user immediate feedback with current prices/trends
+                const basicResults = await getBatchPrices(watchlistStocks);
+                if (basicResults && basicResults.length > 0) {
+                    setSummaryData(basicResults);
+                    // If we have some data, we can "soften" the loading state 
+                    // This allows the table to show while we fetch deep history
+                    setLoadingSummary(false);
+                }
 
-                // Sort results to match the order of watchlistStocks
-                if (results && watchlistStocks.length > 0) {
-                    results.sort((a: any, b: any) => {
+                // PHASE 2: Deeper Stock Details & History (Heavier Data)
+                const detailedResults = await getBatchStockDetails(watchlistStocks);
+
+                // Merge or replace with detailed results
+                if (detailedResults && detailedResults.length > 0) {
+                    // Sort details to match the order of watchlistStocks
+                    detailedResults.sort((a: any, b: any) => {
                         const indexA = watchlistStocks.indexOf(a.symbol);
                         const indexB = watchlistStocks.indexOf(b.symbol);
                         return indexA - indexB;
                     });
+                    setSummaryData(detailedResults);
                 }
-
-                setSummaryData(results || []);
             } catch (e) {
                 console.error("Summary fetch error", e);
             } finally {
