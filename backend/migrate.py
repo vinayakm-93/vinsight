@@ -54,6 +54,7 @@ def migrate():
                     result = conn.execute(text("PRAGMA table_info(watchlists)"))
                 
                 wl_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+                logger.info(f"Watchlist columns found: {wl_columns}")
                 
                 if 'position' not in wl_columns:
                     logger.info("Adding 'position' to 'watchlists'")
@@ -83,6 +84,7 @@ def migrate():
                     result = conn.execute(text("PRAGMA table_info(users)"))
                 
                 u_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+                logger.info(f"Users columns found: {u_columns}")
                 
                 # Granular checks to avoid partial failure
                 if 'alerts_triggered_this_month' not in u_columns:
