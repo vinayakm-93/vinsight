@@ -52,3 +52,14 @@ docs/MEDIUM_POST.md
 
 # Earnings Transcripts
 *_transcript.txt
+
+# Cache & Temp
+cache_data/
+*.pkl
+reproduce_*.py
+*.json
+!package.json
+!tsconfig.json
+!composer.json
+!aapl_*.json
+!performance_baseline.json
