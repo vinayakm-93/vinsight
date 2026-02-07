@@ -247,7 +247,15 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
 
         # v5.5 Price handling: Ensure current_price is a float and not None
         last_close = history[-1]['Close'] if history else None
-        current_price = float(last_close) if last_close is not None else 0.0
+        
+        # v9.5.2 Weekend Heuristic: Fallback to info.get('currentPrice') if history is empty
+        if last_close is not None:
+            current_price = float(last_close)
+        else:
+            # On weekends or when history fails, we use the real-time quote from 'info' 
+            # (which we now safely get via yahoo_client fallback if needed)
+            current_price = float(fundamentals_info.get('currentPrice', 0.0) or fundamentals_info.get('previousClose', 0.0) or 0.0)
+            logger.info(f"Weekend/EmptyHistory Fallback: Used currentPrice {current_price} for {ticker}")
         
         # Handle sentiment safely - use default values if sentiment is None
         if sentiment_result:
@@ -590,7 +598,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
              
              long_term_outlook = [
                 f"Valuation: {'Reasonable' if pe < 25 else 'Premium'}",
-                f"Projected Upside: {upside_pct:.1f}%",
+                f"Projected Upside: {upside:.1f}%",
                 f"Institutional Quality: {'High' if inst_own > 60 else 'Low/Moderate'}"
              ]
 
