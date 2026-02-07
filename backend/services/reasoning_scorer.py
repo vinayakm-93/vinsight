@@ -223,7 +223,8 @@ You MUST respond with a single valid JSON object.
 
     def _call_gemini(self, context: Dict) -> Dict:
         prompt = self._build_system_prompt(context)
-        response = self.gemini_model.generate_content(prompt)
+        # Use request_options to set strict execution timeout (Resilience pattern)
+        response = self.gemini_model.generate_content(prompt, request_options={'timeout': 12})
         text = response.text.strip()
         if text.startswith("```json"):
             text = text[7:-3].strip()
@@ -239,7 +240,8 @@ You MUST respond with a single valid JSON object.
             ],
             temperature=0.3,
             max_tokens=1000,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            timeout=12.0 # Strict timeout for worker pool health
         )
         return json.loads(completion.choices[0].message.content)
 

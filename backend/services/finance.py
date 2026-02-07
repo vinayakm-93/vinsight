@@ -816,9 +816,36 @@ def fetch_coordinated_analysis_data(ticker: str):
     
     def get_info():
         try:
-           return stock.info 
+           info = stock.info
+           if not info or len(info) < 5: # Basic check for empty/blocked response
+               raise ValueError("Empty info from yfinance")
+           return info
         except Exception as e:
-            logger.warning(f"Coordinator [Info] failed for {ticker}: {e}")
+            logger.warning(f"Coordinator [Info] yfinance failed for {ticker}: {e}. Trying yahoo_client fallback.")
+            from services import yahoo_client
+            # yahoo_client.get_quote_summary returns v10 quoteSummary result
+            # We need to map it to the expected stock.info format if possible, 
+            # or just return the raw dictionary which the route already handles partially.
+            qs = yahoo_client.get_quote_summary(ticker)
+            if qs:
+                # Merge relevant nested fields into a flat structure similar to stock.info
+                # This ensures compatibility with the math scorers
+                flat_info = {}
+                price = qs.get('price', {})
+                summary = qs.get('summaryDetail', {})
+                financial = qs.get('financialData', {})
+                
+                # Manual mapping for common fields
+                flat_info['currentPrice'] = price.get('regularMarketPrice', {}).get('raw')
+                flat_info['previousClose'] = price.get('regularMarketPreviousClose', {}).get('raw')
+                flat_info['marketCap'] = price.get('marketCap', {}).get('raw')
+                flat_info['trailingPE'] = summary.get('trailingPE', {}).get('raw')
+                flat_info['forwardPE'] = financial.get('forwardPE', {}).get('raw')
+                flat_info['dividendYield'] = summary.get('dividendYield', {}).get('raw')
+                flat_info['heldPercentInstitutions'] = summary.get('heldPercentInstitutions', {}).get('raw')
+                flat_info['heldPercentInsiders'] = summary.get('heldPercentInsiders', {}).get('raw')
+                # Add more as needed by Scorer...
+                return flat_info
             return {}
         
     def get_history():
@@ -826,7 +853,9 @@ def fetch_coordinated_analysis_data(ticker: str):
             # history() typically handles its own session
             h = stock.history(period="2y", interval="1d")
             # Convert to list of dicts immediately to save memory/processing later
-            if h.empty: return []
+            if h.empty: 
+                raise ValueError("Empty history from yfinance")
+                
             return [{
                 "Date": index.isoformat(),
                 "Open": row['Open'], 
@@ -836,7 +865,34 @@ def fetch_coordinated_analysis_data(ticker: str):
                 "Volume": row['Volume']
             } for index, row in h.iterrows()]
         except Exception as e:
-            logger.error(f"Coordinator [History] failed for {ticker}: {e}")
+            logger.warning(f"Coordinator [History] yfinance failed for {ticker}: {e}. Trying yahoo_client fallback.")
+            from services import yahoo_client
+            chart_data = yahoo_client.get_chart_data(ticker, range_="2y")
+            if chart_data:
+                # Map yahoo_client chart format to list of dicts
+                try:
+                    timestamps = chart_data.get('timestamp', [])
+                    quotes = chart_data.get('indicators', {}).get('quote', [{}])[0]
+                    closes = quotes.get('close', [])
+                    opens = quotes.get('open', [])
+                    highs = quotes.get('high', [])
+                    lows = quotes.get('low', [])
+                    volumes = quotes.get('volume', [])
+                    
+                    history_list = []
+                    for i in range(len(timestamps)):
+                        if i < len(closes) and closes[i] is not None:
+                            history_list.append({
+                                "Date": datetime.fromtimestamp(timestamps[i]).isoformat(),
+                                "Open": opens[i],
+                                "High": highs[i],
+                                "Low": lows[i],
+                                "Close": closes[i],
+                                "Volume": volumes[i]
+                            })
+                    return history_list
+                except Exception as ex:
+                    logger.error(f"Fallback formatting error for {ticker}: {ex}")
             return []
 
     def get_news_data():

@@ -362,14 +362,22 @@ export default function Dashboard({
         if (!ticker) return;
         setLoadingAnalysis(true);
         try {
-            const data = await getAnalysis(
-                ticker,
-                selectedSector,
-                timeRange.value,
-                timeRange.interval,
-                selectedPersona,
-                'reasoning' // SLOW / DEEP
+            // Promise.race to prevent the UI from hanging if the backend or LLM is slow
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Deep AI Timeout")), 15000)
             );
+
+            const data = await Promise.race([
+                getAnalysis(
+                    ticker,
+                    selectedSector,
+                    timeRange.value,
+                    timeRange.interval,
+                    selectedPersona,
+                    'reasoning' // SLOW / DEEP
+                ),
+                timeoutPromise
+            ]) as any;
 
             // Merge ONLY the AI part to avoid resetting other tabs
             setAnalysis((prev: any) => ({
@@ -377,7 +385,9 @@ export default function Dashboard({
                 ai_analysis: data.ai_analysis
             }));
         } catch (error) {
-            console.error("Deep AI Analysis failed:", error);
+            console.error("Deep AI Analysis failed or timed out:", error);
+            // On failure/timeout, we fall back to the existing analysis 
+            // which already contains the 'formula' baseline from Phase 1.
         } finally {
             setLoadingAnalysis(false);
         }
