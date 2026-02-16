@@ -292,39 +292,68 @@ def analyze_earnings(ticker: str, db: Session):
         }
 
     # --- Run AI Analysis ---
+    # Smart truncation: Prioritize Q&A (most valuable) over prepared remarks
     if len(transcript) > 50000:
-        transcript = transcript[:50000] + "...(truncated)"
+        # Try to find Q&A section boundary
+        qa_markers = ["question-and-answer", "questions and answers", "q&a session", "Q&A", "operator"]
+        qa_start = -1
+        transcript_lower = transcript.lower()
+        for marker in qa_markers:
+            pos = transcript_lower.rfind(marker.lower())
+            if pos > len(transcript) * 0.3:  # Q&A should be in the latter portion
+                qa_start = pos
+                break
+        
+        if qa_start > 0:
+            # Keep full Q&A + as much prepared remarks as fits
+            qa_section = transcript[qa_start:]
+            remaining_budget = 50000 - len(qa_section) - 200  # Reserve space
+            prepared = transcript[:max(0, remaining_budget)]
+            transcript = prepared + "\n\n...[PREPARED REMARKS TRUNCATED FOR LENGTH]...\n\n" + qa_section
+        else:
+            transcript = transcript[:50000] + "...(truncated)"
     
     prompt = f"""
     Role: Senior Wall Street Analyst (CFA).
     Task: Analyze this earnings transcript for {ticker} (Q{q} {y}).
-    Target Audience: Retail Investor.
+    Target Audience: Retail Investor who needs clear, actionable insights.
 
     CONTEXT:
     The text is scraped and may contain noise (ads, disclaimers). 
     IGNORE any text about "Premium services", "Stock Advisor", or navigation links.
     Focus ONLY on the CEO/Management remarks and the Q&A.
 
+    EXTRACTION TARGETS (look for these specifically):
+    1. **Forward Guidance**: Extract EXACT numbers if mentioned (revenue targets, EPS guidance, margin goals).
+    2. **Guidance Changes**: Note if guidance was raised, lowered, or maintained vs prior quarter.
+    3. **Margin Trajectory**: Is the company's margin expanding, contracting, or stable? Why?
+    4. **Management Confidence**: Rate language: "confident" / "cautiously optimistic" / "navigating headwinds" = very different signals.
+    5. **Red Flags**: Vague answers, deflections, or "we'll get back to you" in Q&A = negative signal.
+    6. **Catalysts**: New products, partnerships, market expansion, or cost-cutting initiatives mentioned.
+
     INSTRUCTIONS:
     1. Infer "Prepared Remarks" vs "Q&A" even if headers are fuzzy.
-    2. Be objective, slightly skeptical.
-    3. JSON output ONLY.
+    2. Be objective, slightly skeptical. Management always spins positively — read between the lines.
+    3. The Q&A section is MORE valuable than prepared remarks. Analyst questions reveal what Wall Street cares about.
+    4. JSON output ONLY.
 
     OUTPUT FORMAT:
     {{
       "prepared_remarks": {{
         "sentiment": "Bullish|Bearish|Neutral",
         "summary": "Strategic narrative summary.",
-        "key_points": ["Point 1", "Point 2"]
+        "key_points": ["Point 1", "Point 2"],
+        "forward_guidance": "Exact guidance numbers or 'Not provided'"
       }},
       "qa_session": {{
         "sentiment": "Bullish|Bearish|Neutral",
         "summary": "Analyst Q&A tone and management confidence.",
-        "revelations": ["Hidden risk", "Guidance clarity"]
+        "revelations": ["Key insight from Q&A", "Red flag or positive signal"],
+        "management_confidence": "High|Medium|Low"
       }},
       "verdict": {{
         "rating": "Buy|Hold|Sell",
-        "reasoning": "Decisive conclusion."
+        "reasoning": "Decisive 2-sentence conclusion."
       }}
     }}
     

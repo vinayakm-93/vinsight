@@ -323,7 +323,8 @@ def get_watchlist_summary(
     
     # 3. Check for existing summary and recent refresh
     now = datetime.datetime.utcnow() # Naive UTC for DB compatibility
-    cooldown_seconds = 3600 # 1 hour
+    # cooldown_seconds = 3600 # 1 hour
+    cooldown_seconds = 1 # DEV OVERRIDE: Allow instant refresh for testing
     
     can_refresh = True
     time_left = 0

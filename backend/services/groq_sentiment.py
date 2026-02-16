@@ -68,7 +68,6 @@ class GroqSentimentAnalyzer:
             model=self.model,
             temperature=temperature,
             max_tokens=max_tokens,
-            timeout=5.0,
             response_format=response_format
         )
 
@@ -201,17 +200,24 @@ class GroqSentimentAnalyzer:
 
 "{text}"
 
-Classify the sentiment as:
-- positive (bullish, good news for investors)
-- negative (bearish, bad news for investors)  
-- neutral (mixed or unclear sentiment)
+Classify the sentiment from an INVESTOR's perspective:
+- positive (bullish, good for stock price)
+- negative (bearish, bad for stock price)  
+- neutral (mixed, unclear, or offsetting signals)
+
+CRITICAL: Consider how the MARKET typically reacts, not just face-value sentiment:
+- Layoffs during restructuring can be BULLISH (cost-cutting → margin expansion)
+- Revenue miss in a growth stock is MORE negative than in a mature value stock
+- "In line with expectations" = neutral, not positive
+- Buyback announcements = bullish (management believes stock is undervalued)
+- Debt issuance can be positive (growth funding) or negative (covering losses) — context matters
 
 Provide your analysis in this EXACT JSON format:
 {{
   "label": "positive|negative|neutral",
   "score": <number between -1.0 and 1.0>,
   "confidence": <number between 0.0 and 1.0>,
-  "reasoning": "<brief explanation>"
+  "reasoning": "<brief explanation of WHY the market would react this way>"
 }}
 
 Examples:
@@ -224,12 +230,20 @@ Text: "Apple exceeds earnings expectations, beats on revenue and EPS"
   "reasoning": "Strong earnings beat indicates solid business performance, typically bullish for stock"
 }}
 
+Text: "Company announces layoffs affecting 15% of workforce as part of strategic restructuring"
+{{
+  "label": "neutral",
+  "score": 0.10,
+  "confidence": 0.70,
+  "reasoning": "Layoffs signal pain but restructuring suggests margin improvement ahead — market often reacts positively to cost discipline"
+}}
+
 Text: "Company announces layoffs affecting 15% of workforce amid revenue decline"
 {{
   "label": "negative",
   "score": -0.75,
   "confidence": 0.90,
-  "reasoning": "Layoffs and revenue decline are clear negative signals for the company's financial health"
+  "reasoning": "Layoffs paired with declining revenue signals fundamental weakness, not proactive cost management"
 }}
 
 Text: "Merger talks ongoing, outcome uncertain"

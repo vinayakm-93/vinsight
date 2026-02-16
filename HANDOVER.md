@@ -1,57 +1,61 @@
-# VinSight Project Handover (v9.5 - High-Performance Analytics)
-**Date:** February 06, 2026
-**Status:** **Production Ready** (Ultra-Fast Dashboard & Conviction Index)
+# VinSight Project Handover (v9.7 - Precision & Personas)
+**Date:** February 15, 2026
+**Status:** **Stable** (Enhanced Scoring Logic & UI Polish)
 **Target Audience:** Engineering Team / Next Agent
 
 ---
 
 ## 1. Executive Summary
-The system has been matured with a **Premium Institutional UI** for the AI Strategist component. It now features high-density data visualization, refined typography, and a "Intelligence Bar" architecture that differentiates it from standard retail tools. SMTP and Dual-Layer Analysis remain functional.
+This release focuses on **determinism and clarity**. We eliminated scoring variance by enforcing strict persona weights and low temperatures, and refined the UI to make the "Verdict" center stage.
+- **Consistency**: Scores are now reproducible and strictly adhere to persona biases (CFA vs Momentum).
+- **UI Clarity**: Verdicts are immediately visible at the top; Bull/Bear cards are self-contained with risk/opportunity lists.
 
 ---
 
-## 2. Completed Work
-### Scoring Architecture (v9.5)
-- **Institutional Conviction Index**: A new composite metric: `(AI_Score * 0.4) + (Institutional_Signal * 0.3) + (Sentiment_Score * 0.3)`. It provides a "High Conviction" vs "Bearish" verdict independently of the base score.
-- **AI Reasoning (Top Briefing)**: Displays scores derived from LLM components (0-10).
-- **Algo Baseline (v9.0)**: The strict 70/30 mathematical engine used as a grounding truth.
-- **Progressive Hydration**: The UI now loads the Algo Baseline instantly and hydrates AI components as background tasks finish.
+## 2. Completed Work (v9.7.1)
 
-### UI & UX (v9.5)
-- **Global Pulse**: Top-tier market ticker showing S&P 500, Nasdaq, and BTC in real-time.
-- **Search Context**: Search results now include Asset Class (Equity/ETF) and Exchange badges.
-- **Institutional Conviction Card**: A dedicated high-density card for rapid signal synthesis.
-- **Micro-Animations**: Coordinated price flashes and spinner transitions during background hydration.
+### AI Strategist (`watchlist_summary.py`)
+- **Timeout**: Increased to **180s** (Prev: 45s).
+- **Prompt**: Added `Forward P/E` and `PEG` for valuation context.
+- **UI**: Added "Model Badge" and refined typography in `WatchlistSummaryCard.tsx`.
 
-### Reliability & Infrastructure
-- **SMTP Fixed**: Confirmed functional mail delivery through Gmail SMTP (App Passwords).
-- **Health Checks**: New `validate_keys.py` script verifies health of Groq, Gemini, Serper, Finnhub, and EODHD.
-- **Support**: Backend `mail.py` now supports both `MAIL_` and `SMTP_` prefixes.
+### AI Scoring Engine (`reasoning_scorer.py`)
+- **Persona Weights**: Explicitly defined in `PERSONAS` dict (e.g., `scoring_weights: {"Valuation": 30...}`).
+- **Temperature**: Hardcoded to `0.1` (Groq/Gemini/OpenRouter) or `0.0` (DeepSeek) for near-zero variance.
+- **Prompt Engineering**: Injected "CRITICAL CONSISTENCY RULES" (e.g., P/E > 50 cap) to prevent hallucinations.
+
+### UI Refinements (`Dashboard.tsx`)
+- **Top Section**: Added **Rating Badge** (Buy/Sell) and full **Verdict** text next to the score ring.
+- **Cards**: Restored `<ul>` lists for **Key Opportunities** (Bull Card) and **Key Risks** (Bear Card).
+- **Cleanliness**: Removed duplicate verdict from the Briefing header.
 
 ---
 
 ## 3. Current State
-- **System**: Stable and Deployed.
-- **Primary AI**: Llama 3.3 70B (Groq) / Gemini 1.5 Flash (Fallback).
-- **Email Service**: Live.
+- **System**: Stable.
+- **Performance**: DeepSeek R1 now has 3 minutes to reason.
+- **Quality**: significantly improved scoring reliability and explanation quality.
 
 ---
 
 ## 4. Next Session Instructions (Context Prompt)
 *Copy and paste this into the next chat to retain context:*
 
-> **SYSTEM CONTEXT RESTORE: VinSight v9.5**
+> **SYSTEM CONTEXT RESTORE: VinSight v9.7.1 (Precision & Transparency)**
 >
-> **Current State:**
-> -   **Progressive Hydration**: Dashboard loads `scoring_engine=formula` first, then triggers `scoring_engine=reasoning` in background.
-> -   **Conviction Index**: Blended signal `(40% Algo, 30% Smart Money, 30% Sentiment)`.
-> -   **Search Badges**: Watchlist search results show `quoteType` (ETF vs Equity) and `exchange`.
-> -   **Global Pulse**: Top ticker in `page.tsx` for market health.
+> **Current Architecture:**
+> -   **Scoring Logic**: `reasoning_scorer.py` uses STRICT persona weights and `temperature=0.1`.
+> -   **AI Strategist**: 180s Timeout. Uses DeepSeek R1 (OpenRouter) -> Gemini 2.0 (Fallback).
+> -   **UI Layout**: Verdict at TOP. Strategist displays Model Badge.
+>
+> **Recent Changes:**
+> -   **Backend**: Increased Strategist timeout to 180s. Added Valuation metrics to prompt.
+> -   **Frontend**: Refined Typography. Added Model Badge.
 >
 > **Rules:**
-> 1.  Maintain the separate API calls for "Fast Data" vs "Deep AI".
-> 2.  Ensure background AI calls do not block the UI (set `loading` state per-component).
-> 3.  Maintain labels for "Smart Money" vs "Sentiment" in the conviction card.
+> 1.  **Do NOT raise temperature**: Keep it low for consistency.
+> 2.  **Respect Persona Weights**: Any new personas must have explicit `scoring_weights`.
+> 3.  **Maintain UI Layout**: Keep Verdict at the top, do not duplicate in Briefing header.
 
 ---
 **Handover Signature:**

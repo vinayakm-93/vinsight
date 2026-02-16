@@ -1,5 +1,48 @@
 # Changelog
 
+## [v9.7.1] - Strategist Transparency (2026-02-15)
+
+### 🧠 AI Strategist
+- **Extended Reasoning**: Increased backend timeout to **180s** to allow DeepSeek R1 to fully "think" without premature truncation.
+- **Valuation Intelligence**: Injected **Forward P/E** and **PEG Ratio** into the prompt for deeper valuation analysis.
+- **Model Transparency**: Added a "Model Used" badge (e.g., "DeepSeek R1" vs "Gemini 2.0") to the summary card footer.
+- **UI Typography**: Refined Markdown headers and spacing for a cleaner, more institutional look.
+
+## [v9.7.0] - Precision UI & Persona Logic (2026-02-15)
+
+### 🧠 Backend: Engineered Consistency
+- **Persona Weights**: Injected strict scoring rubrics for each persona (e.g., **Momentum**: 40% Technicals, **CFA**: 30% Valuation).
+- **Zero-Temperature**: Lowered AI temperature to `0.1` (or `0.0`) across all providers (Groq, OpenRouter, DeepSeek, Gemini) to eliminate random variance.
+- **Verdict Logic**: Enforced a strict "Rated X/100 because..." format for the verdict to ensure immediate clarity.
+- **Consistency Rules**: Added hard caps for specific risks (e.g., "Max Score 60 if Debt/Equity > 2.0").
+
+### 🎨 UI: Clarity & Polish
+- **Verdict Placement**: Moved the full Verdict statement to the top Score Ring section for immediate visibility.
+- **Rating Badge**: Added a dynamic **BUY / SELL / HOLD** badge next to the score.
+- **Decluttered Header**: Removed redundant verdict text from the "AI Strategic Briefing" header.
+- **Restored Lists**: Brought back "Key Opportunities" and "Key Risks" lists into the Bull/Bear cards for detailed context.
+
+---
+
+## [v9.6.0] - Speed & Strategy Architecture (2026-02-11)
+
+### 🚀 Performance: Llama 3.3 Core
+- **Instant Scoring**: Switched the primary scoring engine to **Llama 3.3 70B** (via Groq), reducing latency from ~45s (DeepSeek) to **<5s**.
+- **Specialized Fallback**: DeepSeek R1 remains available as a high-precision fallback if speed is not the priority.
+
+### 🧠 Major Upgrade: DeepSeek R1 Strategist
+- **AI Strategist Integration**: The Watchlist Summary now uses **DeepSeek R1** (OpenRouter) as the primary engine.
+- **Reasoning Depth**: Leverages R1's Chain-of-Thought (CoT) for institutional-grade portfolio synthesis.
+- **UI Cleanliness**: Automated stripping of `<think>` tags ensures the summary card remains concise while benefiting from deep reasoning.
+
+### 🛡️ Reliability Fixes
+- **Institutional Data**: Fixed a critical `NoneType` crash in `finance.py` that occurred when Yahoo Finance returned incomplete stock info.
+- **Groq Client Stability**: Resolved a regression where passing `timeout` to the Groq client caused 500 errors (parameter removed).
+- **Adaptive Timeouts**: 
+    - **Scoring**: 60s timeout (optimized for Llama 3.3).
+    - **Strategist**: 120s timeout (accommodates DeepSeek R1 variance).
+
+---
 ## [v9.5.0] - High-Performance Analytics & Conviction Index (2026-02-06)
 
 ### 🚀 Performance: Progressive Dashboard Architect

@@ -364,7 +364,7 @@ export default function Dashboard({
         try {
             // Promise.race to prevent the UI from hanging if the backend or LLM is slow
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Deep AI Timeout")), 15000)
+                setTimeout(() => reject(new Error("Deep AI Timeout")), 60000)
             );
 
             const data = await Promise.race([
@@ -1320,103 +1320,61 @@ export default function Dashboard({
                                                     </div>
                                                     <div className="flex-1">
                                                         <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
-                                                        {(() => {
-                                                            try {
-                                                                // Simple string display - no parsing needed
-                                                                const justification = typeof analysis.ai_analysis.justification === 'string'
-                                                                    ? analysis.ai_analysis.justification.replace(/^["']|["']$/g, '')
-                                                                    : "Analysis complete.";
+                                                        <div className="flex flex-col gap-2 mt-2">
+                                                            {/* Rating Badge + Verdict Text */}
+                                                            <div className="flex flex-col gap-2">
+                                                                {(() => {
+                                                                    const rating = (analysis.ai_analysis as any).rating || "Hold";
+                                                                    let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
+                                                                    if (rating.includes("Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+                                                                    if (rating.includes("Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+                                                                    if (rating.includes("Hold")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
 
-                                                                return (
-                                                                    <div className="flex flex-col gap-3">
-                                                                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
-                                                                            {justification || "Analyzing score drivers..."}
-                                                                        </p>
+                                                                    return (
+                                                                        <div className="flex items-start gap-3">
+                                                                            <span className={`px-3 py-1 rounded-md border ${badgeColor} text-xs font-black uppercase tracking-wider shadow-sm whitespace-nowrap`}>
+                                                                                {rating}
+                                                                            </span>
+                                                                            {(analysis.ai_analysis as any).structured_summary?.verdict && (
+                                                                                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 italic leading-snug pt-0.5 border-l-2 border-blue-500 pl-3">
+                                                                                    "{(analysis.ai_analysis as any).structured_summary.verdict}"
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
 
-                                                                        {/* Embedded Veto/Bonus Tags (if provided by backend) */}
-                                                                        {(analysis.ai_analysis.modifications?.length > 0) && (
-                                                                            <div className="flex flex-wrap gap-2 pt-1">
-                                                                                {analysis.ai_analysis.modifications.map((mod: string, i: number) => {
-                                                                                    const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
-                                                                                    const isBonus = mod.includes("Bonus") || mod.includes("+");
-                                                                                    const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
+                                                            {/* Embedded Veto/Bonus Tags */}
+                                                            {(analysis.ai_analysis.modifications?.length > 0) && (
+                                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                                    {analysis.ai_analysis.modifications.map((mod: string, i: number) => {
+                                                                        const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
+                                                                        const isBonus = mod.includes("Bonus") || mod.includes("+");
+                                                                        const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
 
-                                                                                    return (
-                                                                                        <span
-                                                                                            key={i}
-                                                                                            className={`px-2 py-1 rounded-md text-[9px] font-bold flex items-center gap-1.5 border backdrop-blur-sm ${isPenalty
-                                                                                                ? "bg-red-500/5 text-red-600 dark:text-red-400 border-red-500/20"
-                                                                                                : isBonus
-                                                                                                    ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                                                                                    : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
-                                                                                                }`}
-                                                                                        >
-                                                                                            {isPenalty ? <TrendingDown size={10} className="text-red-500" /> : isBonus ? <Zap size={10} className="text-emerald-500" /> : null}
-                                                                                            {displayText}
-                                                                                        </span>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            } catch (e) { return null; }
-                                                        })()}
-                                                    </div>
-                                                </div>
-
-                                                {/* RIGHT: Institutional Conviction Index (NEW) */}
-                                                <div className="w-full md:w-56 flex flex-col justify-end gap-3 p-4 bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden group">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-500/10 transition-colors"></div>
-                                                    <div className="flex items-center justify-between relative z-10">
-                                                        <span className="text-[9px] font-black text-gray-400 tracking-widest uppercase">Conviction Index</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-tighter">Live Analysis</span>
+                                                                        return (
+                                                                            <span
+                                                                                key={i}
+                                                                                className={`px-2 py-1 rounded-md text-[9px] font-bold flex items-center gap-1.5 border backdrop-blur-sm ${isPenalty
+                                                                                    ? "bg-red-500/5 text-red-600 dark:text-red-400 border-red-500/20"
+                                                                                    : isBonus
+                                                                                        ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                                                                        : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+                                                                                    }`}
+                                                                            >
+                                                                                {isPenalty ? <TrendingDown size={10} className="text-red-500" /> : isBonus ? <Zap size={10} className="text-emerald-500" /> : null}
+                                                                                {displayText}
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    {(() => {
-                                                        const score = analysis.ai_analysis.score;
-                                                        const instSignal = (institutions?.insider_signal?.score || 0) * 5 + 50; // Scaled to 0-100
-                                                        const sentScore = (analysis.sentiment?.news_sentiment_score || 0) * 50 + 50; // Scaled to 0-100
-                                                        const conviction = (score * 0.4) + (instSignal * 0.3) + (sentScore * 0.3);
-
-                                                        let label = "MODERATE";
-                                                        let color = "text-amber-500";
-                                                        if (conviction >= 75) { label = "EXTREME"; color = "text-emerald-500 font-black"; }
-                                                        else if (conviction >= 60) { label = "STRONG"; color = "text-emerald-400"; }
-                                                        else if (conviction < 40) { label = "BEARISH"; color = "text-red-500"; }
-
-                                                        return (
-                                                            <div className="relative z-10">
-                                                                <div className="flex items-baseline gap-2">
-                                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${color} drop-shadow-sm`}>
-                                                                        {conviction.toFixed(0)}%
-                                                                    </span>
-                                                                    <span className={`text-[10px] font-bold ${color}`}>
-                                                                        {label}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="w-full h-1 bg-gray-200 dark:bg-gray-700/50 rounded-full mt-2 overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full bg-gradient-to-r ${conviction >= 60 ? 'from-emerald-500 to-blue-500' : conviction < 40 ? 'from-red-500 to-amber-500' : 'from-amber-500 to-emerald-500'} transition-all duration-1000 ease-out`}
-                                                                        style={{ width: `${conviction}%` }}
-                                                                    ></div>
-                                                                </div>
-                                                                <div className="flex justify-between mt-2">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[8px] text-gray-400 font-bold uppercase">Smart Money</span>
-                                                                        <span className="text-[10px] text-gray-600 dark:text-gray-300 font-bold">{(instSignal).toFixed(0)}</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col items-end">
-                                                                        <span className="text-[8px] text-gray-400 font-bold uppercase">Sentiment</span>
-                                                                        <span className="text-[10px] text-gray-600 dark:text-gray-300 font-bold">{(sentScore).toFixed(0)}</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
                                                 </div>
+
+                                                {/* Conviction Index removed */}
                                             </div>
 
                                             {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
@@ -1489,93 +1447,113 @@ export default function Dashboard({
                                     {/* Right: Score Anchor Text & Badges */}
                                     {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
                                     <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <div className="p-1 rounded bg-blue-500/10 text-blue-500">
-                                                <Zap size={12} className="animate-pulse" />
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1 rounded bg-blue-500/10 text-blue-500">
+                                                    <Zap size={14} className="animate-pulse" />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Strategic Briefing</span>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Analyst Briefing</span>
+
+                                            {/* Verdict Removed Here - Moved to Top */}
                                         </div>
 
-                                        <div className="space-y-6">
-                                            {/* 1. Executive Summary */}
-                                            {/* 1. Executive Summary (Removed) */}
+                                        <div className="space-y-8">
+                                            {/* 1. BULL vs BEAR CASE (2-Column Grid) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {/* Bull Case + Opportunities */}
+                                                <div className="relative p-5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 flex flex-col h-full">
+                                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center gap-1.5">
+                                                        <TrendingUp size={12} className="text-emerald-500" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">The Bull Case</span>
+                                                    </div>
+                                                    <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                        {(analysis.ai_analysis as any).structured_summary?.bull_case || "Analyzing upside potential..."}
+                                                    </p>
+                                                    {/* Restored Opportunities */}
+                                                    {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
+                                                        <div className="mt-auto pt-3 border-t border-emerald-100 dark:border-emerald-800/30">
+                                                            <h5 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                                <Zap size={10} /> Key Opportunities
+                                                            </h5>
+                                                            <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                                {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
+                                                                    <li key={idx}>{opp}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                                            {/* 2. Split Cards: Quality vs Timing */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Bear Case + Risks */}
+                                                <div className="relative p-5 rounded-2xl bg-red-50/40 dark:bg-red-900/10 border border-red-100 dark:border-red-800/50 flex flex-col h-full">
+                                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-red-100 dark:border-red-800/50 shadow-sm flex items-center gap-1.5">
+                                                        <TrendingDown size={12} className="text-red-500" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">The Bear Case</span>
+                                                    </div>
+                                                    <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                        {(analysis.ai_analysis as any).structured_summary?.bear_case || "Analyzing downside risks..."}
+                                                    </p>
+                                                    {/* Restored Risks */}
+                                                    {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
+                                                        <div className="mt-auto pt-3 border-t border-red-100 dark:border-red-800/30">
+                                                            <h5 className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                                <AlertTriangle size={10} /> Key Risks
+                                                            </h5>
+                                                            <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                                {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
+                                                                    <li key={idx}>{risk}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* 2. Split Cards: Quality vs Timing WITH EXPLANATIONS */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 {/* Quality Card */}
-                                                <div className="bg-emerald-50/30 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-800/30 p-4 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <h4 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                            <Shield size={12} /> Fundamental Quality
+                                                <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                            <Shield size={14} className="text-emerald-500" /> Fundamental Quality
                                                         </h4>
-                                                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                                        <span className="text-2xl font-black text-gray-900 dark:text-white">
                                                             {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
                                                         </span>
                                                     </div>
                                                     {/* Mini bar chart visual */}
-                                                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+                                                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
                                                         <div
                                                             className="h-full bg-emerald-500 rounded-full"
                                                             style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
                                                         ></div>
                                                     </div>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                                        Aggregation of Valuation, Growth, and Profitability metrics.
+                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-emerald-500 pl-3">
+                                                        "{(analysis.ai_analysis as any).structured_summary?.fundamental_analysis || "calculating metrics..."}"
                                                     </p>
                                                 </div>
 
                                                 {/* Timing Card */}
-                                                <div className="bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-800/30 p-4 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                            <TrendingUp size={12} /> Technical Timing
+                                                <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                            <TrendingUp size={14} className="text-blue-500" /> Technical Timing
                                                         </h4>
-                                                        <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                                                        <span className="text-2xl font-black text-gray-900 dark:text-white">
                                                             {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
                                                         </span>
                                                     </div>
                                                     {/* Mini bar chart visual */}
-                                                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+                                                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
                                                         <div
-                                                            className="h-full bg-blue-500 rounded-full"
                                                             style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
                                                         ></div>
                                                     </div>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                                        Aggregation of Momentum, Trend, and Relative Volume.
+                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-blue-500 pl-3">
+                                                        "{(analysis.ai_analysis as any).structured_summary?.technical_analysis || "analyzing trends..."}"
                                                     </p>
                                                 </div>
-                                            </div>
-
-                                            {/* 3 & 4. Risks & Opportunities (Side-by-Side) */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {/* Risks */}
-                                                {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
-                                                    <div className="bg-rose-50/30 dark:bg-rose-900/5 rounded-lg border-l-[3px] border-rose-500 pl-4 py-3 h-full">
-                                                        <h4 className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                                                            <AlertTriangle size={12} /> Key Risk Factors
-                                                        </h4>
-                                                        <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-1">
-                                                            {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
-                                                                <li key={idx}>{risk}</li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
-
-                                                {/* Opportunities */}
-                                                {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
-                                                    <div className="bg-emerald-50/30 dark:bg-emerald-900/5 rounded-lg border-l-[3px] border-emerald-500 pl-4 py-3 h-full">
-                                                        <h4 className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                                                            <Zap size={12} /> Key Opportunities
-                                                        </h4>
-                                                        <ul className="list-disc list-inside text-xs md:text-sm text-gray-700 dark:text-gray-300 font-medium space-y-1">
-                                                            {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
-                                                                <li key={idx}>{opp}</li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1584,1458 +1562,1484 @@ export default function Dashboard({
                         ) : (
                             <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
                         )}
-
-
-
                         {/* 2.5 Detailed Breakdown Table (Sectioned) */}
-                        {analysis?.ai_analysis?.details && (
-                            <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-purple-500/10 rounded-lg">
-                                            <Grid size={16} className="text-purple-500" />
+                        {
+                            analysis?.ai_analysis?.details && (
+                                <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-purple-500/10 rounded-lg">
+                                                <Grid size={16} className="text-purple-500" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                                    Algorithmic Score Breakdown
+                                                    <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v9.0 Foundation</span>
+                                                </h4>
+                                                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Mathematical Multi-Factor Baseline</p>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col">
-                                            <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                                                Algorithmic Score Breakdown
-                                                <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v9.0 Foundation</span>
-                                            </h4>
-                                            <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Mathematical Multi-Factor Baseline</p>
+                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Calculated Algo Score (70/30)</span>
+                                            <span className="text-lg font-mono font-black text-purple-600 dark:text-purple-400">
+                                                {Math.round(
+                                                    ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * 0.7) +
+                                                    ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * 0.3)
+                                                )}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Calculated Algo Score (70/30)</span>
-                                        <span className="text-lg font-mono font-black text-purple-600 dark:text-purple-400">
-                                            {Math.round(
-                                                ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * 0.7) +
-                                                ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * 0.3)
-                                            )}
-                                        </span>
+                                    <div className="p-4 space-y-4">
+
+                                        {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
+                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
+                                                        <ShieldCheck size={16} />
+                                                    </div>
+                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
+                                                    </span>
+                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                </div>
+                                            </summary>
+                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                            <tr>
+                                                                <th className="px-4 py-2 font-bold">Metric</th>
+                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                <th className="px-4 py-2 font-bold">Status</th>
+                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
+                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                const s = row.status.toLowerCase();
+                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                return (
+                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                            <span>{row.metric}</span>
+                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                        <td className="px-4 py-3">
+                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </details>
+
+                                        {/* SECTION 2: TIMING (TECHNICAL) */}
+                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
+                                                        <TrendingUp size={16} />
+                                                    </div>
+                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                                    </span>
+                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                </div>
+                                            </summary>
+                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                            <tr>
+                                                                <th className="px-4 py-2 font-bold">Metric</th>
+                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                <th className="px-4 py-2 font-bold">Status</th>
+                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
+                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                const s = row.status.toLowerCase();
+                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                return (
+                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                            <span>{row.metric}</span>
+                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                        <td className="px-4 py-3">
+                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </details>
                                     </div>
                                 </div>
-                                <div className="p-4 space-y-4">
-
-                                    {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
-                                    <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                        <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
-                                                    <ShieldCheck size={16} />
-                                                </div>
-                                                <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                                                    {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
-                                                </span>
-                                                <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                            </div>
-                                        </summary>
-                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                            <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                <table className="w-full text-sm text-left">
-                                                    <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                        <tr>
-                                                            <th className="px-4 py-2 font-bold">Metric</th>
-                                                            <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                            <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                            <th className="px-4 py-2 font-bold">Status</th>
-                                                            <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                        {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
-                                                            let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                            const s = row.status.toLowerCase();
-                                                            if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                            else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                            else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                            return (
-                                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                        <span>{row.metric}</span>
-                                                                        <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                    <td className="px-4 py-3">
-                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </details>
-
-                                    {/* SECTION 2: TIMING (TECHNICAL) */}
-                                    <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                        <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
-                                                    <TrendingUp size={16} />
-                                                </div>
-                                                <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
-                                                    {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
-                                                </span>
-                                                <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                            </div>
-                                        </summary>
-                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                            <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                <table className="w-full text-sm text-left">
-                                                    <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                        <tr>
-                                                            <th className="px-4 py-2 font-bold">Metric</th>
-                                                            <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                            <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                            <th className="px-4 py-2 font-bold">Status</th>
-                                                            <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                        {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
-                                                            let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                            const s = row.status.toLowerCase();
-                                                            if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                            else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                            else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                            return (
-                                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                        <span>{row.metric}</span>
-                                                                        <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                    <td className="px-4 py-3">
-                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </details>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                            )
+                        }
+                    </div >
                 )}
 
-                {activeTab === 'smart_money' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        {/* Unified Smart Money Section */}
-                        <section className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-xl">
-                            {/* Header Removed as per user request */}
+                {
+                    activeTab === 'smart_money' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            {/* Unified Smart Money Section */}
+                            <section className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-xl">
+                                {/* Header Removed as per user request */}
 
 
-                            {/* Consolidated Alerts / Signals Row */}
-                            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-                                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/20 rounded-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden">
-                                    {/* Institutional Signal */}
-                                    <div className="p-3 flex items-center justify-between gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-1.5 rounded-lg ${institutions?.smart_money?.accumulating ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-500/10 text-gray-500'}`}>
-                                                <BarChart2 size={16} />
-                                            </div>
-                                            <div>
-                                                <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Institutional</div>
-                                                <div className={`text-sm font-bold leading-tight ${institutions?.smart_money?.accumulating ? 'text-emerald-600' : 'text-gray-600'}`}>
-                                                    {institutions?.smart_money?.label || "Neutral Signal"}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[9px] uppercase font-bold text-gray-400">Held</div>
-                                            <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
-                                                {(institutions?.institutionsPercentHeld * 100).toFixed(1)}%
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Insider Signal */}
-                                    <div className="p-3">
-                                        <div className="flex items-center justify-between gap-4 mb-1">
+                                {/* Consolidated Alerts / Signals Row */}
+                                <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/20 rounded-xl border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+                                        {/* Institutional Signal */}
+                                        <div className="p-3 flex items-center justify-between gap-4">
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-1.5 rounded-lg ${institutions?.insider_signal?.score > 0 ? 'bg-emerald-500/10 text-emerald-600' :
-                                                    institutions?.insider_signal?.score <= -8 ? 'bg-red-500/10 text-red-600' :
-                                                        institutions?.insider_signal?.score < 0 ? 'bg-amber-500/10 text-amber-600' :
-                                                            'bg-gray-500/10 text-gray-500'
-                                                    }`}>
-                                                    <Activity size={16} />
+                                                <div className={`p-1.5 rounded-lg ${institutions?.smart_money?.accumulating ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-500/10 text-gray-500'}`}>
+                                                    <BarChart2 size={16} />
                                                 </div>
                                                 <div>
-                                                    <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Insider</div>
-                                                    <div className={`text-sm font-bold leading-tight ${institutions?.insider_signal?.score > 0 ? 'text-emerald-600' :
-                                                        institutions?.insider_signal?.score <= -8 ? 'text-red-600' :
-                                                            institutions?.insider_signal?.score < 0 ? 'text-amber-600' :
-                                                                'text-gray-600'
-                                                        }`}>
-                                                        {institutions?.insider_signal?.label || "No Active Signal"}
+                                                    <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Institutional</div>
+                                                    <div className={`text-sm font-bold leading-tight ${institutions?.smart_money?.accumulating ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                                        {institutions?.smart_money?.label || "Neutral Signal"}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-[9px] uppercase font-bold text-gray-400">Held</div>
                                                 <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
-                                                    {(institutions?.insidersPercentHeld * 100).toFixed(1)}%
+                                                    {(institutions?.institutionsPercentHeld * 100).toFixed(1)}%
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* Contextual one-liner */}
-                                        <div className="text-[10px] text-gray-400 italic pl-8 line-clamp-1 leading-tight">
-                                            {institutions?.insider_signal?.summary_text}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Main Content Area: Metrics Grid */}
-                            <div className="p-5">
-                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <TrendingUp size={14} /> Key Metrics
-                                </h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                    {/* Institutional Metrics */}
-                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="text-[10px] text-gray-500 block mb-1">Inst. Net Flow (QoQ)</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_shares > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_shares < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {institutions?.smart_money?.change_shares > 0 ? '+' : ''}{formatLargeNumber(institutions?.smart_money?.change_shares)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="text-[10px] text-gray-500 block mb-1">Inst. Weighted Change</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_pct > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_pct < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {institutions?.smart_money?.change_pct > 0 ? '+' : ''}{(institutions?.smart_money?.change_pct * 100).toFixed(2)}%
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Insider Metrics - Real Buy/Sell Counts */}
-                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="text-[10px] text-gray-500 block mb-1">Buy / Sell (90d)</span>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-lg font-mono font-bold text-emerald-600">
-                                                {institutions?.insider_signal?.buy_count || 0}
-                                            </span>
-                                            <span className="text-gray-400">/</span>
-                                            <span className="text-lg font-mono font-bold text-red-600">
-                                                {institutions?.insider_signal?.sell_count || 0}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="text-[10px] text-gray-500 block mb-1">Signal Quality (Real vs Auto)</span>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{institutions?.insider_signal?.discretionary_count || 0}</span>
-                                            <span className="text-[10px] text-gray-400">vs</span>
-                                            <span className="text-sm font-bold text-gray-500">{institutions?.insider_signal?.automatic_count || 0}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="h-px bg-gray-100 dark:bg-gray-800 my-6"></div>
-
-                                {/* Tables Section - Stacked Layout (Institution Top, Insider Bottom) */}
-                                <div className="grid grid-cols-1 gap-8">
-                                    {/* Left: Top Institutional Holders */}
-                                    <div className="flex flex-col h-full">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                                <BarChart2 size={14} />
-                                                <div className="flex flex-col">
-                                                    <span>Institutions</span>
-                                                    {institutions?.smart_money?.period && (
-                                                        <span className="text-[9px] font-normal text-gray-400 normal-case bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full w-fit">
-                                                            {institutions.smart_money.period} Filings
-                                                        </span>
-                                                    )}
+                                        {/* Insider Signal */}
+                                        <div className="p-3">
+                                            <div className="flex items-center justify-between gap-4 mb-1">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-1.5 rounded-lg ${institutions?.insider_signal?.score > 0 ? 'bg-emerald-500/10 text-emerald-600' :
+                                                        institutions?.insider_signal?.score <= -8 ? 'bg-red-500/10 text-red-600' :
+                                                            institutions?.insider_signal?.score < 0 ? 'bg-amber-500/10 text-amber-600' :
+                                                                'bg-gray-500/10 text-gray-500'
+                                                        }`}>
+                                                        <Activity size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Insider</div>
+                                                        <div className={`text-sm font-bold leading-tight ${institutions?.insider_signal?.score > 0 ? 'text-emerald-600' :
+                                                            institutions?.insider_signal?.score <= -8 ? 'text-red-600' :
+                                                                institutions?.insider_signal?.score < 0 ? 'text-amber-600' :
+                                                                    'text-gray-600'
+                                                            }`}>
+                                                            {institutions?.insider_signal?.label || "No Active Signal"}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </h4>
-                                            <select
-                                                value={instFilter}
-                                                onChange={(e) => setInstFilter(e.target.value as any)}
-                                                className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
-                                            >
-                                                <option value="holders">Top Holders</option>
-                                                <option value="recent">Recent Activity</option>
-                                            </select>
+                                                <div className="text-right">
+                                                    <div className="text-[9px] uppercase font-bold text-gray-400">Held</div>
+                                                    <div className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">
+                                                        {(institutions?.insidersPercentHeld * 100).toFixed(1)}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {/* Contextual one-liner */}
+                                            <div className="text-[10px] text-gray-400 italic pl-8 line-clamp-1 leading-tight">
+                                                {institutions?.insider_signal?.summary_text}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Main Content Area: Metrics Grid */}
+                                <div className="p-5">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <TrendingUp size={14} /> Key Metrics
+                                    </h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        {/* Institutional Metrics */}
+                                        <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                            <span className="text-[10px] text-gray-500 block mb-1">Inst. Net Flow (QoQ)</span>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_shares > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_shares < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                    {institutions?.smart_money?.change_shares > 0 ? '+' : ''}{formatLargeNumber(institutions?.smart_money?.change_shares)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                            <span className="text-[10px] text-gray-500 block mb-1">Inst. Weighted Change</span>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className={`text-lg font-mono font-bold ${institutions?.smart_money?.change_pct > 0 ? 'text-emerald-600' : institutions?.smart_money?.change_pct < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                    {institutions?.smart_money?.change_pct > 0 ? '+' : ''}{(institutions?.smart_money?.change_pct * 100).toFixed(2)}%
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
-                                            <table className="w-full text-xs text-left">
-                                                <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
-                                                    <tr>
-                                                        <th className="py-2 px-3 font-medium">Holder</th>
-                                                        {instFilter === 'holders' ? (
-                                                            <>
-                                                                <th className="py-2 px-3 font-medium text-right">Shares</th>
-                                                                <th className="py-2 px-3 font-medium text-right">% Port</th>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <th className="py-2 px-3 font-medium text-right">Reported</th>
-                                                                <th className="py-2 px-3 font-medium text-right">Date</th>
-                                                            </>
+                                        {/* Insider Metrics - Real Buy/Sell Counts */}
+                                        <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                            <span className="text-[10px] text-gray-500 block mb-1">Buy / Sell (90d)</span>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-lg font-mono font-bold text-emerald-600">
+                                                    {institutions?.insider_signal?.buy_count || 0}
+                                                </span>
+                                                <span className="text-gray-400">/</span>
+                                                <span className="text-lg font-mono font-bold text-red-600">
+                                                    {institutions?.insider_signal?.sell_count || 0}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800">
+                                            <span className="text-[10px] text-gray-500 block mb-1">Signal Quality (Real vs Auto)</span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-sm font-bold text-gray-900 dark:text-white">{institutions?.insider_signal?.discretionary_count || 0}</span>
+                                                <span className="text-[10px] text-gray-400">vs</span>
+                                                <span className="text-sm font-bold text-gray-500">{institutions?.insider_signal?.automatic_count || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-gray-100 dark:bg-gray-800 my-6"></div>
+
+                                    {/* Tables Section - Stacked Layout (Institution Top, Insider Bottom) */}
+                                    <div className="grid grid-cols-1 gap-8">
+                                        {/* Left: Top Institutional Holders */}
+                                        <div className="flex flex-col h-full">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                    <BarChart2 size={14} />
+                                                    <div className="flex flex-col">
+                                                        <span>Institutions</span>
+                                                        {institutions?.smart_money?.period && (
+                                                            <span className="text-[9px] font-normal text-gray-400 normal-case bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full w-fit">
+                                                                {institutions.smart_money.period} Filings
+                                                            </span>
                                                         )}
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                                                    {(() => {
-                                                        let list = institutions?.top_holders || [];
-                                                        if (instFilter === 'recent') {
-                                                            // Filter for recent activity (simple heuristic or use date if available)
-                                                            // Since we don't have transaction date for holdings usually, we just sort by date reported desc
-                                                            // But yfinance sometimes returns "Date Reported".
-                                                            list = [...list].sort((a, b) => new Date(b['Date Reported']).getTime() - new Date(a['Date Reported']).getTime());
-                                                        }
-
-                                                        const visibleList = showAllInstitutions ? list : list.slice(0, 5);
-
-                                                        return visibleList.length > 0 ? (
-                                                            visibleList.map((item: any, idx: number) => (
-                                                                <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
-                                                                    <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-200 truncate max-w-[140px]" title={item.Holder}>
-                                                                        {item.Holder}
-                                                                    </td>
-                                                                    {instFilter === 'holders' ? (
-                                                                        <>
-                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
-                                                                                {formatLargeNumber(item.Shares)}
-                                                                            </td>
-                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
-                                                                                {(item['% Out'] * 100).toFixed(2)}%
-                                                                            </td>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
-                                                                                {formatLargeNumber(item.Shares)}
-                                                                            </td>
-                                                                            <td className="py-2 px-3 text-right font-mono text-gray-500 dark:text-gray-500">
-                                                                                {item['Date Reported']}
-                                                                            </td>
-                                                                        </>
-                                                                    )}
-                                                                </tr>
-                                                            ))
-                                                        ) : (
-                                                            <tr>
-                                                                <td colSpan={3} className="py-4 text-center text-gray-500 italic">No data available.</td>
-                                                            </tr>
-                                                        );
-                                                    })()}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        {institutions?.top_holders?.length > 5 && (
-                                            <div className="mt-2 text-center">
-                                                <button
-                                                    onClick={() => setShowAllInstitutions(!showAllInstitutions)}
-                                                    className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                                                    </div>
+                                                </h4>
+                                                <select
+                                                    value={instFilter}
+                                                    onChange={(e) => setInstFilter(e.target.value as any)}
+                                                    className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
                                                 >
-                                                    {showAllInstitutions ? (
-                                                        <>Show Less <ChevronUp size={10} /></>
-                                                    ) : (
-                                                        <>Show All ({institutions.top_holders.length}) <ChevronDown size={10} /></>
-                                                    )}
-                                                </button>
+                                                    <option value="holders">Top Holders</option>
+                                                    <option value="recent">Recent Activity</option>
+                                                </select>
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Right: Recent Insider Transactions */}
-                                    <div className="flex flex-col h-full">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                                <Activity size={14} /> Insiders
-                                            </h4>
-                                            <select
-                                                value={insiderFilter}
-                                                onChange={(e) => setInsiderFilter(e.target.value as any)}
-                                                className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
-                                            >
-                                                <option value="all">All Activity</option>
-                                                <option value="buy">Buys (Open Market)</option>
-                                                <option value="sell">Sells (Open Market)</option>
-                                                <option value="auto">Auto (10b5-1)</option>
-                                                <option value="grant">Grants/Awards</option>
-                                                <option value="option">Options</option>
-                                                <option value="tax">Tax</option>
-                                                <option value="gift">Gifts</option>
-                                                <option value="acquire">Acquisitions</option>
-                                                <option value="dispose">Dispositions</option>
-                                                <option value="vest">Vesting</option>
-                                            </select>
-                                        </div>
-
-                                        {institutions?.insider_transactions && institutions.insider_transactions.length > 0 ? (
                                             <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
                                                 <table className="w-full text-xs text-left">
-                                                    <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800 uppercase tracking-wider">
+                                                    <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
                                                         <tr>
-                                                            <th className="py-2 px-3 font-medium">Date</th>
-                                                            <th className="py-2 px-3 font-medium">Insider</th>
-                                                            <th className="py-2 px-3 font-medium">Position</th>
-                                                            <th className="py-2 px-3 font-medium">Type</th>
-                                                            <th className="py-2 px-3 font-medium text-right">Value</th>
+                                                            <th className="py-2 px-3 font-medium">Holder</th>
+                                                            {instFilter === 'holders' ? (
+                                                                <>
+                                                                    <th className="py-2 px-3 font-medium text-right">Shares</th>
+                                                                    <th className="py-2 px-3 font-medium text-right">% Port</th>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <th className="py-2 px-3 font-medium text-right">Reported</th>
+                                                                    <th className="py-2 px-3 font-medium text-right">Date</th>
+                                                                </>
+                                                            )}
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
                                                         {(() => {
-                                                            let txs = institutions.insider_transactions;
-
-                                                            // Granular Filtering Logic
-                                                            if (insiderFilter !== 'all') {
-                                                                txs = txs.filter((t: any) => {
-                                                                    const text = t.Text.toLowerCase();
-                                                                    const isAuto = t.isAutomatic;
-
-                                                                    switch (insiderFilter) {
-                                                                        case 'buy':
-                                                                            return !isAuto && (text.includes('purchase') || text.includes('buy'));
-                                                                        case 'sell':
-                                                                            return !isAuto && (text.includes('sale') || text.includes('sell'));
-                                                                        case 'auto':
-                                                                            return isAuto;
-                                                                        case 'grant':
-                                                                            return text.includes('grant') || text.includes('award');
-                                                                        case 'option':
-                                                                            return text.includes('option');
-                                                                        case 'tax':
-                                                                            return text.includes('tax');
-                                                                        case 'gift':
-                                                                            return text.includes('gift');
-                                                                        case 'acquire':
-                                                                            return text.includes('acquisition') || text.includes('acquire');
-                                                                        case 'dispose':
-                                                                            return text.includes('disposition') || text.includes('dispose');
-                                                                        case 'vest':
-                                                                            return text.includes('vest');
-                                                                        default:
-                                                                            return true;
-                                                                    }
-                                                                });
+                                                            let list = institutions?.top_holders || [];
+                                                            if (instFilter === 'recent') {
+                                                                // Filter for recent activity (simple heuristic or use date if available)
+                                                                // Since we don't have transaction date for holdings usually, we just sort by date reported desc
+                                                                // But yfinance sometimes returns "Date Reported".
+                                                                list = [...list].sort((a, b) => new Date(b['Date Reported']).getTime() - new Date(a['Date Reported']).getTime());
                                                             }
-                                                            // Always slice for display unless "Show All"
-                                                            const displayTxs = showAllInsider ? txs : txs.slice(0, 6);
 
-                                                            return displayTxs.length > 0 ? (
-                                                                displayTxs.map((t: any, idx: number) => {
-                                                                    const isSale = t.Text.toLowerCase().includes("sale");
-                                                                    const isBuy = t.Text.toLowerCase().includes("purchase") || t.Text.toLowerCase().includes("buy");
+                                                            const visibleList = showAllInstitutions ? list : list.slice(0, 5);
 
-                                                                    return (
-                                                                        <tr key={idx} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors ${t.isAutomatic ? 'opacity-60 grayscale' : ''}`}>
-                                                                            <td className="py-2 px-3 font-mono text-gray-600 dark:text-gray-400 whitespace-nowrap">{t.Date}</td>
-                                                                            <td className="py-2 px-3 font-medium text-gray-900 dark:text-white truncate max-w-[100px]" title={t.Insider}>
-                                                                                {t.Insider}
-                                                                            </td>
-                                                                            <td className="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-[80px]" title={t.Position}>
-                                                                                {t.Position}
-                                                                            </td>
-                                                                            <td className="py-2 px-3">
-                                                                                {(() => {
-                                                                                    const text = t.Text.toLowerCase();
-                                                                                    let label = 'Other';
-                                                                                    let style = 'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
-
-                                                                                    if (text.includes('tax')) {
-                                                                                        label = 'Tax';
-                                                                                        style = 'bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400';
-                                                                                    } else if (text.includes('gift')) {
-                                                                                        label = 'Gift';
-                                                                                        style = 'bg-purple-50 text-purple-600 dark:bg-purple-900/10 dark:text-purple-400';
-                                                                                    } else if (text.includes('grant') || text.includes('award')) {
-                                                                                        label = 'Grant';
-                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
-                                                                                    } else if (text.includes('option')) {
-                                                                                        label = 'Option';
-                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
-                                                                                    } else if (t.isAutomatic) {
-                                                                                        // For automatic trades, we want to know if it's a Buy or Sale
-                                                                                        if (isSale) {
-                                                                                            label = 'Auto Sale';
-                                                                                        } else if (isBuy) {
-                                                                                            label = 'Auto Buy';
-                                                                                        } else {
-                                                                                            label = 'Auto';
-                                                                                        }
-                                                                                        style = 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
-                                                                                    } else if (text.includes('acquisition') || text.includes('acquire')) {
-                                                                                        label = 'Acquire';
-                                                                                        style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
-                                                                                    } else if (text.includes('disposition') || text.includes('dispose')) {
-                                                                                        label = 'Dispose';
-                                                                                        style = 'bg-orange-50 text-orange-600 dark:bg-orange-900/10 dark:text-orange-400';
-                                                                                    } else if (text.includes('vest')) {
-                                                                                        label = 'Vest';
-                                                                                        style = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/10 dark:text-indigo-400';
-                                                                                    } else if (isSale) {
-                                                                                        label = 'Sale';
-                                                                                        style = 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400';
-                                                                                    } else if (isBuy) {
-                                                                                        label = 'Buy';
-                                                                                        style = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10 dark:text-emerald-400';
-                                                                                    }
-
-                                                                                    return (
-                                                                                        <span
-                                                                                            className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${style}`}
-                                                                                            title={t.Text}
-                                                                                        >
-                                                                                            {label}
-                                                                                        </span>
-                                                                                    );
-                                                                                })()}
-                                                                            </td>
-                                                                            <td className="py-2 px-3 text-right font-mono text-gray-900 dark:text-white">
-                                                                                ${formatLargeNumber(t.Value || 0)}
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })
+                                                            return visibleList.length > 0 ? (
+                                                                visibleList.map((item: any, idx: number) => (
+                                                                    <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                                                                        <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-200 truncate max-w-[140px]" title={item.Holder}>
+                                                                            {item.Holder}
+                                                                        </td>
+                                                                        {instFilter === 'holders' ? (
+                                                                            <>
+                                                                                <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                    {formatLargeNumber(item.Shares)}
+                                                                                </td>
+                                                                                <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                    {(item['% Out'] * 100).toFixed(2)}%
+                                                                                </td>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <td className="py-2 px-3 text-right font-mono text-gray-600 dark:text-gray-400">
+                                                                                    {formatLargeNumber(item.Shares)}
+                                                                                </td>
+                                                                                <td className="py-2 px-3 text-right font-mono text-gray-500 dark:text-gray-500">
+                                                                                    {item['Date Reported']}
+                                                                                </td>
+                                                                            </>
+                                                                        )}
+                                                                    </tr>
+                                                                ))
                                                             ) : (
                                                                 <tr>
-                                                                    <td colSpan={5} className="py-4 text-center text-gray-500 italic">No activity matching filter.</td>
+                                                                    <td colSpan={3} className="py-4 text-center text-gray-500 italic">No data available.</td>
                                                                 </tr>
                                                             );
                                                         })()}
                                                     </tbody>
                                                 </table>
                                             </div>
-                                        ) : (
-                                            <p className="text-gray-500 italic text-sm">No recent insider activity found.</p>
-                                        )}
-
-                                        {institutions?.insider_transactions && institutions.insider_transactions.length > 6 && (
-                                            <div className="mt-2 text-center">
-                                                <button
-                                                    onClick={() => setShowAllInsider(!showAllInsider)}
-                                                    className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
-                                                >
-                                                    {showAllInsider ? (
-                                                        <>Show Less <ChevronUp size={10} /></>
-                                                    ) : (
-                                                        <>Show All ({institutions.insider_transactions.length}) <ChevronDown size={10} /></>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                )}
-
-                {activeTab === 'earnings' && (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Zap className="text-yellow-500" size={20} /> Earnings Call AI
-                                <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using hybrid AI (Llama 3.3 + Gemini 2.0). Separates management's prepared remarks from the Q&A session." />
-                            </h3>
-                        </div>
-
-                        {loadingEarnings ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
-                                <Loader className="animate-spin mb-4 text-yellow-500" size={32} />
-                                <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
-                                <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Hybrid AI (Llama 3 / Gemini)</p>
-                            </div>
-                        ) : (earningsData?.error || earningsData?.error_code) ? (
-                            <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50/50 dark:bg-red-900/5 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30 text-center animate-in zoom-in-95 duration-300">
-                                <AlertTriangle className="text-red-500 mb-4 scale-110 drop-shadow-sm" size={48} />
-                                <h4 className="text-xl font-black text-red-700 dark:text-red-400 mb-2 uppercase tracking-tight">Analysis Blocked</h4>
-                                <p className="text-gray-800 dark:text-gray-200 font-bold mb-1 max-w-lg">
-                                    {earningsData.error || "An unexpected error occurred during processing."}
-                                </p>
-                                {earningsData.detail && (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md italic">
-                                        {earningsData.detail}
-                                    </p>
-                                )}
-                                <div className="flex flex-col md:flex-row items-center gap-3">
-                                    <div className="flex flex-col items-center px-4 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                        <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Error Code</span>
-                                        <span className="text-sm font-mono font-black text-gray-700 dark:text-gray-300">{earningsData.error_code || "UNKNOWN_ERROR"}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setLoadingEarnings(true);
-                                            getEarnings(ticker!).then(setEarningsData).finally(() => setLoadingEarnings(false));
-                                        }}
-                                        className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center gap-2"
-                                    >
-                                        <Loader className={loadingEarnings ? "animate-spin" : ""} size={16} />
-                                        Retry Analysis
-                                    </button>
-                                </div>
-                                <p className="mt-8 text-[11px] text-gray-400 max-w-sm">
-                                    {earningsData.error_code === 'TRANSCRIPT_NOT_FOUND' ? "Suggestion: Ensure the ticker is correct and the company has recently held an earnings call indexed on Motley Fool." :
-                                        earningsData.error_code === 'MISSING_AI_KEYS' ? "Developer Tip: Check your .env file for GROQ_API_KEY or GEMINI_API_KEY." :
-                                            "Note: Frequent retries may be subject to rate limits on underlying search engines."}
-                                </p>
-                            </div>
-                        ) : earningsData && earningsData.summary ? (
-                            <div className="space-y-6">
-                                {/* Verdict Header */}
-                                {earningsData.summary.verdict && (
-                                    <div className={`relative p-6 rounded-2xl border ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' :
-                                        earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800' :
-                                            'bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700'
-                                        }`}>
-
-                                        {/* Quarter Badge (Top Right) */}
-                                        <div className="absolute top-4 right-4 text-xs font-mono font-bold text-gray-400 opacity-60">
-                                            FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}
+                                            {institutions?.top_holders?.length > 5 && (
+                                                <div className="mt-2 text-center">
+                                                    <button
+                                                        onClick={() => setShowAllInstitutions(!showAllInstitutions)}
+                                                        className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                                                    >
+                                                        {showAllInstitutions ? (
+                                                            <>Show Less <ChevronUp size={10} /></>
+                                                        ) : (
+                                                            <>Show All ({institutions.top_holders.length}) <ChevronDown size={10} /></>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        <div className="flex flex-col gap-4">
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Analyst Verdict</span>
-                                                    <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' :
-                                                        earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
-                                                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
+                                        {/* Right: Recent Insider Transactions */}
+                                        <div className="flex flex-col h-full">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                    <Activity size={14} /> Insiders
+                                                </h4>
+                                                <select
+                                                    value={insiderFilter}
+                                                    onChange={(e) => setInsiderFilter(e.target.value as any)}
+                                                    className="text-xs bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                                                >
+                                                    <option value="all">All Activity</option>
+                                                    <option value="buy">Buys (Open Market)</option>
+                                                    <option value="sell">Sells (Open Market)</option>
+                                                    <option value="auto">Auto (10b5-1)</option>
+                                                    <option value="grant">Grants/Awards</option>
+                                                    <option value="option">Options</option>
+                                                    <option value="tax">Tax</option>
+                                                    <option value="gift">Gifts</option>
+                                                    <option value="acquire">Acquisitions</option>
+                                                    <option value="dispose">Dispositions</option>
+                                                    <option value="vest">Vesting</option>
+                                                </select>
+                                            </div>
+
+                                            {institutions?.insider_transactions && institutions.insider_transactions.length > 0 ? (
+                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                                                    <table className="w-full text-xs text-left">
+                                                        <thead className="text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800 uppercase tracking-wider">
+                                                            <tr>
+                                                                <th className="py-2 px-3 font-medium">Date</th>
+                                                                <th className="py-2 px-3 font-medium">Insider</th>
+                                                                <th className="py-2 px-3 font-medium">Position</th>
+                                                                <th className="py-2 px-3 font-medium">Type</th>
+                                                                <th className="py-2 px-3 font-medium text-right">Value</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                                                            {(() => {
+                                                                let txs = institutions.insider_transactions;
+
+                                                                // Granular Filtering Logic
+                                                                if (insiderFilter !== 'all') {
+                                                                    txs = txs.filter((t: any) => {
+                                                                        const text = t.Text.toLowerCase();
+                                                                        const isAuto = t.isAutomatic;
+
+                                                                        switch (insiderFilter) {
+                                                                            case 'buy':
+                                                                                return !isAuto && (text.includes('purchase') || text.includes('buy'));
+                                                                            case 'sell':
+                                                                                return !isAuto && (text.includes('sale') || text.includes('sell'));
+                                                                            case 'auto':
+                                                                                return isAuto;
+                                                                            case 'grant':
+                                                                                return text.includes('grant') || text.includes('award');
+                                                                            case 'option':
+                                                                                return text.includes('option');
+                                                                            case 'tax':
+                                                                                return text.includes('tax');
+                                                                            case 'gift':
+                                                                                return text.includes('gift');
+                                                                            case 'acquire':
+                                                                                return text.includes('acquisition') || text.includes('acquire');
+                                                                            case 'dispose':
+                                                                                return text.includes('disposition') || text.includes('dispose');
+                                                                            case 'vest':
+                                                                                return text.includes('vest');
+                                                                            default:
+                                                                                return true;
+                                                                        }
+                                                                    });
+                                                                }
+                                                                // Always slice for display unless "Show All"
+                                                                const displayTxs = showAllInsider ? txs : txs.slice(0, 6);
+
+                                                                return displayTxs.length > 0 ? (
+                                                                    displayTxs.map((t: any, idx: number) => {
+                                                                        const isSale = t.Text.toLowerCase().includes("sale");
+                                                                        const isBuy = t.Text.toLowerCase().includes("purchase") || t.Text.toLowerCase().includes("buy");
+
+                                                                        return (
+                                                                            <tr key={idx} className={`hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors ${t.isAutomatic ? 'opacity-60 grayscale' : ''}`}>
+                                                                                <td className="py-2 px-3 font-mono text-gray-600 dark:text-gray-400 whitespace-nowrap">{t.Date}</td>
+                                                                                <td className="py-2 px-3 font-medium text-gray-900 dark:text-white truncate max-w-[100px]" title={t.Insider}>
+                                                                                    {t.Insider}
+                                                                                </td>
+                                                                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400 truncate max-w-[80px]" title={t.Position}>
+                                                                                    {t.Position}
+                                                                                </td>
+                                                                                <td className="py-2 px-3">
+                                                                                    {(() => {
+                                                                                        const text = t.Text.toLowerCase();
+                                                                                        let label = 'Other';
+                                                                                        let style = 'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+
+                                                                                        if (text.includes('tax')) {
+                                                                                            label = 'Tax';
+                                                                                            style = 'bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400';
+                                                                                        } else if (text.includes('gift')) {
+                                                                                            label = 'Gift';
+                                                                                            style = 'bg-purple-50 text-purple-600 dark:bg-purple-900/10 dark:text-purple-400';
+                                                                                        } else if (text.includes('grant') || text.includes('award')) {
+                                                                                            label = 'Grant';
+                                                                                            style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                        } else if (text.includes('option')) {
+                                                                                            label = 'Option';
+                                                                                            style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                        } else if (t.isAutomatic) {
+                                                                                            // For automatic trades, we want to know if it's a Buy or Sale
+                                                                                            if (isSale) {
+                                                                                                label = 'Auto Sale';
+                                                                                            } else if (isBuy) {
+                                                                                                label = 'Auto Buy';
+                                                                                            } else {
+                                                                                                label = 'Auto';
+                                                                                            }
+                                                                                            style = 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
+                                                                                        } else if (text.includes('acquisition') || text.includes('acquire')) {
+                                                                                            label = 'Acquire';
+                                                                                            style = 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400';
+                                                                                        } else if (text.includes('disposition') || text.includes('dispose')) {
+                                                                                            label = 'Dispose';
+                                                                                            style = 'bg-orange-50 text-orange-600 dark:bg-orange-900/10 dark:text-orange-400';
+                                                                                        } else if (text.includes('vest')) {
+                                                                                            label = 'Vest';
+                                                                                            style = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/10 dark:text-indigo-400';
+                                                                                        } else if (isSale) {
+                                                                                            label = 'Sale';
+                                                                                            style = 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400';
+                                                                                        } else if (isBuy) {
+                                                                                            label = 'Buy';
+                                                                                            style = 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10 dark:text-emerald-400';
+                                                                                        }
+
+                                                                                        return (
+                                                                                            <span
+                                                                                                className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${style}`}
+                                                                                                title={t.Text}
+                                                                                            >
+                                                                                                {label}
+                                                                                            </span>
+                                                                                        );
+                                                                                    })()}
+                                                                                </td>
+                                                                                <td className="py-2 px-3 text-right font-mono text-gray-900 dark:text-white">
+                                                                                    ${formatLargeNumber(t.Value || 0)}
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="py-4 text-center text-gray-500 italic">No activity matching filter.</td>
+                                                                    </tr>
+                                                                );
+                                                            })()}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ) : (
+                                                <p className="text-gray-500 italic text-sm">No recent insider activity found.</p>
+                                            )}
+
+                                            {institutions?.insider_transactions && institutions.insider_transactions.length > 6 && (
+                                                <div className="mt-2 text-center">
+                                                    <button
+                                                        onClick={() => setShowAllInsider(!showAllInsider)}
+                                                        className="text-[10px] font-bold text-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1 mx-auto"
+                                                    >
+                                                        {showAllInsider ? (
+                                                            <>Show Less <ChevronUp size={10} /></>
+                                                        ) : (
+                                                            <>Show All ({institutions.insider_transactions.length}) <ChevronDown size={10} /></>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    )
+                }
+
+                {
+                    activeTab === 'earnings' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Zap className="text-yellow-500" size={20} /> Earnings Call AI
+                                    <InfoTooltip text="Deep dive analysis of the latest earnings call transcript using hybrid AI (Llama 3.3 + Gemini 2.0). Separates management's prepared remarks from the Q&A session." />
+                                </h3>
+                            </div>
+
+                            {loadingEarnings ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
+                                    <Loader className="animate-spin mb-4 text-yellow-500" size={32} />
+                                    <p className="font-medium text-gray-700 dark:text-gray-300">Reading transcript...</p>
+                                    <p className="text-xs mt-2 text-gray-400">Searching & Scraping • Analyzing with Hybrid AI (Llama 3 / Gemini)</p>
+                                </div>
+                            ) : (earningsData?.error || earningsData?.error_code) ? (
+                                <div className="flex flex-col items-center justify-center py-12 px-6 bg-red-50/50 dark:bg-red-900/5 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30 text-center animate-in zoom-in-95 duration-300">
+                                    <AlertTriangle className="text-red-500 mb-4 scale-110 drop-shadow-sm" size={48} />
+                                    <h4 className="text-xl font-black text-red-700 dark:text-red-400 mb-2 uppercase tracking-tight">Analysis Blocked</h4>
+                                    <p className="text-gray-800 dark:text-gray-200 font-bold mb-1 max-w-lg">
+                                        {earningsData.error || "An unexpected error occurred during processing."}
+                                    </p>
+                                    {earningsData.detail && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md italic">
+                                            {earningsData.detail}
+                                        </p>
+                                    )}
+                                    <div className="flex flex-col md:flex-row items-center gap-3">
+                                        <div className="flex flex-col items-center px-4 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                                            <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Error Code</span>
+                                            <span className="text-sm font-mono font-black text-gray-700 dark:text-gray-300">{earningsData.error_code || "UNKNOWN_ERROR"}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setLoadingEarnings(true);
+                                                getEarnings(ticker!).then(setEarningsData).finally(() => setLoadingEarnings(false));
+                                            }}
+                                            className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center gap-2"
+                                        >
+                                            <Loader className={loadingEarnings ? "animate-spin" : ""} size={16} />
+                                            Retry Analysis
+                                        </button>
+                                    </div>
+                                    <p className="mt-8 text-[11px] text-gray-400 max-w-sm">
+                                        {earningsData.error_code === 'TRANSCRIPT_NOT_FOUND' ? "Suggestion: Ensure the ticker is correct and the company has recently held an earnings call indexed on Motley Fool." :
+                                            earningsData.error_code === 'MISSING_AI_KEYS' ? "Developer Tip: Check your .env file for GROQ_API_KEY or GEMINI_API_KEY." :
+                                                "Note: Frequent retries may be subject to rate limits on underlying search engines."}
+                                    </p>
+                                </div>
+                            ) : earningsData && earningsData.summary ? (
+                                <div className="space-y-6">
+                                    {/* Verdict Header */}
+                                    {earningsData.summary.verdict && (
+                                        <div className={`relative p-6 rounded-2xl border ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' :
+                                            earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800' :
+                                                'bg-gray-50/50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700'
+                                            }`}>
+
+                                            {/* Quarter Badge (Top Right) */}
+                                            <div className="absolute top-4 right-4 text-xs font-mono font-bold text-gray-400 opacity-60">
+                                                FY{earningsData.metadata?.year} Q{earningsData.metadata?.quarter}
+                                            </div>
+
+                                            <div className="flex flex-col gap-4">
+                                                <div>
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Analyst Verdict</span>
+                                                        <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase ${earningsData.summary.verdict.rating === 'Buy' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' :
+                                                            earningsData.summary.verdict.rating === 'Sell' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
+                                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
+                                                            }`}>
+                                                            {earningsData.summary.verdict.rating}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 leading-relaxed">
+                                                        "{earningsData.summary.verdict.reasoning}"
+                                                    </p>
+                                                </div>
+
+                                                {/* Analyzed Source (Bottom Right) */}
+                                                <div className="flex items-center justify-end gap-3 mt-2 text-[10px] text-gray-500 opacity-80">
+                                                    <div>Analyzed {new Date(earningsData.metadata?.last_api_check).toLocaleDateString()}</div>
+                                                    <span className="text-gray-300 dark:text-gray-700">•</span>
+                                                    {earningsData.metadata?.source && (
+                                                        <div className="text-blue-500">
+                                                            {earningsData.metadata.source.includes('http') ? (
+                                                                <a
+                                                                    href={earningsData.metadata.source.match(/\((https?:\/\/[^)]+)\)/)?.[1] || '#'}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="hover:underline flex items-center gap-1"
+                                                                >
+                                                                    Source: Cache
+                                                                    <ExternalLink size={9} />
+                                                                </a>
+                                                            ) : (
+                                                                <span>Source: {earningsData.metadata.source}</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        {/* Left: Prepared Remarks (Management Pitch) */}
+                                        {earningsData.summary.prepared_remarks && (
+                                            <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-blue-100 dark:border-blue-900/30 overflow-hidden shadow-sm">
+                                                <div className="px-5 py-4 border-b border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 flex justify-between items-center">
+                                                    <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                                        <FileText size={18} className="text-blue-500" /> Prepared Remarks
+                                                    </h4>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.prepared_remarks.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
+                                                        earningsData.summary.prepared_remarks.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
+                                                            'bg-gray-100 text-gray-600'
                                                         }`}>
-                                                        {earningsData.summary.verdict.rating}
+                                                        {earningsData.summary.prepared_remarks.sentiment}
                                                     </span>
                                                 </div>
-                                                <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 leading-relaxed">
-                                                    "{earningsData.summary.verdict.reasoning}"
-                                                </p>
+                                                <div className="p-5">
+                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
+                                                        "{earningsData.summary.prepared_remarks.summary}"
+                                                    </p>
+                                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Key Strategic Points</h5>
+                                                    <ul className="space-y-3">
+                                                        {earningsData.summary.prepared_remarks.key_points?.map((point: string, i: number) => (
+                                                            <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
+                                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></div>
+                                                                <span className="leading-snug">{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    {earningsData.summary.prepared_remarks.forward_guidance && earningsData.summary.prepared_remarks.forward_guidance !== 'Not provided' && (
+                                                        <div className="mt-4 pt-4 border-t border-blue-100 dark:border-blue-900/30">
+                                                            <h5 className="text-xs font-bold text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                                <TrendingUp size={12} /> Forward Guidance
+                                                            </h5>
+                                                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                                {earningsData.summary.prepared_remarks.forward_guidance}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
+                                        )}
 
-                                            {/* Analyzed Source (Bottom Right) */}
-                                            <div className="flex items-center justify-end gap-3 mt-2 text-[10px] text-gray-500 opacity-80">
-                                                <div>Analyzed {new Date(earningsData.metadata?.last_api_check).toLocaleDateString()}</div>
-                                                <span className="text-gray-300 dark:text-gray-700">•</span>
-                                                {earningsData.metadata?.source && (
-                                                    <div className="text-blue-500">
-                                                        {earningsData.metadata.source.includes('http') ? (
-                                                            <a
-                                                                href={earningsData.metadata.source.match(/\((https?:\/\/[^)]+)\)/)?.[1] || '#'}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="hover:underline flex items-center gap-1"
-                                                            >
-                                                                Source: Cache
-                                                                <ExternalLink size={9} />
-                                                            </a>
-                                                        ) : (
-                                                            <span>Source: {earningsData.metadata.source}</span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                        {/* Right: Q&A Session (The Truth) */}
+                                        {earningsData.summary.qa_session && (
+                                            <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-purple-100 dark:border-purple-900/30 overflow-hidden shadow-sm">
+                                                <div className="px-5 py-4 border-b border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 flex justify-between items-center">
+                                                    <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                                        <Info size={18} className="text-purple-500" /> Q&A Session
+                                                    </h4>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.qa_session.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
+                                                        earningsData.summary.qa_session.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
+                                                            'bg-gray-100 text-gray-600'
+                                                        }`}>
+                                                        {earningsData.summary.qa_session.sentiment}
+                                                    </span>
+                                                    {earningsData.summary.qa_session.management_confidence && (
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.qa_session.management_confidence === 'High' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                            earningsData.summary.qa_session.management_confidence === 'Low' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                            }`}>
+                                                            Confidence: {earningsData.summary.qa_session.management_confidence}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="p-5">
+                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
+                                                        "{earningsData.summary.qa_session.summary}"
+                                                    </p>
+                                                    <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Analyst Revelations</h5>
+                                                    <ul className="space-y-3">
+                                                        {earningsData.summary.qa_session.revelations?.map((point: string, i: number) => (
+                                                            <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
+                                                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></div>
+                                                                <span className="leading-snug">{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
-                                )}
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Left: Prepared Remarks (Management Pitch) */}
-                                    {earningsData.summary.prepared_remarks && (
-                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-blue-100 dark:border-blue-900/30 overflow-hidden shadow-sm">
-                                            <div className="px-5 py-4 border-b border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10 flex justify-between items-center">
-                                                <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                                    <FileText size={18} className="text-blue-500" /> Prepared Remarks
-                                                </h4>
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.prepared_remarks.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
-                                                    earningsData.summary.prepared_remarks.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
-                                                        'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                    {earningsData.summary.prepared_remarks.sentiment}
-                                                </span>
-                                            </div>
-                                            <div className="p-5">
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
-                                                    "{earningsData.summary.prepared_remarks.summary}"
-                                                </p>
-                                                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Key Strategic Points</h5>
-                                                <ul className="space-y-3">
-                                                    {earningsData.summary.prepared_remarks.key_points?.map((point: string, i: number) => (
-                                                        <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
-                                                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></div>
-                                                            <span className="leading-snug">{point}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Right: Q&A Session (The Truth) */}
-                                    {earningsData.summary.qa_session && (
-                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-purple-100 dark:border-purple-900/30 overflow-hidden shadow-sm">
-                                            <div className="px-5 py-4 border-b border-purple-100 dark:border-purple-900/30 bg-purple-50/30 dark:bg-purple-900/10 flex justify-between items-center">
-                                                <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                                    <Info size={18} className="text-purple-500" /> Q&A Session
-                                                </h4>
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${earningsData.summary.qa_session.sentiment === 'Bullish' ? 'bg-emerald-100 text-emerald-700' :
-                                                    earningsData.summary.qa_session.sentiment === 'Bearish' ? 'bg-red-100 text-red-700' :
-                                                        'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                    {earningsData.summary.qa_session.sentiment}
-                                                </span>
-                                            </div>
-                                            <div className="p-5">
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic mb-4 leading-relaxed">
-                                                    "{earningsData.summary.qa_session.summary}"
-                                                </p>
-                                                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Analyst Revelations</h5>
-                                                <ul className="space-y-3">
-                                                    {earningsData.summary.qa_session.revelations?.map((point: string, i: number) => (
-                                                        <li key={i} className="text-sm text-gray-800 dark:text-gray-200 flex items-start gap-2">
-                                                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></div>
-                                                            <span className="leading-snug">{point}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                                <Zap className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
-                                <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No Earnings Analysis</h4>
-                                <p className="text-gray-500 text-center max-w-md mb-6">
-                                    We couldn't find a recent earnings transcript for {ticker}.
-                                    <br />Try a highly liquid stock like AAPL, MSFT, or TSLA.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'sentiment' && (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Activity className="text-purple-500" size={20} /> AI News Analysis
-                                <InfoTooltip text="Dual-period analysis powered by Finnhub (News) + Hybrid AI (Groq/Gemini). Scores range from -1 (Bearish) to +1 (Bullish)." />
-                            </h3>
-                            {sentimentData && (
-                                <div className="flex items-center gap-3">
-                                    {sentimentData.duration_ms && (
-                                        <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1">
-                                            <Clock size={10} /> {(sentimentData.duration_ms / 1000).toFixed(2)}s
-                                        </span>
-                                    )}
-                                    <button
-                                        onClick={handleAnalyzeSentiment}
-                                        className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 dark:text-purple-400 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 rounded-lg transition-colors flex items-center gap-2"
-                                    >
-                                        <Zap size={14} /> Refresh Analysis
-                                    </button>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                    <Zap className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
+                                    <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">No Earnings Analysis</h4>
+                                    <p className="text-gray-500 text-center max-w-md mb-6">
+                                        We couldn't find a recent earnings transcript for {ticker}.
+                                        <br />Try a highly liquid stock like AAPL, MSFT, or TSLA.
+                                    </p>
                                 </div>
                             )}
                         </div>
+                    )
+                }
 
-                        {!sentimentData && !loadingSentiment ? (
-                            <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                                <Newspaper className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
-                                <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to Analyze</h4>
-                                <p className="text-gray-500 text-center max-w-md mb-6">
-                                    Analyze the last 7 days of news for {ticker} using Hybrid AI.
-                                    <br /> This will generate a "Today's Pulse" and "Weekly Trend" score.
-                                </p>
-                                <button
-                                    onClick={handleAnalyzeSentiment}
-                                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2"
-                                >
-                                    <Zap size={18} /> Run Deep Analysis
-                                </button>
-                            </div>
-                        ) : loadingSentiment ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
-                                <Loader className="animate-spin mb-4 text-purple-500" size={32} />
-                                <p className="font-medium text-gray-700 dark:text-gray-300">analyzing 7 days of news...</p>
-                                <p className="text-xs mt-2 text-gray-400">Fetching Finnhub • Running Hybrid AI Analysis • Calculating Scores</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                {/* Merged News Sentiment Card */}
-                                <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800">
-                                        {/* Today's Pulse */}
-                                        <div className="p-4 flex items-center justify-between gap-6">
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Today's Pulse</h5>
-                                                    <span className="text-[8px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full font-bold">24H</span>
-                                                </div>
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_today > 0.3 ? 'text-emerald-500' : sentimentData.score_today < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                        {sentimentData.score_today > 0 ? '+' : ''}{sentimentData.score_today?.toFixed(2)}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
-                                                </div>
-                                                <p className="text-[10px] text-gray-500 mt-1">
-                                                    {sentimentData.news_flow?.latest?.length || 0} articles • Immediate reaction
-                                                </p>
-                                            </div>
-                                            <div className={`p-3 rounded-xl ${sentimentData.score_today > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_today < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
-                                                {sentimentData.score_today > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_today < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
-                                            </div>
-                                        </div>
-
-                                        {/* Weekly Trend */}
-                                        <div className="p-4 flex items-center justify-between gap-6">
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Weekly Trend</h5>
-                                                    <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-500 rounded-full font-bold">7D</span>
-                                                </div>
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_weekly > 0.3 ? 'text-emerald-500' : sentimentData.score_weekly < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                        {sentimentData.score_weekly > 0 ? '+' : ''}{sentimentData.score_weekly?.toFixed(2)}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
-                                                </div>
-                                                <p className="text-[10px] text-gray-500 mt-1">
-                                                    {sentimentData.news_flow?.historical?.length || 0} articles • Sustained narrative
-                                                </p>
-                                            </div>
-                                            <div className={`p-3 rounded-xl ${sentimentData.score_weekly > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_weekly < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
-                                                {sentimentData.score_weekly > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_weekly < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-
-                                {/* Reasoning Block */}
-                                <div className="p-6 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 mb-6 relative">
-                                    <div className="absolute top-4 right-4 text-[10px] text-gray-400 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">
-                                        Hybrid Analysis: LLM Reasoning + Lexicon Validation
-                                    </div>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                            <MousePointer size={14} /> AI Reasoning ({sentimentData.article_count} articles)
-                                        </h5>
-                                    </div>
-                                    <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed italic border-l-4 border-purple-400 pl-4 py-1">
-                                        "{sentimentData.reasoning}"
-                                    </p>
-                                    {sentimentData.key_drivers && sentimentData.key_drivers.length > 0 && (
-                                        <div className="mt-4 pl-4">
-                                            <h6 className="text-xs font-semibold text-gray-500 mb-2">Key Drivers:</h6>
-                                            <ul className="list-disc list-outside text-xs text-gray-600 dark:text-gray-400 space-y-1 ml-4">
-                                                {sentimentData.key_drivers.map((driver: string, i: number) => (
-                                                    <li key={i}>{driver}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-
-
-                                {/* Insider MSPR Section */}
-                                {sentimentData.insider_mspr_label && sentimentData.insider_mspr_label !== 'No Data' && (
-                                    <div className="p-5 rounded-xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <h5 className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2">
-                                                📊 Insider Sentiment (MSPR)
-                                            </h5>
-                                            <span className="text-[10px] px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full font-mono">
-                                                via Finnhub
-                                            </span>
-                                        </div>
-                                        <div className="flex items-baseline gap-3">
-                                            <span className={`text-2xl font-black ${sentimentData.insider_mspr_label === 'Net Buying' ? 'text-emerald-600' :
-                                                sentimentData.insider_mspr_label === 'Heavy Selling' ? 'text-red-600' : 'text-gray-600'
-                                                }`}>
-                                                {sentimentData.insider_mspr_label}
-                                            </span>
-                                            <span className="text-xs text-gray-500 font-mono">
-                                                Score: {sentimentData.insider_mspr?.toFixed(1)}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-3 leading-relaxed">
-                                            <strong>MSPR</strong> = Monthly Share Purchase Ratio. Measures net insider buying vs selling
-                                            over the past 3 months. Range: -100 (heavy selling) to +100 (heavy buying).
-                                        </p>
-                                        <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-3">
-                                            <span>Source: Finnhub API</span>
-                                            <span>•</span>
-                                            <span>Type: SEC Form 4 filings</span>
-                                            <span>•</span>
-                                            <span>Window: 3 months</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Merged Footer: Algo Check (Left) + Metadata (Right) */}
-                                <div className="mt-4 p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 mb-6">
-                                    <div className="flex items-center gap-2" title="Mathematical baseline validation using TextBlob (No AI)">
-                                        <span className="font-medium text-gray-600 dark:text-gray-400">TextBlob Check:</span>
-                                        <span className={`font-mono font-bold ${sentimentData.score_quant > 0.1 ? 'text-emerald-600' : sentimentData.score_quant < -0.1 ? 'text-red-600' : 'text-gray-600'}`}>
-                                            {typeof sentimentData.score_quant === 'number' ? sentimentData.score_quant.toFixed(2) : '0.00'}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex items-center gap-2">
-                                            <span>Analyzed at: {sentimentData.timestamp ? new Date(sentimentData.timestamp).toLocaleTimeString() : 'Just now'}</span>
-                                        </div>
-                                        <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
-                                        <div className="flex items-center gap-2 text-gray-400">
-                                            <span>Cache active (3h)</span>
-                                        </div>
-                                        <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
-                                        <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-medium">
-                                            <span>{sentimentData.source || 'Llama 3.3 (Reasoning)'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* News Feed (Collapsible) - Moved to Bottom */}
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mt-6">
-                                    <button
-                                        onClick={() => setShowEvidence(!showEvidence)}
-                                        className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-                                    >
-                                        <h5 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <Newspaper size={16} /> Evidence ({sentimentData.article_count} articles)
-                                        </h5>
-                                        {showEvidence ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
-                                    </button>
-
-                                    {showEvidence && (
-                                        <div className="p-6 bg-white dark:bg-gray-900/20 border-t border-gray-200 dark:border-gray-700">
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                                {/* Latest News */}
-                                                <div className="space-y-4">
-                                                    <h6 className="text-xs font-bold text-yellow-600 dark:text-yellow-400 uppercase border-b border-yellow-200 pb-1 mb-2">
-                                                        Latest (Today)
-                                                    </h6>
-                                                    {sentimentData.news_flow?.latest?.length > 0 ? (
-                                                        sentimentData.news_flow.latest.map((item: any, i: number) => (
-                                                            <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 hover:border-yellow-300 transition-colors group">
-                                                                <div className="flex justify-between items-start gap-2 mb-1">
-                                                                    <span className="text-[10px] font-mono text-yellow-700 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded">
-                                                                        {item.datetime ? new Date(item.datetime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-gray-400">{item.source}</span>
-                                                                </div>
-                                                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
-                                                                    {item.title}
-                                                                </h4>
-                                                                <p className="text-xs text-gray-500 line-clamp-2">
-                                                                    {item.summary}
-                                                                </p>
-                                                            </a>
-                                                        ))
-                                                    ) : (
-                                                        <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No breaking news in last 24h</div>
-                                                    )}
-                                                </div>
-
-                                                {/* Historical News */}
-                                                <div className="space-y-4">
-                                                    <h6 className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-1 mb-2">
-                                                        Previous 6 Days
-                                                    </h6>
-                                                    {sentimentData.news_flow?.historical?.length > 0 ? (
-                                                        sentimentData.news_flow.historical.map((item: any, i: number) => (
-                                                            <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-gray-300 transition-colors group">
-                                                                <div className="flex justify-between items-start gap-2 mb-1">
-                                                                    <span className="text-[10px] font-mono text-gray-400">
-                                                                        {item.datetime ? new Date(item.datetime * 1000).toLocaleDateString() : 'N/A'}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-gray-400">{item.source}</span>
-                                                                </div>
-                                                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
-                                                                    {item.title}
-                                                                </h4>
-                                                            </a>
-                                                        ))
-                                                    ) : (
-                                                        <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No older news found</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'projections' && (
-                    <div className="space-y-6">
-                        {/* Projection Header with Duration Selector */}
-                        <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl">
-                            {loadingSimulation ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-gray-500 animate-pulse">
-                                    <Loader className="animate-spin mb-4 text-blue-500" size={48} />
-                                    <p className="font-medium text-gray-700 dark:text-gray-300 text-lg">Running 10,000 Simulations...</p>
-                                    <p className="text-sm mt-2 text-gray-400">Modeling volatility • calculating scenarios • aggregating paths</p>
-                                </div>
-                            ) : simulation ? (
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
-                                            <Zap className="text-blue-500" /> Price Projections
-                                            <InfoTooltip text={
-                                                <div className="space-y-1.5">
-                                                    <p>Monte Carlo simulation running {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility.</p>
-                                                    <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
-                                                        <div className="flex justify-between items-center gap-4">
-                                                            <span className="text-gray-400">Model</span>
-                                                            <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
-                                                        </div>
-                                                        <div className="flex justify-between items-center gap-4">
-                                                            <span className="text-gray-400">History Used</span>
-                                                            <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            } />
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Based on {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} simulations using Geometric Brownian Motion</p>
-                                    </div>
+                {
+                    activeTab === 'sentiment' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Activity className="text-purple-500" size={20} /> AI News Analysis
+                                    <InfoTooltip text="Dual-period analysis powered by Finnhub (News) + Hybrid AI (Groq/Gemini). Scores range from -1 (Bearish) to +1 (Bullish)." />
+                                </h3>
+                                {sentimentData && (
                                     <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400 px-2">Duration:</span>
-                                            <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500 text-white">
-                                                90 Days
-                                            </button>
-                                        </div>
-                                        <button onClick={handleRunSimulation} className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
-                                            <Clock size={12} /> Rerun
+                                        {sentimentData.duration_ms && (
+                                            <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1">
+                                                <Clock size={10} /> {(sentimentData.duration_ms / 1000).toFixed(2)}s
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={handleAnalyzeSentiment}
+                                            className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 dark:text-purple-400 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 rounded-lg transition-colors flex items-center gap-2"
+                                        >
+                                            <Zap size={14} /> Refresh Analysis
                                         </button>
                                     </div>
-                                </div>
-                            ) : null}
-                        </div>
-
-                        {/* Scenario Cards - Moved to Top */}
-                        {simulation && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                                {/* Bear Case */}
-                                <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 backdrop-blur-md rounded-xl border border-red-500/20 p-5">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xl">🐻</span>
-                                        <span className="text-sm font-bold text-red-600 dark:text-red-400">Bear Case <span className="opacity-60 text-[10px] ml-1">(P10)</span></span>
-                                    </div>
-                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
-                                        ${simulation.p10?.[simulation.p10.length - 1]?.toFixed(2)}
-                                    </div>
-                                    <div className="text-xs text-red-600 dark:text-red-400 font-bold">
-                                        {(((simulation.p10?.[simulation.p10.length - 1] || 0) - (simulation.p10?.[0] || 1)) / (simulation.p10?.[0] || 1) * 100).toFixed(0)}% from current
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were worse</div>
-                                </div>
-
-                                {/* Base Case */}
-                                <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 backdrop-blur-md rounded-xl border border-blue-500/20 p-5">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xl">📊</span>
-                                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Base Case <span className="opacity-60 text-[10px] ml-1">(P50)</span></span>
-                                    </div>
-                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
-                                        ${simulation.p50?.[simulation.p50.length - 1]?.toFixed(2)}
-                                    </div>
-                                    <div className={`text-xs font-bold ${(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-                                        {(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? '+' : ''}{(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100).toFixed(0)}% from current
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-2">Median expected outcome</div>
-                                </div>
-
-                                {/* Bull Case */}
-                                <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 backdrop-blur-md rounded-xl border border-emerald-500/20 p-5">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xl">🚀</span>
-                                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Bull Case <span className="opacity-60 text-[10px] ml-1">(P90)</span></span>
-                                    </div>
-                                    <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
-                                        ${simulation.p90?.[simulation.p90.length - 1]?.toFixed(2)}
-                                    </div>
-                                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                                        +{(((simulation.p90?.[simulation.p90.length - 1] || 0) - (simulation.p90?.[0] || 1)) / (simulation.p90?.[0] || 1) * 100).toFixed(0)}% from current
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were better</div>
-                                </div>
+                                )}
                             </div>
-                        )}
 
-                        {/* Risk Metrics Row */}
-                        {simulation && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expected Return</div>
-                                    <div className={`text-xl font-bold font-mono ${simulation.expected_return >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                                        {simulation.expected_return >= 0 ? '+' : ''}{simulation.expected_return?.toFixed(1)}%
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 mt-1">90-day projection</div>
+                            {!sentimentData && !loadingSentiment ? (
+                                <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                    <Newspaper className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
+                                    <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Ready to Analyze</h4>
+                                    <p className="text-gray-500 text-center max-w-md mb-6">
+                                        Analyze the last 7 days of news for {ticker} using Hybrid AI.
+                                        <br /> This will generate a "Today's Pulse" and "Weekly Trend" score.
+                                    </p>
+                                    <button
+                                        onClick={handleAnalyzeSentiment}
+                                        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2"
+                                    >
+                                        <Zap size={18} /> Run Deep Analysis
+                                    </button>
                                 </div>
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">VaR (95%)</div>
-                                    <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">
-                                        -${simulation.risk_var?.toFixed(2)}
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 mt-1">Maximum likely loss</div>
+                            ) : loadingSentiment ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-gray-500 animate-pulse">
+                                    <Loader className="animate-spin mb-4 text-purple-500" size={32} />
+                                    <p className="font-medium text-gray-700 dark:text-gray-300">analyzing 7 days of news...</p>
+                                    <p className="text-xs mt-2 text-gray-400">Fetching Finnhub • Running Hybrid AI Analysis • Calculating Scores</p>
                                 </div>
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prob. of Loss</div>
-                                    <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
-                                        {(100 - (simulation.probabilities?.breakeven || 50)).toFixed(0)}%
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 mt-1">Chance of negative return</div>
-                                </div>
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Volatility</div>
-                                    <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
-                                        {simulation.volatility?.toFixed(1)}%
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 mt-1">Annualized</div>
-                                </div>
-                            </div>
-                        )}
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* Merged News Sentiment Card */}
+                                    <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800">
+                                            {/* Today's Pulse */}
+                                            <div className="p-4 flex items-center justify-between gap-6">
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Today's Pulse</h5>
+                                                        <span className="text-[8px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-full font-bold">24H</span>
+                                                    </div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_today > 0.3 ? 'text-emerald-500' : sentimentData.score_today < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                            {sentimentData.score_today > 0 ? '+' : ''}{sentimentData.score_today?.toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-500 mt-1">
+                                                        {sentimentData.news_flow?.latest?.length || 0} articles • Immediate reaction
+                                                    </p>
+                                                </div>
+                                                <div className={`p-3 rounded-xl ${sentimentData.score_today > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_today < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
+                                                    {sentimentData.score_today > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_today < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
+                                                </div>
+                                            </div>
 
-                        {/* Probability Analysis & Histogram Row */}
-                        {simulation?.probabilities && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                                {/* Probability Table */}
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
-                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                        <TrendingUp size={16} className="text-blue-500" /> Probability Analysis
-                                    </h4>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500">+25% gain</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_25}%` }}></div>
+                                            {/* Weekly Trend */}
+                                            <div className="p-4 flex items-center justify-between gap-6">
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Weekly Trend</h5>
+                                                        <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-500 rounded-full font-bold">7D</span>
+                                                    </div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className={`text-3xl font-black font-mono tracking-tighter ${sentimentData.score_weekly > 0.3 ? 'text-emerald-500' : sentimentData.score_weekly < -0.3 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                            {sentimentData.score_weekly > 0 ? '+' : ''}{sentimentData.score_weekly?.toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 font-medium">/ 1.0</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-500 mt-1">
+                                                        {sentimentData.news_flow?.historical?.length || 0} articles • Sustained narrative
+                                                    </p>
                                                 </div>
-                                                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_25?.toFixed(0)}%</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500">+10% gain</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_10}%` }}></div>
+                                                <div className={`p-3 rounded-xl ${sentimentData.score_weekly > 0.3 ? 'bg-emerald-500/10' : sentimentData.score_weekly < -0.3 ? 'bg-red-500/10' : 'bg-gray-500/10'}`}>
+                                                    {sentimentData.score_weekly > 0.3 ? <TrendingUp size={20} className="text-emerald-500" /> : sentimentData.score_weekly < -0.3 ? <TrendingDown size={20} className="text-red-500" /> : <Activity size={20} className="text-gray-500" />}
                                                 </div>
-                                                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_10?.toFixed(0)}%</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500">Break-even</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${simulation.probabilities.breakeven}%` }}></div>
-                                                </div>
-                                                <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 w-12 text-right">{simulation.probabilities.breakeven?.toFixed(0)}%</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500">-10% loss</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_10}%` }}></div>
-                                                </div>
-                                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_10?.toFixed(0)}%</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-500">-25% loss</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_25}%` }}></div>
-                                                </div>
-                                                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_25?.toFixed(0)}%</span>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Return Distribution Histogram */}
-                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
-                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                        <BarChart3 size={16} className="text-purple-500" /> Return Distribution
-                                    </h4>
-                                    <div className="h-[180px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={simulation.histogram || []} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                                                <defs>
-                                                    <linearGradient id="histGradient" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
-                                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <XAxis dataKey="return_pct" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v}%`} />
-                                                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
-                                                <RechartsTooltip
-                                                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
-                                                    formatter={(value: any) => [`${value}%`, 'Probability']}
-                                                    labelFormatter={(label) => `Return: ${label > 0 ? '+' : ''}${label}%`}
-                                                />
-                                                <Area type="monotone" dataKey="percentage" stroke="#8b5cf6" fill="url(#histGradient)" />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Analyst Targets */}
-                        {simulation?.analyst_targets?.has_data && (
-                            <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5 mt-6">
-                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                    <Target size={16} className="text-amber-500" /> Analyst Consensus
-                                </h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-xs text-gray-500 mb-1">Target Price</div>
-                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">${simulation.analyst_targets.target_mean?.toFixed(2)}</div>
-                                        <div className={`text-xs font-bold ${(simulation.analyst_targets.upside_pct || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                            {(simulation.analyst_targets.upside_pct || 0) >= 0 ? '+' : ''}{simulation.analyst_targets.upside_pct?.toFixed(1)}% upside
+                                    {/* Reasoning Block */}
+                                    <div className="p-6 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 mb-6 relative">
+                                        <div className="absolute top-4 right-4 text-[10px] text-gray-400 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">
+                                            Hybrid Analysis: LLM Reasoning + Lexicon Validation
                                         </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-xs text-gray-500 mb-1">Target Range</div>
-                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">
-                                            ${simulation.analyst_targets.target_low?.toFixed(0)} - ${simulation.analyst_targets.target_high?.toFixed(0)}
+                                        <div className="flex justify-between items-start mb-3">
+                                            <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                <MousePointer size={14} /> AI Reasoning ({sentimentData.article_count} articles)
+                                            </h5>
                                         </div>
-                                        <div className="text-xs text-gray-400">Low - High</div>
+                                        <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed italic border-l-4 border-purple-400 pl-4 py-1">
+                                            "{sentimentData.reasoning}"
+                                        </p>
+                                        {sentimentData.key_drivers && sentimentData.key_drivers.length > 0 && (
+                                            <div className="mt-4 pl-4">
+                                                <h6 className="text-xs font-semibold text-gray-500 mb-2">Key Drivers:</h6>
+                                                <ul className="list-disc list-outside text-xs text-gray-600 dark:text-gray-400 space-y-1 ml-4">
+                                                    {sentimentData.key_drivers.map((driver: string, i: number) => (
+                                                        <li key={i}>{driver}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-xs text-gray-500 mb-1">Analysts</div>
-                                        <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">{simulation.analyst_targets.num_analysts}</div>
-                                        <div className="text-xs text-gray-400">covering</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-xs text-gray-500 mb-1">Recommendation</div>
-                                        <div className={`text-lg font-bold capitalize ${simulation.analyst_targets.recommendation_key === 'buy' || simulation.analyst_targets.recommendation_key === 'strong_buy' ? 'text-emerald-600' :
-                                            simulation.analyst_targets.recommendation_key === 'sell' || simulation.analyst_targets.recommendation_key === 'strong_sell' ? 'text-red-600' :
-                                                'text-amber-600'
-                                            }`}>
-                                            {simulation.analyst_targets.recommendation_key?.replace('_', ' ') || 'N/A'}
-                                        </div>
-                                        <div className="text-xs text-gray-400">consensus</div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
 
-                    </div>
-                )}
-
-                {activeTab === 'stats' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                        {/* 1. Key Statistics */}
-                        <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-                            <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <Activity size={12} className="text-blue-500 dark:text-blue-400" /> Key Stats
-                            </h3>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">Mkt Cap</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">${formatLargeNumber(fundamentals.marketCap)}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">P/E (Trail/Fwd)</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">{fundamentals.trailingPE?.toFixed(1)} / {fundamentals.forwardPE?.toFixed(1)}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">PEG Ratio</span>
-                                    <span className={`font-mono ${fundamentals.pegRatio < 1 ? 'text-emerald-500 font-bold' : 'text-gray-900 dark:text-white'}`}>{fundamentals.pegRatio?.toFixed(2) || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">P/B Ratio</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">{fundamentals.priceToBook?.toFixed(2) || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">ROE</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">{(fundamentals.returnOnEquity * 100)?.toFixed(2)}%</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">Profit Margin</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">{(fundamentals.profitMargins * 100)?.toFixed(2)}%</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500">EPS (Trail)</span>
-                                    <span className="font-mono text-gray-900 dark:text-white">${fundamentals.trailingEps?.toFixed(2)}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 2. Technical Metrics (Merged Risk + SMA) */}
-                        <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-                            <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <AlertTriangle size={12} className="text-orange-500" /> Technical Metrics
-                            </h3>
-                            <div className="space-y-4">
-                                {/* Risk Indicators */}
-                                <div className="space-y-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-500">Beta (Volatility)</span>
-                                        <span className={`font-mono ${fundamentals.beta > 1.5 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>{fundamentals.beta?.toFixed(2) || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-500">Momentum</span>
-                                        <span className={`font-mono font-bold ${analysis?.indicators?.[analysis.indicators.length - 1]?.Momentum_Signal === 'BULLISH' ? 'text-emerald-500' : 'text-red-500'}`}>
-                                            {analysis?.indicators?.[analysis.indicators.length - 1]?.Momentum_Signal || "NEUTRAL"}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-500">RSI (14)</span>
-                                        {(() => {
-                                            const rsi = analysis?.indicators && analysis.indicators.length > 0 ? analysis.indicators[analysis.indicators.length - 1].RSI : 50;
-                                            return (
-                                                <span className={`font-mono ${rsi > 70 ? 'text-red-500' : rsi < 30 ? 'text-emerald-500' : 'text-emerald-500'}`}>
-                                                    {rsi ? rsi.toFixed(2) : "N/A"}
+                                    {/* Insider MSPR Section */}
+                                    {sentimentData.insider_mspr_label && sentimentData.insider_mspr_label !== 'No Data' && (
+                                        <div className="p-5 rounded-xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h5 className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                                                    📊 Insider Sentiment (MSPR)
+                                                </h5>
+                                                <span className="text-[10px] px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full font-mono">
+                                                    via Finnhub
                                                 </span>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-
-                                {/* Moving Averages */}
-                                <div className="space-y-2">
-                                    <h4 className="text-[9px] font-bold text-gray-400 uppercase">Moving Averages</h4>
-
-                                    {/* Only showing 50 & 200 SMA as requested */}
-                                    {analysis?.sma?.sma_50 && (
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-500">SMA 50</span>
-                                            <div className="text-right">
-                                                <span className="font-mono text-gray-900 dark:text-white block">${analysis.sma.sma_50.toFixed(2)}</span>
-                                                <span className={`text-[10px] font-mono ${lastClose > analysis.sma.sma_50 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {((lastClose - analysis.sma.sma_50) / analysis.sma.sma_50 * 100) > 0 ? '+' : ''}
-                                                    {(((lastClose - analysis.sma.sma_50) / analysis.sma.sma_50) * 100).toFixed(2)}%
+                                            </div>
+                                            <div className="flex items-baseline gap-3">
+                                                <span className={`text-2xl font-black ${sentimentData.insider_mspr_label === 'Net Buying' ? 'text-emerald-600' :
+                                                    sentimentData.insider_mspr_label === 'Heavy Selling' ? 'text-red-600' : 'text-gray-600'
+                                                    }`}>
+                                                    {sentimentData.insider_mspr_label}
                                                 </span>
+                                                <span className="text-xs text-gray-500 font-mono">
+                                                    Score: {sentimentData.insider_mspr?.toFixed(1)}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                                                <strong>MSPR</strong> = Monthly Share Purchase Ratio. Measures net insider buying vs selling
+                                                over the past 3 months. Range: -100 (heavy selling) to +100 (heavy buying).
+                                            </p>
+                                            <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-3">
+                                                <span>Source: Finnhub API</span>
+                                                <span>•</span>
+                                                <span>Type: SEC Form 4 filings</span>
+                                                <span>•</span>
+                                                <span>Window: 3 months</span>
                                             </div>
                                         </div>
                                     )}
-                                    {analysis?.sma?.sma_200 && (
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-500">SMA 200</span>
-                                            <div className="text-right">
-                                                <span className="font-mono text-gray-900 dark:text-white block">${analysis.sma.sma_200.toFixed(2)}</span>
-                                                <span className={`text-[10px] font-mono ${lastClose > analysis.sma.sma_200 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {((lastClose - analysis.sma.sma_200) / analysis.sma.sma_200 * 100) > 0 ? '+' : ''}
-                                                    {(((lastClose - analysis.sma.sma_200) / analysis.sma.sma_200) * 100).toFixed(2)}%
-                                                </span>
+
+                                    {/* Merged Footer: Algo Check (Left) + Metadata (Right) */}
+                                    <div className="mt-4 p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500 mb-6">
+                                        <div className="flex items-center gap-2" title="Mathematical baseline validation using TextBlob (No AI)">
+                                            <span className="font-medium text-gray-600 dark:text-gray-400">TextBlob Check:</span>
+                                            <span className={`font-mono font-bold ${sentimentData.score_quant > 0.1 ? 'text-emerald-600' : sentimentData.score_quant < -0.1 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                {typeof sentimentData.score_quant === 'number' ? sentimentData.score_quant.toFixed(2) : '0.00'}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-6">
+                                            <div className="flex items-center gap-2">
+                                                <span>Analyzed at: {sentimentData.timestamp ? new Date(sentimentData.timestamp).toLocaleTimeString() : 'Just now'}</span>
+                                            </div>
+                                            <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
+                                            <div className="flex items-center gap-2 text-gray-400">
+                                                <span>Cache active (3h)</span>
+                                            </div>
+                                            <div className="w-px h-3 bg-gray-300 dark:bg-gray-700 hidden md:block"></div>
+                                            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-medium">
+                                                <span>{sentimentData.source || 'Llama 3.3 (Reasoning)'}</span>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
+
+                                    {/* News Feed (Collapsible) - Moved to Bottom */}
+                                    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mt-6">
+                                        <button
+                                            onClick={() => setShowEvidence(!showEvidence)}
+                                            className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+                                        >
+                                            <h5 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Newspaper size={16} /> Evidence ({sentimentData.article_count} articles)
+                                            </h5>
+                                            {showEvidence ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+                                        </button>
+
+                                        {showEvidence && (
+                                            <div className="p-6 bg-white dark:bg-gray-900/20 border-t border-gray-200 dark:border-gray-700">
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                    {/* Latest News */}
+                                                    <div className="space-y-4">
+                                                        <h6 className="text-xs font-bold text-yellow-600 dark:text-yellow-400 uppercase border-b border-yellow-200 pb-1 mb-2">
+                                                            Latest (Today)
+                                                        </h6>
+                                                        {sentimentData.news_flow?.latest?.length > 0 ? (
+                                                            sentimentData.news_flow.latest.map((item: any, i: number) => (
+                                                                <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 hover:border-yellow-300 transition-colors group">
+                                                                    <div className="flex justify-between items-start gap-2 mb-1">
+                                                                        <span className="text-[10px] font-mono text-yellow-700 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded">
+                                                                            {item.datetime ? new Date(item.datetime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-gray-400">{item.source}</span>
+                                                                    </div>
+                                                                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
+                                                                        {item.title}
+                                                                    </h4>
+                                                                    <p className="text-xs text-gray-500 line-clamp-2">
+                                                                        {item.summary}
+                                                                    </p>
+                                                                </a>
+                                                            ))
+                                                        ) : (
+                                                            <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No breaking news in last 24h</div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Historical News */}
+                                                    <div className="space-y-4">
+                                                        <h6 className="text-xs font-bold text-gray-500 uppercase border-b border-gray-200 pb-1 mb-2">
+                                                            Previous 6 Days
+                                                        </h6>
+                                                        {sentimentData.news_flow?.historical?.length > 0 ? (
+                                                            sentimentData.news_flow.historical.map((item: any, i: number) => (
+                                                                <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:border-gray-300 transition-colors group">
+                                                                    <div className="flex justify-between items-start gap-2 mb-1">
+                                                                        <span className="text-[10px] font-mono text-gray-400">
+                                                                            {item.datetime ? new Date(item.datetime * 1000).toLocaleDateString() : 'N/A'}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-gray-400">{item.source}</span>
+                                                                    </div>
+                                                                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 leading-snug mb-1">
+                                                                        {item.title}
+                                                                    </h4>
+                                                                </a>
+                                                            ))
+                                                        ) : (
+                                                            <div className="text-xs text-gray-400 italic p-4 text-center border border-dashed rounded-lg">No older news found</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
+
+                {
+                    activeTab === 'projections' && (
+                        <div className="space-y-6">
+                            {/* Projection Header with Duration Selector */}
+                            <div className="bg-white/60 dark:bg-gray-800/10 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-6 shadow-xl">
+                                {loadingSimulation ? (
+                                    <div className="flex flex-col items-center justify-center py-12 text-gray-500 animate-pulse">
+                                        <Loader className="animate-spin mb-4 text-blue-500" size={48} />
+                                        <p className="font-medium text-gray-700 dark:text-gray-300 text-lg">Running 10,000 Simulations...</p>
+                                        <p className="text-sm mt-2 text-gray-400">Modeling volatility • calculating scenarios • aggregating paths</p>
+                                    </div>
+                                ) : simulation ? (
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-2">
+                                                <Zap className="text-blue-500" /> Price Projections
+                                                <InfoTooltip text={
+                                                    <div className="space-y-1.5">
+                                                        <p>Monte Carlo simulation running {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} possible future price paths based on historical volatility.</p>
+                                                        <div className="pt-1.5 border-t border-gray-700/50 flex flex-col gap-1 opacity-90">
+                                                            <div className="flex justify-between items-center gap-4">
+                                                                <span className="text-gray-400">Model</span>
+                                                                <span className="font-mono font-bold text-emerald-400">{simulation?.metadata?.model || 'GBM'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center gap-4">
+                                                                <span className="text-gray-400">History Used</span>
+                                                                <span className="font-mono font-bold text-blue-400">{simulation?.metadata?.period || '1y'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                } />
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Based on {simulation?.metadata?.simulations?.toLocaleString() || '10,000'} simulations using Geometric Brownian Motion</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400 px-2">Duration:</span>
+                                                <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500 text-white">
+                                                    90 Days
+                                                </button>
+                                            </div>
+                                            <button onClick={handleRunSimulation} className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
+                                                <Clock size={12} /> Rerun
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            {/* Scenario Cards - Moved to Top */}
+                            {simulation && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                                    {/* Bear Case */}
+                                    <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 backdrop-blur-md rounded-xl border border-red-500/20 p-5">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-xl">🐻</span>
+                                            <span className="text-sm font-bold text-red-600 dark:text-red-400">Bear Case <span className="opacity-60 text-[10px] ml-1">(P10)</span></span>
+                                        </div>
+                                        <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                            ${simulation.p10?.[simulation.p10.length - 1]?.toFixed(2)}
+                                        </div>
+                                        <div className="text-xs text-red-600 dark:text-red-400 font-bold">
+                                            {(((simulation.p10?.[simulation.p10.length - 1] || 0) - (simulation.p10?.[0] || 1)) / (simulation.p10?.[0] || 1) * 100).toFixed(0)}% from current
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were worse</div>
+                                    </div>
+
+                                    {/* Base Case */}
+                                    <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 backdrop-blur-md rounded-xl border border-blue-500/20 p-5">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-xl">📊</span>
+                                            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Base Case <span className="opacity-60 text-[10px] ml-1">(P50)</span></span>
+                                        </div>
+                                        <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                            ${simulation.p50?.[simulation.p50.length - 1]?.toFixed(2)}
+                                        </div>
+                                        <div className={`text-xs font-bold ${(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+                                            {(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100) >= 0 ? '+' : ''}{(((simulation.p50?.[simulation.p50.length - 1] || 0) - (simulation.p50?.[0] || 1)) / (simulation.p50?.[0] || 1) * 100).toFixed(0)}% from current
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">Median expected outcome</div>
+                                    </div>
+
+                                    {/* Bull Case */}
+                                    <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 backdrop-blur-md rounded-xl border border-emerald-500/20 p-5">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-xl">🚀</span>
+                                            <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Bull Case <span className="opacity-60 text-[10px] ml-1">(P90)</span></span>
+                                        </div>
+                                        <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white mb-1">
+                                            ${simulation.p90?.[simulation.p90.length - 1]?.toFixed(2)}
+                                        </div>
+                                        <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                                            +{(((simulation.p90?.[simulation.p90.length - 1] || 0) - (simulation.p90?.[0] || 1)) / (simulation.p90?.[0] || 1) * 100).toFixed(0)}% from current
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">Only 10% of outcomes were better</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Risk Metrics Row */}
+                            {simulation && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expected Return</div>
+                                        <div className={`text-xl font-bold font-mono ${simulation.expected_return >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                            {simulation.expected_return >= 0 ? '+' : ''}{simulation.expected_return?.toFixed(1)}%
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1">90-day projection</div>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">VaR (95%)</div>
+                                        <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">
+                                            -${simulation.risk_var?.toFixed(2)}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1">Maximum likely loss</div>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prob. of Loss</div>
+                                        <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                                            {(100 - (simulation.probabilities?.breakeven || 50)).toFixed(0)}%
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1">Chance of negative return</div>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-4 text-center">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Volatility</div>
+                                        <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
+                                            {simulation.volatility?.toFixed(1)}%
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1">Annualized</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Probability Analysis & Histogram Row */}
+                            {simulation?.probabilities && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                                    {/* Probability Table */}
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
+                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                            <TrendingUp size={16} className="text-blue-500" /> Probability Analysis
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500">+25% gain</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_25}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_25?.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500">+10% gain</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${simulation.probabilities.gain_10}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 w-12 text-right">{simulation.probabilities.gain_10?.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500">Break-even</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${simulation.probabilities.breakeven}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 w-12 text-right">{simulation.probabilities.breakeven?.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500">-10% loss</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_10}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_10?.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500">-25% loss</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-red-500 rounded-full" style={{ width: `${simulation.probabilities.loss_25}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 w-12 text-right">{simulation.probabilities.loss_25?.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Return Distribution Histogram */}
+                                    <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5">
+                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                            <BarChart3 size={16} className="text-purple-500" /> Return Distribution
+                                        </h4>
+                                        <div className="h-[180px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={simulation.histogram || []} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                                                    <defs>
+                                                        <linearGradient id="histGradient" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
+                                                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <XAxis dataKey="return_pct" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v}%`} />
+                                                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
+                                                    <RechartsTooltip
+                                                        contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
+                                                        formatter={(value: any) => [`${value}%`, 'Probability']}
+                                                        labelFormatter={(label) => `Return: ${label > 0 ? '+' : ''}${label}%`}
+                                                    />
+                                                    <Area type="monotone" dataKey="percentage" stroke="#8b5cf6" fill="url(#histGradient)" />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Analyst Targets */}
+                            {simulation?.analyst_targets?.has_data && (
+                                <div className="bg-white/60 dark:bg-gray-800/40 backdrop-blur-md rounded-xl border border-white/20 dark:border-gray-700/30 p-5 mt-6">
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                        <Target size={16} className="text-amber-500" /> Analyst Consensus
+                                    </h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="text-center">
+                                            <div className="text-xs text-gray-500 mb-1">Target Price</div>
+                                            <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">${simulation.analyst_targets.target_mean?.toFixed(2)}</div>
+                                            <div className={`text-xs font-bold ${(simulation.analyst_targets.upside_pct || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                {(simulation.analyst_targets.upside_pct || 0) >= 0 ? '+' : ''}{simulation.analyst_targets.upside_pct?.toFixed(1)}% upside
+                                            </div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-xs text-gray-500 mb-1">Target Range</div>
+                                            <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">
+                                                ${simulation.analyst_targets.target_low?.toFixed(0)} - ${simulation.analyst_targets.target_high?.toFixed(0)}
+                                            </div>
+                                            <div className="text-xs text-gray-400">Low - High</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-xs text-gray-500 mb-1">Analysts</div>
+                                            <div className="text-lg font-bold font-mono text-gray-900 dark:text-white">{simulation.analyst_targets.num_analysts}</div>
+                                            <div className="text-xs text-gray-400">covering</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-xs text-gray-500 mb-1">Recommendation</div>
+                                            <div className={`text-lg font-bold capitalize ${simulation.analyst_targets.recommendation_key === 'buy' || simulation.analyst_targets.recommendation_key === 'strong_buy' ? 'text-emerald-600' :
+                                                simulation.analyst_targets.recommendation_key === 'sell' || simulation.analyst_targets.recommendation_key === 'strong_sell' ? 'text-red-600' :
+                                                    'text-amber-600'
+                                                }`}>
+                                                {simulation.analyst_targets.recommendation_key?.replace('_', ' ') || 'N/A'}
+                                            </div>
+                                            <div className="text-xs text-gray-400">consensus</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
+                        </div>
+                    )
+                }
+
+                {
+                    activeTab === 'stats' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                            {/* 1. Key Statistics */}
+                            <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+                                <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <Activity size={12} className="text-blue-500 dark:text-blue-400" /> Key Stats
+                                </h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">Mkt Cap</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">${formatLargeNumber(fundamentals.marketCap)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">P/E (Trail/Fwd)</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">{fundamentals.trailingPE?.toFixed(1)} / {fundamentals.forwardPE?.toFixed(1)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">PEG Ratio</span>
+                                        <span className={`font-mono ${fundamentals.pegRatio < 1 ? 'text-emerald-500 font-bold' : 'text-gray-900 dark:text-white'}`}>{fundamentals.pegRatio?.toFixed(2) || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">P/B Ratio</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">{fundamentals.priceToBook?.toFixed(2) || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">ROE</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">{(fundamentals.returnOnEquity * 100)?.toFixed(2)}%</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">Profit Margin</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">{(fundamentals.profitMargins * 100)?.toFixed(2)}%</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">EPS (Trail)</span>
+                                        <span className="font-mono text-gray-900 dark:text-white">${fundamentals.trailingEps?.toFixed(2)}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* 3. Fair Value */}
-                        <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-                            <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
-                                Fair Value & Targets
-                            </h3>
-                            {fundamentals.targetMeanPrice ? (
+                            {/* 2. Technical Metrics (Merged Risk + SMA) */}
+                            <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+                                <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <AlertTriangle size={12} className="text-orange-500" /> Technical Metrics
+                                </h3>
                                 <div className="space-y-4">
-                                    {/* Evaluation */}
-                                    <div>
-                                        <div className="flex justify-between items-end mb-1">
-                                            <span className="text-xs text-gray-500">Mean Target</span>
-                                            <span className="text-xl font-bold text-gray-900 dark:text-white">${fundamentals.targetMeanPrice.toFixed(2)}</span>
+                                    {/* Risk Indicators */}
+                                    <div className="space-y-2 border-b border-gray-100 dark:border-gray-700 pb-2">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-500">Beta (Volatility)</span>
+                                            <span className={`font-mono ${fundamentals.beta > 1.5 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>{fundamentals.beta?.toFixed(2) || 'N/A'}</span>
                                         </div>
-                                        {(() => {
-                                            const current = fundamentals.currentPrice || lastClose;
-                                            const upside = ((fundamentals.targetMeanPrice - current) / current) * 100;
-                                            return (
-                                                <div className={`text-sm font-bold ${upside >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                    {upside > 0 ? '+' : ''}{upside.toFixed(1)}% Upside
-                                                </div>
-                                            );
-                                        })()}
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-500">Momentum</span>
+                                            <span className={`font-mono font-bold ${analysis?.indicators?.[analysis.indicators.length - 1]?.Momentum_Signal === 'BULLISH' ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                {analysis?.indicators?.[analysis.indicators.length - 1]?.Momentum_Signal || "NEUTRAL"}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-500">RSI (14)</span>
+                                            {(() => {
+                                                const rsi = analysis?.indicators && analysis.indicators.length > 0 ? analysis.indicators[analysis.indicators.length - 1].RSI : 50;
+                                                return (
+                                                    <span className={`font-mono ${rsi > 70 ? 'text-red-500' : rsi < 30 ? 'text-emerald-500' : 'text-emerald-500'}`}>
+                                                        {rsi ? rsi.toFixed(2) : "N/A"}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </div>
                                     </div>
 
-                                    {/* Analyst Range */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-[10px] text-gray-500">
-                                            <span>Low: ${fundamentals.targetLowPrice?.toFixed(2)}</span>
-                                            <span>High: ${fundamentals.targetHighPrice?.toFixed(2)}</span>
+                                    {/* Moving Averages */}
+                                    <div className="space-y-2">
+                                        <h4 className="text-[9px] font-bold text-gray-400 uppercase">Moving Averages</h4>
+
+                                        {/* Only showing 50 & 200 SMA as requested */}
+                                        {analysis?.sma?.sma_50 && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-500">SMA 50</span>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-gray-900 dark:text-white block">${analysis.sma.sma_50.toFixed(2)}</span>
+                                                    <span className={`text-[10px] font-mono ${lastClose > analysis.sma.sma_50 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                        {((lastClose - analysis.sma.sma_50) / analysis.sma.sma_50 * 100) > 0 ? '+' : ''}
+                                                        {(((lastClose - analysis.sma.sma_50) / analysis.sma.sma_50) * 100).toFixed(2)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {analysis?.sma?.sma_200 && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-500">SMA 200</span>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-gray-900 dark:text-white block">${analysis.sma.sma_200.toFixed(2)}</span>
+                                                    <span className={`text-[10px] font-mono ${lastClose > analysis.sma.sma_200 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                        {((lastClose - analysis.sma.sma_200) / analysis.sma.sma_200 * 100) > 0 ? '+' : ''}
+                                                        {(((lastClose - analysis.sma.sma_200) / analysis.sma.sma_200) * 100).toFixed(2)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3. Fair Value */}
+                            <div className="bg-white dark:bg-gray-800/20 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+                                <h3 className="text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    Fair Value & Targets
+                                </h3>
+                                {fundamentals.targetMeanPrice ? (
+                                    <div className="space-y-4">
+                                        {/* Evaluation */}
+                                        <div>
+                                            <div className="flex justify-between items-end mb-1">
+                                                <span className="text-xs text-gray-500">Mean Target</span>
+                                                <span className="text-xl font-bold text-gray-900 dark:text-white">${fundamentals.targetMeanPrice.toFixed(2)}</span>
+                                            </div>
+                                            {(() => {
+                                                const current = fundamentals.currentPrice || lastClose;
+                                                const upside = ((fundamentals.targetMeanPrice - current) / current) * 100;
+                                                return (
+                                                    <div className={`text-sm font-bold ${upside >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                        {upside > 0 ? '+' : ''}{upside.toFixed(1)}% Upside
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
-                                        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full relative overflow-hidden">
-                                            {/* Range Bar */}
-                                            <div
-                                                className="absolute top-0 bottom-0 bg-blue-100 dark:bg-blue-900/30"
-                                                style={{
-                                                    left: '0%',
-                                                    width: '100%'
-                                                }}
-                                            />
-                                            {/* Current Price Marker */}
-                                            <div
-                                                className="absolute top-0 bottom-0 w-1 h-2 bg-blue-500 z-10"
-                                                title="Current Price"
-                                                style={{
-                                                    left: `${Math.max(0, Math.min(100, ((lastClose - fundamentals.targetLowPrice) / (fundamentals.targetHighPrice - fundamentals.targetLowPrice)) * 100))}%`
-                                                }}
-                                            />
-                                            {/* Median Marker */}
-                                            {fundamentals.targetMedianPrice && (
+
+                                        {/* Analyst Range */}
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[10px] text-gray-500">
+                                                <span>Low: ${fundamentals.targetLowPrice?.toFixed(2)}</span>
+                                                <span>High: ${fundamentals.targetHighPrice?.toFixed(2)}</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full relative overflow-hidden">
+                                                {/* Range Bar */}
                                                 <div
-                                                    className="absolute top-0 bottom-0 w-1 h-2 bg-gray-400 z-10"
-                                                    title={`Median: $${fundamentals.targetMedianPrice}`}
+                                                    className="absolute top-0 bottom-0 bg-blue-100 dark:bg-blue-900/30"
                                                     style={{
-                                                        left: `${Math.max(0, Math.min(100, ((fundamentals.targetMedianPrice - fundamentals.targetLowPrice) / (fundamentals.targetHighPrice - fundamentals.targetLowPrice)) * 100))}%`
+                                                        left: '0%',
+                                                        width: '100%'
                                                     }}
                                                 />
-                                            )}
+                                                {/* Current Price Marker */}
+                                                <div
+                                                    className="absolute top-0 bottom-0 w-1 h-2 bg-blue-500 z-10"
+                                                    title="Current Price"
+                                                    style={{
+                                                        left: `${Math.max(0, Math.min(100, ((lastClose - fundamentals.targetLowPrice) / (fundamentals.targetHighPrice - fundamentals.targetLowPrice)) * 100))}%`
+                                                    }}
+                                                />
+                                                {/* Median Marker */}
+                                                {fundamentals.targetMedianPrice && (
+                                                    <div
+                                                        className="absolute top-0 bottom-0 w-1 h-2 bg-gray-400 z-10"
+                                                        title={`Median: $${fundamentals.targetMedianPrice}`}
+                                                        style={{
+                                                            left: `${Math.max(0, Math.min(100, ((fundamentals.targetMedianPrice - fundamentals.targetLowPrice) / (fundamentals.targetHighPrice - fundamentals.targetLowPrice)) * 100))}%`
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between text-[10px] text-gray-400">
+                                                <span>Analyst Range</span>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between text-[10px] text-gray-400">
-                                            <span>Analyst Range</span>
-                                        </div>
-                                    </div>
 
-                                    {/* 52-Week Range Slider (Moved Here) */}
-                                    <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
-                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-2">52-Week Range</h4>
-                                        <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                                            <span>Low: ${fundamentals.fiftyTwoWeekLow?.toFixed(2)}</span>
-                                            <span>High: ${fundamentals.fiftyTwoWeekHigh?.toFixed(2)}</span>
-                                        </div>
-                                        <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full relative">
-                                            <div
-                                                className="absolute top-0 bottom-0 w-2 h-2.5 -mt-0.5 bg-blue-600 dark:bg-blue-400 rounded-full shadow-sm"
-                                                style={{
-                                                    left: `${Math.max(0, Math.min(100, ((lastClose - fundamentals.fiftyTwoWeekLow) / (fundamentals.fiftyTwoWeekHigh - fundamentals.fiftyTwoWeekLow)) * 100))}%`,
-                                                    transform: 'translateX(-50%)'
-                                                }}
-                                            />
+                                        {/* 52-Week Range Slider (Moved Here) */}
+                                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                                            <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-2">52-Week Range</h4>
+                                            <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                                                <span>Low: ${fundamentals.fiftyTwoWeekLow?.toFixed(2)}</span>
+                                                <span>High: ${fundamentals.fiftyTwoWeekHigh?.toFixed(2)}</span>
+                                            </div>
+                                            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full relative">
+                                                <div
+                                                    className="absolute top-0 bottom-0 w-2 h-2.5 -mt-0.5 bg-blue-600 dark:bg-blue-400 rounded-full shadow-sm"
+                                                    style={{
+                                                        left: `${Math.max(0, Math.min(100, ((lastClose - fundamentals.fiftyTwoWeekLow) / (fundamentals.fiftyTwoWeekHigh - fundamentals.fiftyTwoWeekLow)) * 100))}%`,
+                                                        transform: 'translateX(-50%)'
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ) : <div className="text-xs italic text-gray-500">No analyst targets</div>}
+                                ) : <div className="text-xs italic text-gray-500">No analyst targets</div>}
+                            </div>
+
                         </div>
-
-                    </div>
-                )
+                    )
                 }
             </div >
 
             {/* Full Width Recent News Feed - At Bottom */}
-            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 h-[380px] w-full mt-6">
+            < div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 h-[380px] w-full mt-6" >
                 <h3 className="text-gray-500 dark:text-gray-400 font-medium mb-4 flex items-center gap-2 flex-shrink-0">
                     <Newspaper size={18} /> Global News & Recent Events
                 </h3>
@@ -3058,7 +3062,7 @@ export default function Dashboard({
                         ))
                     )}
                 </div>
-            </div>
+            </div >
 
             {/* AlertModal */}
             {showAlertModal && <AlertModal ticker={ticker} onClose={() => setShowAlertModal(false)} isOpen={showAlertModal} currentPrice={lastClose} />}

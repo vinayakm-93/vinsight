@@ -66,12 +66,13 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
     // Custom Markdown Components - Institutional Theme
     const MarkdownComponents = {
         h2: ({ children }: any) => (
-            <h2 className="text-[20px] font-black text-gray-900 dark:text-white mt-6 first:mt-2 mb-2 tracking-tight leading-none uppercase">
+            <h2 className="text-[18px] font-black text-gray-900 dark:text-white mt-8 first:mt-2 mb-3 tracking-tight leading-tight border-b border-gray-100 dark:border-white/5 pb-2">
                 {children}
             </h2>
         ),
         h3: ({ children }: any) => (
-            <h3 className="text-[15px] font-bold text-sky-600 dark:text-sky-400 mt-4 mb-2 leading-none uppercase tracking-wider">
+            <h3 className="text-[14px] font-bold text-sky-600 dark:text-sky-400 mt-5 mb-2 uppercase tracking-widest flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 {children}
             </h3>
         ),
@@ -230,12 +231,25 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
                                 </div>
 
                                 {summary.source && (
-                                    <div className="mt-8 pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                                    <div className="mt-8 pt-4 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-[10px] font-medium text-gray-400">
+
+                                        {/* Left: Model Badge */}
                                         <div className="flex items-center gap-2">
-                                            <Activity size={10} className="text-sky-500/50" />
-                                            <span>Institutional Analysis</span>
+                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/30 text-sky-600 dark:text-sky-400">
+                                                <Sparkles size={12} />
+                                                <span className="font-bold uppercase tracking-wider text-[9px]">
+                                                    {summary.source.split('|')[0].trim()}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <span className="opacity-50">{summary.source.split('|')[0].trim()} • {new Date(summary.last_summary_at).toLocaleDateString()}</span>
+
+                                        {/* Right: Timestamp */}
+                                        <div className="flex items-center gap-2 opacity-60 uppercase tracking-widest text-[9px]">
+                                            <Clock size={10} />
+                                            <span>Generated {new Date(summary.last_summary_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <span className="hidden sm:inline">•</span>
+                                            <span className="hidden sm:inline">{new Date(summary.last_summary_at).toLocaleDateString()}</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -40,6 +40,9 @@ def get_stock_info(ticker: str):
         info = stock.info
         
         # Clean info of NaN/Inf for JSON safety
+        if info is None:
+            info = {}
+            
         cleaned_info = {}
         for k, v in info.items():
             if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
@@ -549,8 +552,12 @@ def get_institutional_holders(ticker: str, stock_obj=None):
         # Try to get info safely
         try:
             info = stock.info
-            holders["insidersPercentHeld"] = info.get("heldPercentInsiders", 0)
-            holders["institutionsPercentHeld"] = info.get("heldPercentInstitutions", 0)
+            if info:
+                holders["insidersPercentHeld"] = info.get("heldPercentInsiders", 0)
+                holders["institutionsPercentHeld"] = info.get("heldPercentInstitutions", 0)
+            else:
+                 holders["insidersPercentHeld"] = 0
+                 holders["institutionsPercentHeld"] = 0
         except Exception as e:
             print(f"yfinance info error in holders for {ticker}: {e}")
         

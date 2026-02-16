@@ -42,10 +42,16 @@ graph TD
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
 ## 3. Core Engine Logic
-- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0), Weighting profiles, and Vetos.
-- **Tri-Layer Signal Synthesis**: v9.5 introduces a three-layer signal model where the **Institutional Conviction Index** sits atop the **AI Reasoning Layer** and the **Algorithmic Baseline**.
-- **Progressive Hydration Pattern**: To optimize page performance, the system uses a dual-engine fetch strategy. Light mathematical data (Algo Baseline) is prioritized for immediate rendering, while heavy LLM reasoning (AI Layer) is lazy-loaded in the background without blocking the UI.
-- **AI vs. Algo Separation**: The system decouples the **LLM's qualitative reasoning** (top briefing) from the **algorithmic quantitative baseline** (bottom breakdown), providing users with both objective metrics and subjective analyst thesis.
+- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0).
+- **Persona-Based AI Scoring (v9.7)**:
+    - **Determinism**: Zero-temperature (`0.0`-`0.1`) usage across all models ensures reproducible scores.
+    - **Persona Weights**: Distinct scoring rubrics for **CFA** (Valuation/Profitability), **Momentum** (Technicals/Trend), **Growth** (Revenue/Future), **Value** (Margins/Safety), and **Income** (Yield/Health).
+    - **Strict Formatting**: Verdicts are enforced to explain the "Why" immediately.
+- **Tri-Layer Signal Synthesis**:
+    - **1. AI Strategist**: DeepSeek R1 (via OpenRouter) provides "Thinking" capabilities for portfolio-level synthesis (Fallback: Gemini 2.0).
+    - **2. AI Conviction**: Llama 3.3 (via Groq) provides instant stock-level scoring.
+    - **3. Algo Baseline**: Mathematical ground truth (70% Fundamental / 30% Technical).
+- **Progressive Hydration Pattern**: Dual-engine fetch strategy. Light Algo data renders first; AI Reasoning lazy-loads.
 
 ## 4. Infrastructure & Security
 - **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.

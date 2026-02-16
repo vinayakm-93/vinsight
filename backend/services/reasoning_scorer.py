@@ -1,10 +1,12 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 from groq import Groq
+from openai import OpenAI
 from services.vinsight_scorer import StockData, ScoreResult, VinSightScorer
 
 logger = logging.getLogger(__name__)
@@ -14,56 +16,95 @@ PERSONAS = {
     "CFA": {
         "description": "Conservative, balanced institutional analyst. Prioritizes valuation, margins, and steady growth.",
         "focus": "Valuation (PEG, P/E), Profitability (ROE, Margins), Debt Safety.",
-        "style": "Skeptical, risk-averse."
+        "style": "Skeptical, risk-averse.",
+        "scoring_weights": {"Valuation": 30, "Profitability": 30, "Growth": 20, "Health": 20, "Technicals": 0}
     },
     "Momentum": {
         "description": "Aggressive trader focused on price action and trends. Prioritizes RSI, Volume, and strength vs market.",
         "focus": "RSI, Moving Averages, Relative Volume, 52w High proximity.",
-        "style": "Decisive, trend-following."
+        "style": "Decisive, trend-following.",
+        "scoring_weights": {"Technicals": 40, "Momentum": 30, "Volume": 20, "Growth": 10, "Valuation": 0}
     },
     "Income": {
         "description": "Dividend-focused investor seeking safety and yield. Prioritizes payout ratio and cash flow.",
         "focus": "Dividend Yield, Payout Ratio, Interest Coverage, Free Cash Flow.",
-        "style": "Conservative, safety-first."
+        "style": "Conservative, safety-first.",
+        "scoring_weights": {"Health": 40, "Profitability": 30, "Valuation": 20, "Growth": 10, "Technicals": 0}
     },
     "Value": {
         "description": "Contrarian value investor (Graham/Buffett style). Seeks mispriced assets with margin of safety.",
         "focus": "Price/Book, EV/EBITDA, Low P/E, Insider Buying.",
-        "style": "Contrarian, patient."
+        "style": "Contrarian, patient.",
+        "scoring_weights": {"Valuation": 50, "Health": 20, "Profitability": 20, "Growth": 10, "Technicals": 0}
     },
     "Growth": {
         "description": "Growth-at-any-price investor. Prioritizes revenue acceleration and market size.",
         "focus": "Revenue Growth, Earnings Growth, Future Projections (P90).",
-        "style": "Optimistic, future-focused."
+        "style": "Optimistic, future-focused.",
+        "scoring_weights": {"Growth": 50, "Technicals": 20, "Profitability": 20, "Valuation": 10, "Health": 0}
     }
 }
 
 class ReasoningScorer:
     """
-    AI-Powered Scorer using Groq Llama 3.3 or Gemini 1.5 Flash.
-    Decouples qualitative reasoning from algorithmic ground truth.
+    AI-Powered Scorer with multi-provider support.
+    Fallback chain: OpenRouter → Groq → DeepSeek → Gemini → Formula.
     """
     
     def __init__(self):
-        # 1. Groq Setup
+        # 1. OpenRouter Setup (Primary — Perplexity Sonar Reasoning Pro)
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        if self.openrouter_api_key:
+            self.openrouter = OpenAI(
+                api_key=self.openrouter_api_key,
+                base_url="https://openrouter.ai/api/v1",
+                timeout=30.0,
+                max_retries=0  # FAIL FAST -> Fallback to next provider
+            )
+        else:
+            self.openrouter = None
+        logger.info(f"OpenRouter configured: {self.openrouter is not None}")
+
+        # 2. DeepSeek Setup
+        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+        if self.deepseek_api_key:
+            self.deepseek = OpenAI(
+                api_key=self.deepseek_api_key,
+                base_url="https://api.deepseek.com",
+                timeout=30.0,
+                max_retries=0
+            )
+        else:
+            self.deepseek = None
+        logger.info(f"DeepSeek configured: {self.deepseek is not None}")
+
+        # 3. Groq Setup (Fast)
         self.groq_api_key = os.getenv("GROQ_API_KEY")
-        self.groq = Groq(api_key=self.groq_api_key) if self.groq_api_key else None
+        # Groq client also uses httpx, so max_retries=0 works
+        self.groq = Groq(
+            api_key=self.groq_api_key, 
+            timeout=15.0,
+            max_retries=0
+        ) if self.groq_api_key else None
         logger.info(f"Groq configured: {self.groq is not None}")
         
-        # 2. Gemini Setup
+        # 4. Gemini Setup (Last Resort — Free)
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         if self.gemini_api_key:
             genai.configure(api_key=self.gemini_api_key)
-            # Use gemini-2.0-flash for speed and reliability in JSON mode
             self.gemini_model = genai.GenerativeModel('models/gemini-2.0-flash', generation_config={"response_mime_type": "application/json"})
         else:
             self.gemini_model = None
         logger.info(f"Gemini configured: {self.gemini_model is not None}")
 
-        # 3. Provider Config
-        # Default to Gemini if keys are present, otherwise Groq
-        default_provider = "gemini" if self.gemini_model else "groq"
-        self.provider = os.getenv("AI_PROVIDER", default_provider).lower()
+
+        # 5. Provider Config — Priority: groq > openrouter > deepseek > gemini
+        if self.groq: default_provider = "groq"
+        elif self.openrouter: default_provider = "openrouter"
+        elif self.deepseek: default_provider = "deepseek"
+        else: default_provider = "gemini"
+        # self.provider = os.getenv("AI_PROVIDER", default_provider).lower()
+        self.provider = default_provider # FORCE DEFAULT LOGIC (User Request: Llama 3.3)
         
         self.fallback_scorer = VinSightScorer() # The v9.0 Math Engine
 
@@ -76,16 +117,19 @@ class ReasoningScorer:
         """
         logger.info(f"Reasoning Scorer: Evaluating {stock.ticker} as {persona} via {self.provider}")
 
-        # 1. Validation: Verify chosen provider is available
-        if self.provider == "gemini" and not self.gemini_model:
-            logger.warning("Gemini requested but not configured. Checking Groq...")
-            if self.groq: self.provider = "groq"
-            else: return self._fallback_to_formula(stock)
-            
-        if self.provider == "groq" and not self.groq:
-            logger.warning("Groq requested but not configured. Checking Gemini...")
-            if self.gemini_model: self.provider = "gemini"
-            else: return self._fallback_to_formula(stock)
+        # 1. Resolve provider availability
+        provider = self.provider
+        available = {
+            "openrouter": self.openrouter is not None,
+            "deepseek": self.deepseek is not None,
+            "groq": self.groq is not None,
+            "gemini": self.gemini_model is not None
+        }
+        if not available.get(provider, False):
+            # Find first available provider (Priority: Groq -> OpenRouter -> DeepSeek -> Gemini)
+            provider = next((p for p in ["groq", "openrouter", "deepseek", "gemini"] if available.get(p)), None)
+        if not provider:
+            return self._fallback_to_formula(stock)
 
         # 2. Run Algo Scorer First (The Objective Baseline)
         try:
@@ -101,37 +145,42 @@ class ReasoningScorer:
             logger.error(f"Context build failed: {e}")
             return self._fallback_to_formula(stock)
 
-        # 4. Dispatch to LLM
+        # 4. Dispatch to LLM with multi-provider fallback chain
+        response = None
+        source_label = "Unknown"
+        
+        # All providers with their call functions and labels
+        all_providers = [
+            ("openrouter", self._call_openrouter, "DeepSeek R1 (OpenRouter)"),
+            ("groq", self._call_groq, "Llama 3.3 70B (Groq)"),
+            ("deepseek", self._call_deepseek, "DeepSeek R1"),
+            ("gemini", self._call_gemini, "Gemini 2.0 Flash"),
+        ]
+        
+        # Build chain: preferred provider first, then the rest in order
+        chain = [p for p in all_providers if p[0] == provider]
+        chain += [p for p in all_providers if p[0] != provider]
+
+        for prov_name, call_fn, label in chain:
+            if not available.get(prov_name): continue
+            try:
+                response = call_fn(context)
+                source_label = label if prov_name == provider else f"{label} (Fallback)"
+                logger.info(f"AI call successful via {source_label}")
+                break
+            except Exception as e:
+                logger.warning(f"{label} failed: {e}. Trying next provider...")
+                continue
+
+        if response is None:
+            logger.error("All AI providers failed. Falling back to formula.")
+            return self._fallback_to_formula(stock)
+
+        # 5. Parse and Merge
         try:
-            response = None
-            source_label = "Unknown"
-
-            if self.provider == "gemini":
-                try:
-                    response = self._call_gemini(context)
-                    source_label = "Gemini 2.0 Flash"
-                except Exception as e:
-                    logger.warning(f"Gemini failed: {e}. Falling back to Groq...")
-                    if self.groq:
-                        response = self._call_groq(context)
-                        source_label = "Llama 3.3 (Groq Fallback)"
-                    else: raise e
-            else:
-                try:
-                    response = self._call_groq(context)
-                    source_label = "Llama 3.3 70B"
-                except Exception as e:
-                    logger.warning(f"Groq failed: {e}. Falling back to Gemini...")
-                    if self.gemini_model:
-                        response = self._call_gemini(context)
-                        source_label = "Gemini 2.0 Flash (Fallback)"
-                    else: raise e
-
-            # 5. Parse and Merge
             return self._parse_response(response, stock, persona, source_label, algo_result)
-
         except Exception as e:
-            logger.error(f"AI Reasoning Scorer failed completely: {e}", exc_info=True)
+            logger.error(f"Response parsing failed: {e}", exc_info=True)
             return self._fallback_to_formula(stock)
 
     def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict]) -> Dict:
@@ -170,44 +219,115 @@ class ReasoningScorer:
             }
         }
         
+        # Price context for valuation judgment
+        price_context = {
+            "Current Price": f"${stock.technicals.price:.2f}",
+            "52W Change": f"{stock.fundamentals.fifty_two_week_change:.1%}" if stock.fundamentals.fifty_two_week_change else "N/A",
+            "vs SMA50": f"{(stock.technicals.price / stock.technicals.sma50 - 1):.1%}" if stock.technicals.sma50 else "N/A",
+            "vs SMA200": f"{(stock.technicals.price / stock.technicals.sma200 - 1):.1%}" if stock.technicals.sma200 else "N/A",
+            "Monte Carlo P50 Target": f"${stock.projections.monte_carlo_p50:.2f}",
+            "Monte Carlo Upside (P90)": f"${stock.projections.monte_carlo_p90:.2f}",
+            "Monte Carlo Downside (P10)": f"${stock.projections.monte_carlo_p10:.2f}",
+            "Beta": f"{stock.beta:.2f}"
+        }
+
         earnings_context = "Not Available (Cache Miss)"
         if earnings_analysis:
             verdict = earnings_analysis.get('summary', {}).get('verdict', {})
             earnings_context = f"Analyst Verdict: {verdict.get('rating')}. Reasoning: {verdict.get('reasoning')}"
+        
+        # News sentiment context
+        sentiment_context = {
+            "News Sentiment": stock.sentiment.news_sentiment_label,
+            "Sentiment Score": f"{stock.sentiment.news_sentiment_score:.2f}",
+            "Article Count": stock.sentiment.news_article_count
+        }
 
         return {
             "ticker": stock.ticker,
             "sector": stock.fundamentals.sector_name,
             "benchmarks": benchmarks,
             "metrics": metrics,
+            "price_context": price_context,
+            "sentiment_context": sentiment_context,
             "persona": persona_cfg,
             "earnings_context": earnings_context
         }
 
     def _build_system_prompt(self, context: Dict) -> str:
+        weights = context['persona'].get('scoring_weights', {})
+        weight_str = "\n".join([f"- {k}: {v}%" for k, v in weights.items()])
+
         return f"""
-You are a {context['persona']['description']}
+You are a expert financial mentor for a Retail Investor.
 Your name is VinSight AI. Evaluate {context['ticker']} ({context['sector']}) and assign a conviction score (0-100).
+
+YOUR AUDIENCE:
+- Smart retail investors who want to understand *WHY* a stock is good or bad.
+- Avoid excessive jargon. Explain implications (e.g., "High Debt means rising rates will hurt profits").
 
 STYLE: {context['persona']['style']}
 FOCUS: {context['persona']['focus']}
+
+SCORING RUBRIC ({context['persona'].get('description', 'Standard')}):
+The Final Score MUST be a weighted average based on the following priorities:
+{weight_str}
+
+SCORE CALIBRATION (Retail-Adjusted Risk Rubric):
+- 0-39: **AVOID / SELL**. Major red flags (Solvency risk, broken business model).
+- 40-59: **HOLD / WATCH**. Good company at bad price, or mixed signals.
+- 60-79: **BUY**. Solid fundamentals + Reasonable Valuation.
+- 80-100: **STRONG BUY**. Exceptional quality + Discounted Price. Rare.
+
+CRITICAL CONSISTENCY RULES:
+1. **Risk Penalty**: If Debt/Equity > 2.0 OR FCF is negative -> MAX SCORE = 60 (unless 'Momentum' persona).
+2. **Valuation Discipline**: If P/E > 50 AND Revenue Growth < 20% -> MAX SCORE = 55 (unless 'Growth' persona).
+3. **Trend Alignment**: If Price < SMA200 AND 'Momentum' persona -> MAX SCORE = 50.
+4. **Sentiment Check**: If News Sentiment is "Bearish" -> MAX SCORE = 70.
 
 BENCHMARK CONTEXT ({context['sector']}):
 - Median P/E: {context['benchmarks'].get('pe_median', 'N/A')}
 - Fair PEG: {context['benchmarks'].get('peg_fair', 'N/A')}
 - Healthy Margin: {context['benchmarks'].get('margin_healthy', 'N/A')}
 
-DATA INPUTS:
+PRICE CONTEXT:
+{json.dumps(context['price_context'], indent=2)}
+
+FUNDAMENTAL & TECHNICAL DATA:
 {json.dumps(context['metrics'], indent=2)}
+
+NEWS SENTIMENT:
+{json.dumps(context['sentiment_context'], indent=2)}
 
 QUALITATIVE CONTEXT:
 - Earnings Call Analysis: {context['earnings_context']}
 
+INSTRUCTIONS:
+1. **Chain of Thought (The "Why")**: Write a 300-400 word deep-dive using paragraphs.
+2. **The "Retail Reality"**: Answer: "Can I sleep well owning this?"
+3. **Forward Looking**: Focus on what's next (Guidance, Catalysts).
+4. **VERDICT FORMAT**: The 'verdict' field MUST start with "Rated [Score]/100 because..." followed by the single most important reason.
+
+COMPONENT SCORE GUIDE (0-10):
+- <4: Weak / Risky.
+- 5-6: Average / Fair.
+- 7-8: Strong / Outperforming.
+- 9-10: Best in Class.
+
 OUTPUT FORMAT:
-You MUST respond with a single valid JSON object.
+You MUST respond with a single valid JSON object. No other text.
 {{
+  "thought_process": "<string: Detailed reasoning chain, 300-400 words. Use paragraphs.>",
   "total_score": <int 0-100>,
-  "summary": "<string executive summary>",
+  "confidence_score": <int 0-100>,
+  "primary_driver": "<string: The ONE reason to Buy or Sell>",
+  "summary": {{
+    "verdict": "<string: Clear, 1-sentence action (e.g., 'Buy on dips due to strong AI demand').>",
+    "bull_case": "<string: Detailed paragraph (100-150 words) focusing on upside drivers.>",
+    "bear_case": "<string: Detailed paragraph (100-150 words) focusing on downside risks.>",
+    "fundamental_analysis": "<string: Specific explanation of Valuation/Growth/Profitability scores (e.g., 'High P/E is justified by 40% growth').>",
+    "technical_analysis": "<string: Specific explanation of Momentum/Trend/Volume (e.g., 'RSI is overbought, expect pullback').>"
+  }},
   "component_scores": {{
     "valuation": <int 0-10>,
     "growth": <int 0-10>,
@@ -221,14 +341,81 @@ You MUST respond with a single valid JSON object.
 }}
 """
 
+    def _call_openrouter(self, context: Dict) -> Dict:
+        """Call OpenRouter API (DeepSeek R1 via OpenRouter). OpenAI-compatible."""
+        system_prompt = self._build_system_prompt(context)
+        completion = self.openrouter.chat.completions.create(
+            model="deepseek/deepseek-r1",
+            messages=[
+                {"role": "system", "content": "You are a financial analyst. Output valid JSON only."},
+                {"role": "user", "content": system_prompt}
+            ],
+            temperature=0.1,  # Lowered for consistency
+            max_tokens=2000,
+            timeout=25.0,
+            extra_headers={
+                "HTTP-Referer": "https://vinsight.app",
+                "X-Title": "VinSight AI Scorer"
+            }
+        )
+        raw_text = completion.choices[0].message.content
+        
+        # Strip any <think> reasoning tags (common in reasoning models)
+        cleaned = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+        
+        # Handle markdown code blocks
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
+        return json.loads(cleaned)
+
     def _call_gemini(self, context: Dict) -> Dict:
         prompt = self._build_system_prompt(context)
         # Use request_options to set strict execution timeout (Resilience pattern)
-        response = self.gemini_model.generate_content(prompt, request_options={'timeout': 12})
+        response = self.gemini_model.generate_content(
+            prompt, 
+            generation_config={"temperature": 0.1}, # Lowered for consistency
+            request_options={'timeout': 12}
+        )
         text = response.text.strip()
         if text.startswith("```json"):
             text = text[7:-3].strip()
         return json.loads(text)
+
+    def _call_deepseek(self, context: Dict) -> Dict:
+        """Call DeepSeek R1 API (OpenAI-compatible). Handles <think> tag stripping."""
+        system_prompt = self._build_system_prompt(context)
+        completion = self.deepseek.chat.completions.create(
+            model="deepseek-reasoner",
+            messages=[
+                {"role": "system", "content": "You are a financial analyst. Output valid JSON only after your reasoning."},
+                {"role": "user", "content": system_prompt}
+            ],
+            max_tokens=2000,
+            temperature=0.0, # DeepSeek supports 0.0 for deterministic output
+            timeout=30.0  # R1 is slower but deeper
+        )
+        raw_text = completion.choices[0].message.content
+        
+        # DeepSeek R1 outputs <think>...</think> reasoning before the JSON
+        # Strip the think tags and extract only the JSON
+        cleaned = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+        
+        # Handle markdown code blocks
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
+        return json.loads(cleaned)
 
     def _call_groq(self, context: Dict) -> Dict:
         system_prompt = self._build_system_prompt(context)
@@ -238,17 +425,44 @@ You MUST respond with a single valid JSON object.
                 {"role": "system", "content": "You are a financial analyst. Output valid JSON only."},
                 {"role": "user", "content": system_prompt}
             ],
-            temperature=0.3,
-            max_tokens=1000,
-            response_format={"type": "json_object"},
-            timeout=12.0 # Strict timeout for worker pool health
+            temperature=0.1, # Lowered for consistency
+            max_tokens=1500,
+            response_format={"type": "json_object"}
         )
         return json.loads(completion.choices[0].message.content)
 
     def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any) -> Dict:
         """Merge AI conviction with algo metrics."""
         score = llm_response.get("total_score", 50)
-        summary = llm_response.get("summary") or llm_response.get("reasoning_summary")
+        confidence = llm_response.get("confidence_score", 0)
+        
+        # New Summary Structure Parsing
+        summary_obj = llm_response.get("summary", {})
+        structured_summary = {
+            "verdict": "N/A",
+            "bull_case": "N/A",
+            "bear_case": "N/A",
+            "fundamental_analysis": "",
+            "technical_analysis": ""
+        }
+
+        if isinstance(summary_obj, str): # Handle legacy string summaries (fallback)
+            structured_summary["bull_case"] = summary_obj
+            summary_text = summary_obj
+        else:
+            # Parse new structured fields
+            structured_summary["verdict"] = summary_obj.get("verdict", "No verdict provided.")
+            structured_summary["bull_case"] = summary_obj.get("bull_case", "No bull case provided.")
+            structured_summary["bear_case"] = summary_obj.get("bear_case", "No bear case provided.")
+            structured_summary["fundamental_analysis"] = summary_obj.get("fundamental_analysis", "")
+            structured_summary["technical_analysis"] = summary_obj.get("technical_analysis", "")
+            
+            # Legacy fallback for justification
+            summary_text = f"VERDICT: {structured_summary['verdict']}\n\nBULL: {structured_summary['bull_case']}\n\nBEAR: {structured_summary['bear_case']}"
+
+        primary_driver = llm_response.get("primary_driver", "N/A")
+        thought_process = llm_response.get("thought_process", "")
+            
         risks = llm_response.get("risk_factors", [])
         opps = llm_response.get("opportunities", [])
         rating = self._score_to_rating(score)
@@ -269,7 +483,10 @@ You MUST respond with a single valid JSON object.
         meta = {
             "source": f"AI Model: {source_label}",
             "persona": persona,
-            "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST")
+            "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST"),
+            "confidence": confidence,
+            "primary_driver": primary_driver,
+            "thought_process": thought_process
         }
 
         # algo_result is the v9.0 Math Engine result
@@ -280,7 +497,8 @@ You MUST respond with a single valid JSON object.
             "score": score,
             "rating": rating, 
             "color": self._get_color(rating), 
-            "justification": summary,
+            "justification": summary_text,
+            "structured_summary": structured_summary, # Pass this deeply structured obj
             "raw_breakdown": {
                 "Quality Score": quality_score,
                 "Timing Score": timing_score
