@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getBatchPrices, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
-import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List, ExternalLink } from 'lucide-react'; // Renamed icon
+import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List, ExternalLink, PieChart as PieChartIcon } from 'lucide-react'; // Renamed icon
 import { Shield, ShieldCheck } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
@@ -1044,7 +1044,7 @@ export default function Dashboard({
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-1 bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-6 shadow-2xl">
                                 <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                                    <PieChart size={16} className="text-blue-500" /> Sector Allocation
+                                    <PieChartIcon size={16} className="text-blue-500" /> Sector Allocation
                                 </h3>
                                 <div className="h-64">
                                     <ResponsiveContainer width="100%" height="100%">
