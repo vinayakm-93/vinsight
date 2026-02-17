@@ -49,7 +49,7 @@ class PortfolioOut(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/", response_model=PortfolioOut)
+@router.post("", response_model=PortfolioOut)
 async def create_portfolio(
     body: PortfolioCreate,
     db: Session = Depends(get_db),
@@ -71,7 +71,7 @@ async def create_portfolio(
     return portfolio
 
 
-@router.get("/", response_model=List[PortfolioOut])
+@router.get("", response_model=List[PortfolioOut])
 async def list_portfolios(
     db: Session = Depends(get_db),
     user: User = Depends(auth.get_current_user)
@@ -204,18 +204,18 @@ async def get_portfolio_summary(
     if not portfolio.holdings:
         return {"text": "No holdings to analyze. Import a CSV first.", "model": "System"}
 
-    # Check cache (reuse if < 30 min old and same holdings count)
+    # Check cache (reuse if < 30 min old)
     from datetime import timedelta
     if (portfolio.last_summary_at
             and portfolio.last_summary_text
-            and datetime.utcnow() - portfolio.last_summary_at < timedelta(minutes=30)):
+            and (datetime.utcnow() - portfolio.last_summary_at) < timedelta(minutes=30)):
         return {
             "text": portfolio.last_summary_text,
             "model": portfolio.last_summary_source or "Cached",
             "last_summary_at": portfolio.last_summary_at
         }
 
-    # Enrich with live prices using the finance service directly
+    # Enrich with live prices
     from services import finance
     symbols = [h.symbol for h in portfolio.holdings]
 

@@ -15,7 +15,7 @@ from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Finance Research App", redirect_slashes=False)
+app = FastAPI(title="Finance Research App", redirect_slashes=True)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -43,13 +43,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
+    init_db()
     try:
         from migrate import migrate
         migrate()
     except Exception as e:
         logger.error(f"Migration failed during startup: {e}")
-        
-    init_db()
     # MarketWatcher moved to Cloud Run Job
     logger.info(f"Server started in {ENV} mode with rate limiting enabled")
 

@@ -27,6 +27,7 @@ graph TD
     BE -->|News + Sentiment| AV
     BE -->|Stock Data (v9.1 Coordinated)| Data
     BE -->|Trigger Alerts| Mail
+    BE -->|Portfolio Logic| Parser[CSV Parser: Robinhood/Generic]
     Worker -->|Check Price Targets| BE
 ```
 

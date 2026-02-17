@@ -1,5 +1,25 @@
 # Changelog
 
+## [v9.8.0] - Institutional Portfolio Dashboard (2026-02-16)
+
+### 📊 Portfolio Dashboard: Real-Time Intelligence
+- **Dynamic Stats Bar**: Instant aggregate metrics for Net Worth, Total P&L ($, %), Day Change ($, %), and Total Cost basis.
+- **Sector Allocation**: Integrated dynamic donut charts visualizing portfolio concentration across 12+ industry sectors.
+    - *Refinement*: Optimized for high-density data with thin-crust design and percentage-based legends.
+- **Enhanced Holdings Table**: A high-density, sortable interface for tracking asset performance, including live prices, quantity, and individual unrealized P&L.
+- **Contextual UI**: The dashboard now intelligently swaps between the **AI Strategist** (Watchlists) and **AI Portfolio Manager** (Portfolios) based on user focus.
+
+### 📥 Data Integration: Smooth Onboarding
+- **Smart CSV Importer**: Built a robust parsing engine supporting generic (Symbol, Qty) and specific Robinhood Transaction exports.
+- **Automated Enrichment**: Imported holdings are instantly hydrated with real-time market data and historical sector benchmarks.
+
+### 🧠 AI Portfolio Manager
+- **6-Point Institutional Audit**: DeepSeek R1-powered synthesis covering Health Score, Concentration Risk, Winner/Loser Analysis, Sector Audit, Risk Scenarios, and Actionable Recommendations.
+- **Reliability Patch**: Resolved a critical 500 error in the AI summary pipeline caused by masked 404s on non-existent portfolios.
+
+---
+
+
 ## [v9.7.1] - Strategist Transparency (2026-02-15)
 
 ### 🧠 AI Strategist

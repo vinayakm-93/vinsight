@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getBatchPrices, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
@@ -56,6 +56,7 @@ interface DashboardProps {
     onSelectStock?: (ticker: string) => void;
     activeWatchlist?: Watchlist | null;
     activePortfolio?: Portfolio | null;
+    viewMode?: 'watchlist' | 'portfolio';
 }
 
 const TIME_RANGES = [
@@ -78,6 +79,8 @@ const PERSONA_OPTIONS = [
     { id: 'Income', label: '💰 Income Strategy', desc: 'Dividend yield, safety' }
 ];
 
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+
 export default function Dashboard({
     ticker,
     watchlistStocks = [],
@@ -85,7 +88,8 @@ export default function Dashboard({
     onRequireAuth,
     onSelectStock,
     activeWatchlist,
-    activePortfolio
+    activePortfolio,
+    viewMode = 'watchlist'
 }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
@@ -101,6 +105,12 @@ export default function Dashboard({
     const [loadingSummary, setLoadingSummary] = useState(false);
     const [sortColumn, setSortColumn] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+    // Portfolio Summary State
+    const [portfolioSummaryData, setPortfolioSummaryData] = useState<any[]>([]);
+    const [loadingPortfolioSummary, setLoadingPortfolioSummary] = useState(false);
+    const [portfolioSortColumn, setPortfolioSortColumn] = useState<string | null>(null);
+    const [portfolioSortDirection, setPortfolioSortDirection] = useState<'asc' | 'desc'>('desc');
 
     // AI Reasoning State
     const [selectedPersona, setSelectedPersona] = useState<string>('CFA');
@@ -482,6 +492,48 @@ export default function Dashboard({
         fetchSummary();
     }, [ticker, watchlistStocks]);
 
+    // Portfolio Summary Fetching
+    useEffect(() => {
+        if (ticker || !activePortfolio || activePortfolio.holdings.length === 0) {
+            setPortfolioSummaryData([]);
+            return;
+        }
+
+        const fetchPortfolioSummary = async () => {
+            setLoadingPortfolioSummary(true);
+            try {
+                const symbols = activePortfolio.holdings.map(h => h.symbol);
+                // PHASE 1: Fast Prices
+                const basicResults = await getBatchPrices(symbols);
+                if (basicResults && basicResults.length > 0) {
+                    // Merge with holding data (qty, avg_cost)
+                    const merged = basicResults.map(data => {
+                        const holding = activePortfolio.holdings.find(h => h.symbol === data.symbol);
+                        return { ...data, ...holding };
+                    });
+                    setPortfolioSummaryData(merged);
+                    setLoadingPortfolioSummary(false);
+                }
+
+                // PHASE 2: Deeper Stock Details & History (Heavier Data)
+                const detailedResults = await getBatchStockDetails(symbols);
+                if (detailedResults && detailedResults.length > 0) {
+                    const mergedDetailed = detailedResults.map(data => {
+                        const holding = activePortfolio.holdings.find(h => h.symbol === data.symbol);
+                        return { ...data, ...holding };
+                    });
+                    setPortfolioSummaryData(mergedDetailed);
+                }
+            } catch (e) {
+                console.error("Portfolio summary fetch error", e);
+            } finally {
+                setLoadingPortfolioSummary(false);
+            }
+        };
+
+        fetchPortfolioSummary();
+    }, [ticker, activePortfolio]);
+
     // Calculate % change for selected timeframe - MUST be before any early returns
     const selectedRangeChange = useMemo(() => {
         if (history.length < 2) return null;
@@ -491,6 +543,94 @@ export default function Dashboard({
         const pctChange = (change / firstClose) * 100;
         return { change, pctChange };
     }, [history]);
+
+    // --- Portfolio Metrics & Sorting ---
+
+    const portfolioMetrics = useMemo(() => {
+        let totalValue = 0;
+        let totalCost = 0;
+        let dayChange = 0;
+        const sectors: { [key: string]: number } = {};
+
+        portfolioSummaryData.forEach(item => {
+            const price = item.currentPrice || item.regularMarketPrice || item.previousClose || 0;
+            const prevClose = item.previousClose || price;
+            const value = price * (item.quantity || 0);
+            const cost = (item.avg_cost || 0) * (item.quantity || 0);
+
+            totalValue += value;
+            totalCost += cost;
+            dayChange += (price - prevClose) * (item.quantity || 0);
+
+            const sector = item.sector || 'Others';
+            sectors[sector] = (sectors[sector] || 0) + value;
+        });
+
+        const pnl = totalValue - totalCost;
+        const pnlPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+        const dayChangePct = (totalValue - dayChange) > 0 ? (dayChange / (totalValue - dayChange)) * 100 : 0;
+
+        // Sort sectors for donut
+        const sortedSectors = Object.entries(sectors)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        return {
+            totalValue,
+            totalCost,
+            pnl,
+            pnlPct,
+            dayChange,
+            dayChangePct,
+            sectors: sortedSectors
+        };
+    }, [portfolioSummaryData]);
+
+    const handlePortfolioSort = (column: string) => {
+        if (portfolioSortColumn === column) {
+            setPortfolioSortDirection(portfolioSortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setPortfolioSortColumn(column);
+            setPortfolioSortDirection('desc');
+        }
+    };
+
+    const sortedPortfolioData = useMemo(() => {
+        if (!portfolioSortColumn) return portfolioSummaryData;
+
+        return [...portfolioSummaryData].sort((a, b) => {
+            let aVal, bVal;
+            const aPrice = a.currentPrice || a.regularMarketPrice || a.previousClose || 0;
+            const bPrice = b.currentPrice || b.regularMarketPrice || b.previousClose || 0;
+
+            switch (portfolioSortColumn) {
+                case 'symbol':
+                    aVal = a.symbol || '';
+                    bVal = b.symbol || '';
+                    return portfolioSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                case 'value':
+                    aVal = aPrice * (a.quantity || 0);
+                    bVal = bPrice * (b.quantity || 0);
+                    break;
+                case 'pnl':
+                    aVal = (aPrice - (a.avg_cost || 0)) * (a.quantity || 0);
+                    bVal = (bPrice - (b.avg_cost || 0)) * (b.quantity || 0);
+                    break;
+                case 'pnlPct':
+                    aVal = a.avg_cost > 0 ? (aPrice - a.avg_cost) / a.avg_cost : 0;
+                    bVal = b.avg_cost > 0 ? (bPrice - b.avg_cost) / b.avg_cost : 0;
+                    break;
+                case 'price':
+                    aVal = aPrice;
+                    bVal = bPrice;
+                    break;
+                default:
+                    return 0;
+            }
+
+            return portfolioSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+    }, [portfolioSummaryData, portfolioSortColumn, portfolioSortDirection]);
 
     // Sort function for overview table
     const handleSort = (column: string) => {
@@ -595,7 +735,7 @@ export default function Dashboard({
         return (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* AI Watchlist Summary Relocated from Sidebar */}
-                {activeWatchlist && activeWatchlist.stocks.length > 0 && (
+                {viewMode === 'watchlist' && activeWatchlist && activeWatchlist.stocks.length > 0 && (
                     <WatchlistSummaryCard
                         watchlistId={activeWatchlist.id}
                         watchlistName={activeWatchlist.name}
@@ -604,7 +744,7 @@ export default function Dashboard({
                     />
                 )}
 
-                {activePortfolio && (
+                {viewMode === 'portfolio' && activePortfolio && (
                     <PortfolioSummaryCard
                         portfolioId={activePortfolio.id}
                         portfolioName={activePortfolio.name}
@@ -612,263 +752,384 @@ export default function Dashboard({
                     />
                 )}
 
-                <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-8 shadow-2xl transition-all duration-500">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                            <Activity className="text-blue-500" /> Watchlist Overview
-                        </h2>
-                        {sortColumn && (
-                            <button
-                                onClick={handleResetSort}
-                                className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors border border-blue-100 dark:border-blue-800"
-                            >
-                                <LayoutTemplate size={14} /> Reset Order
-                            </button>
+                {viewMode === 'watchlist' && (
+                    <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-8 shadow-2xl transition-all duration-500">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                                <Activity className="text-blue-500" /> Watchlist Overview
+                            </h2>
+                            {sortColumn && (
+                                <button
+                                    onClick={handleResetSort}
+                                    className="text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors border border-blue-100 dark:border-blue-800"
+                                >
+                                    <LayoutTemplate size={14} /> Reset Order
+                                </button>
+                            )}
+                        </div>
+
+                        {watchlistStocks.length === 0 ? (
+                            <div className="text-center py-20 text-gray-500">
+                                Your watchlist is empty. Add stocks to see them here.
+                            </div>
+                        ) : loadingSummary ? (
+                            <div className="flex items-center justify-center h-64">
+                                <span className="text-blue-500 font-bold animate-pulse">Loading Market Data...</span>
+                            </div>
+                        ) : (
+                            <div className="relative">
+                                {/* Subtle scroll hint - gradient fade on right */}
+                                <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-gray-50/80 dark:from-gray-900/80 via-transparent to-transparent pointer-events-none z-10"></div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
+                                            <tr>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('symbol')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        Symbol
+                                                        {sortColumn === 'symbol' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('price')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        Price
+                                                        {sortColumn === 'price' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('change')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        Change
+                                                        {sortColumn === 'change' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('changePct')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        1D%
+                                                        {sortColumn === 'changePct' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('5d')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        5D%
+                                                        {sortColumn === '5d' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('1m')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        1M%
+                                                        {sortColumn === '1m' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('6m')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        6M%
+                                                        {sortColumn === '6m' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('ytd')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        YTD%
+                                                        {sortColumn === 'ytd' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('sma20')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        SMA20
+                                                        {sortColumn === 'sma20' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('sma50')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        SMA50
+                                                        {sortColumn === 'sma50' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('eps')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        EPS
+                                                        {sortColumn === 'eps' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('pe')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        P/E
+                                                        {sortColumn === 'pe' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
+                                                    onClick={() => handleSort('52wHigh')}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        52W High
+                                                        {sortColumn === '52wHigh' ? (
+                                                            <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                                                        ) : (
+                                                            <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-800/50 text-gray-300">
+                                            {sortedSummaryData.map((stock) => {
+                                                const price = stock.currentPrice || stock.regularMarketPrice || stock.previousClose || 0;
+                                                const change = stock.regularMarketChange || 0;
+                                                const pct = stock.regularMarketChangePercent || 0;
+                                                return (
+                                                    <tr
+                                                        key={stock.symbol}
+                                                        className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                                                        onClick={() => onSelectStock?.(stock.symbol)}
+                                                    >
+                                                        <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400 hover:underline">{stock.symbol}</td>
+                                                        <td className="py-3 px-4 font-mono">${price.toFixed(2)}</td>
+                                                        <td className={`py-3 px-4 font-mono font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {change > 0 ? '+' : ''}{change.toFixed(2)}
+                                                        </td>
+                                                        <td className={`py-3 px-4 font-mono font-bold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {pct > 0 ? '+' : ''}{(pct).toFixed(2)}%
+                                                        </td>
+                                                        <td className={`py-3 px-4 font-mono font-semibold ${(stock.fiveDayChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {stock.fiveDayChange != null ? `${stock.fiveDayChange > 0 ? '+' : ''}${stock.fiveDayChange.toFixed(2)}%` : '-'}
+                                                        </td>
+                                                        <td className={`py-3 px-4 font-mono font-semibold ${(stock.oneMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {stock.oneMonthChange != null ? `${stock.oneMonthChange > 0 ? '+' : ''}${stock.oneMonthChange.toFixed(2)}%` : '-'}
+                                                        </td>
+                                                        <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
+                                                        </td>
+                                                        <td className={`py-3 px-4 font-mono font-semibold ${(stock.ytdChangePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                            {stock.ytdChangePercent != null ? `${stock.ytdChangePercent > 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%` : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-gray-300">
+                                                            {stock.sma20 != null ? `$${stock.sma20.toFixed(2)}` : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-gray-300">
+                                                            {stock.sma50 != null ? `$${stock.sma50.toFixed(2)}` : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-blue-400">
+                                                            {stock.trailingEps != null ? stock.trailingEps.toFixed(2) : '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-blue-400">
+                                                            {stock.trailingPE?.toFixed(2) || '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-gray-400">
+                                                            ${stock.fiftyTwoWeekHigh?.toFixed(2) || '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         )}
                     </div>
+                )}
 
-                    {watchlistStocks.length === 0 ? (
-                        <div className="text-center py-20 text-gray-500">
-                            Your watchlist is empty. Add stocks to see them here.
-                        </div>
-                    ) : loadingSummary ? (
-                        <div className="flex items-center justify-center h-64">
-                            <span className="text-blue-500 font-bold animate-pulse">Loading Market Data...</span>
-                        </div>
-                    ) : (
-                        <div className="relative">
-                            {/* Subtle scroll hint - gradient fade on right */}
-                            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-gray-50/80 dark:from-gray-900/80 via-transparent to-transparent pointer-events-none z-10"></div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="text-gray-500 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700 text-xs uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50">
-                                        <tr>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('symbol')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    Symbol
-                                                    {sortColumn === 'symbol' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('price')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    Price
-                                                    {sortColumn === 'price' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('change')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    Change
-                                                    {sortColumn === 'change' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('changePct')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    1D%
-                                                    {sortColumn === 'changePct' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('5d')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    5D%
-                                                    {sortColumn === '5d' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('1m')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    1M%
-                                                    {sortColumn === '1m' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('6m')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    6M%
-                                                    {sortColumn === '6m' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('ytd')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    YTD%
-                                                    {sortColumn === 'ytd' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('sma20')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    SMA20
-                                                    {sortColumn === 'sma20' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('sma50')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    SMA50
-                                                    {sortColumn === 'sma50' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('eps')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    EPS
-                                                    {sortColumn === 'eps' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('pe')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    P/E
-                                                    {sortColumn === 'pe' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th
-                                                className="py-4 px-4 font-semibold cursor-pointer hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-blue-400 transition-all select-none"
-                                                onClick={() => handleSort('52wHigh')}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    52W High
-                                                    {sortColumn === '52wHigh' ? (
-                                                        <span className="text-blue-500 text-base font-bold">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                                                    ) : (
-                                                        <span className="text-gray-300 dark:text-gray-600 text-xs">⇅</span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-800/50 text-gray-300">
-                                        {sortedSummaryData.map((stock) => {
-                                            const price = stock.currentPrice || stock.regularMarketPrice || stock.previousClose || 0;
-                                            const change = stock.regularMarketChange || 0;
-                                            const pct = stock.regularMarketChangePercent || 0;
-                                            return (
-                                                <tr
-                                                    key={stock.symbol}
-                                                    className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0 cursor-pointer"
-                                                    onClick={() => onSelectStock?.(stock.symbol)}
-                                                >
-                                                    <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400 hover:underline">{stock.symbol}</td>
-                                                    <td className="py-3 px-4 font-mono">${price.toFixed(2)}</td>
-                                                    <td className={`py-3 px-4 font-mono font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {change > 0 ? '+' : ''}{change.toFixed(2)}
-                                                    </td>
-                                                    <td className={`py-3 px-4 font-mono font-bold ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {pct > 0 ? '+' : ''}{(pct).toFixed(2)}%
-                                                    </td>
-                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.fiveDayChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {stock.fiveDayChange != null ? `${stock.fiveDayChange > 0 ? '+' : ''}${stock.fiveDayChange.toFixed(2)}%` : '-'}
-                                                    </td>
-                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.oneMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {stock.oneMonthChange != null ? `${stock.oneMonthChange > 0 ? '+' : ''}${stock.oneMonthChange.toFixed(2)}%` : '-'}
-                                                    </td>
-                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.sixMonthChange || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {stock.sixMonthChange != null ? `${stock.sixMonthChange > 0 ? '+' : ''}${stock.sixMonthChange.toFixed(2)}%` : '-'}
-                                                    </td>
-                                                    <td className={`py-3 px-4 font-mono font-semibold ${(stock.ytdChangePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {stock.ytdChangePercent != null ? `${stock.ytdChangePercent > 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%` : '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-gray-300">
-                                                        {stock.sma20 != null ? `$${stock.sma20.toFixed(2)}` : '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-gray-300">
-                                                        {stock.sma50 != null ? `$${stock.sma50.toFixed(2)}` : '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-blue-400">
-                                                        {stock.trailingEps != null ? stock.trailingEps.toFixed(2) : '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-blue-400">
-                                                        {stock.trailingPE?.toFixed(2) || '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-gray-400">
-                                                        ${stock.fiftyTwoWeekHigh?.toFixed(2) || '-'}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                {viewMode === 'portfolio' && activePortfolio && (
+                    <div className="space-y-6">
+                        {/* Portfolio Stats Bar */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-4 shadow-xl">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Total Value</span>
+                                <div className="text-xl font-bold text-gray-900 dark:text-white">${portfolioMetrics.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            </div>
+                            <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-4 shadow-xl">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Total P&L</span>
+                                <div className={`text-xl font-bold ${portfolioMetrics.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {portfolioMetrics.pnl >= 0 ? '+' : ''}${Math.abs(portfolioMetrics.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <span className="text-xs ml-1.5 opacity-80">({portfolioMetrics.pnlPct.toFixed(2)}%)</span>
+                                </div>
+                            </div>
+                            <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-4 shadow-xl">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Day Change</span>
+                                <div className={`text-xl font-bold ${portfolioMetrics.dayChange >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {portfolioMetrics.dayChange >= 0 ? '+' : ''}${Math.abs(portfolioMetrics.dayChange).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <span className="text-xs ml-1.5 opacity-80">({portfolioMetrics.dayChangePct.toFixed(2)}%)</span>
+                                </div>
+                            </div>
+                            <div className="bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-4 shadow-xl">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Total Cost</span>
+                                <div className="text-xl font-bold text-gray-900 dark:text-white">${portfolioMetrics.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                             </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Middle Row: Allocation + Top Movers or some detail */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-6 shadow-2xl">
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <PieChart size={16} className="text-blue-500" /> Sector Allocation
+                                </h3>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={portfolioMetrics.sectors.map(s => ({
+                                                    ...s,
+                                                    name: `${s.name} (${portfolioMetrics.totalValue > 0 ? ((s.value / portfolioMetrics.totalValue) * 100).toFixed(1) : '0.0'}%)`
+                                                }))}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={65}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {portfolioMetrics.sectors.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <RechartsTooltip
+                                                contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                                itemStyle={{ color: '#fff' }}
+                                                formatter={(value: number) => `$${value.toLocaleString()}`}
+                                            />
+                                            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-2 bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl p-6 shadow-2xl">
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <Activity size={16} className="text-blue-500" /> Holdings Performance
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
+                                            <tr>
+                                                <th className="pb-3 cursor-pointer hover:text-blue-500" onClick={() => handlePortfolioSort('symbol')}>Symbol</th>
+                                                <th className="pb-3 text-right">Qty</th>
+                                                <th className="pb-3 text-right">Avg Cost</th>
+                                                <th className="pb-3 text-right cursor-pointer hover:text-blue-500" onClick={() => handlePortfolioSort('price')}>Price</th>
+                                                <th className="pb-3 text-right cursor-pointer hover:text-blue-500" onClick={() => handlePortfolioSort('value')}>Value</th>
+                                                <th className="pb-3 text-right cursor-pointer hover:text-blue-500" onClick={() => handlePortfolioSort('pnl')}>Total P&L</th>
+                                                <th className="pb-3 text-right cursor-pointer hover:text-blue-500" onClick={() => handlePortfolioSort('pnlPct')}>%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                                            {sortedPortfolioData.map((item, idx) => {
+                                                const price = item.currentPrice || item.regularMarketPrice || item.previousClose || 0;
+                                                const value = price * (item.quantity || 0);
+                                                const cost = (item.avg_cost || 0) * (item.quantity || 0);
+                                                const pnl = value - cost;
+                                                const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+
+                                                return (
+                                                    <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                                        <td className="py-3 font-bold text-gray-900 dark:text-white">{item.symbol}</td>
+                                                        <td className="py-3 text-right font-mono">{item.quantity}</td>
+                                                        <td className="py-3 text-right font-mono text-gray-500">${item.avg_cost?.toFixed(2)}</td>
+                                                        <td className="py-3 text-right font-mono font-bold">${price.toFixed(2)}</td>
+                                                        <td className="py-3 text-right font-mono font-bold">${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                                        <td className={`py-3 text-right font-mono font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                            {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        </td>
+                                                        <td className={`py-3 text-right font-mono font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                            {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {sortedPortfolioData.length === 0 && !loadingPortfolioSummary && (
+                                        <div className="text-center py-10 text-gray-400 italic">No holdings data available.</div>
+                                    )}
+                                    {loadingPortfolioSummary && (
+                                        <div className="text-center py-10 text-blue-500 animate-pulse">Syncing holdings with market...</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

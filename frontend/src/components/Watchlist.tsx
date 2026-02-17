@@ -52,6 +52,7 @@ interface WatchlistProps {
     onWatchlistChange?: (stocks: string[]) => void;
     onActiveWatchlistChange?: (watchlist: Watchlist | null) => void;
     onActivePortfolioChange?: (portfolio: Portfolio | null) => void;
+    onModeChange?: (mode: 'watchlist' | 'portfolio') => void;
 }
 
 // --- Sortable Helper Components ---
@@ -226,7 +227,7 @@ function SortableStockRow({
 
 // --- Main Component ---
 
-export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange, onActivePortfolioChange }: WatchlistProps) {
+export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange, onActivePortfolioChange, onModeChange }: WatchlistProps) {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [activeWatchlistId, setActiveWatchlistId] = useState<number | null>(null);
 
@@ -308,6 +309,12 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             onActivePortfolioChange(active);
         }
     }, [activePortfolioId, portfolios, onActivePortfolioChange]);
+
+    useEffect(() => {
+        if (onModeChange) {
+            onModeChange(sidebarMode);
+        }
+    }, [sidebarMode, onModeChange]);
 
     const handleWatchlistDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;

@@ -55,3 +55,16 @@ Professional-grade scoring with triple-layer signal synthesis and **Persona-Base
 - **Guest Mode**: Try the app with LocalStorage-persisted watchlists.
 - **Secure Auth**: JWT-based login with email verification and hashed passwords.
 - **[Read Security Documentation](./SECURITY.md)**
+
+## 7. Portfolio Intelligence (v9.8.0)
+Advanced tools for tracking and auditing actual investment holdings.
+- **Individual Portfolio Dashboard**:
+    - **Dynamic Stats Bar**: Real-time aggregate metrics for Net Worth, Total Unrealized P&L, Day Change, and Cost Basis.
+    - **Sector Allocation**: Multi-color donut charts with tooltips visualizing industry concentration.
+    - **Holdings Performance Table**: High-density UI with sortable columns for live price, quantity, value, and P&L.
+- **Smart CSV Onboarding**:
+    - **Generic Parser**: Handles standard ticker/quantity exports.
+    - **Robinhood Specialist**: Native support for Robinhood "Transaction" history exports.
+- **AI Portfolio Manager**: 
+    - **DeepSeek R1 Audit**: 6-point institutional-grade analysis for focused portfolio health checks.
+    - **Contextual Awareness**: Automatically replaces the "AI Strategist" when a portfolio is selected.

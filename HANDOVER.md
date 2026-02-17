@@ -1,6 +1,6 @@
-# VinSight Project Handover (v9.7 - Precision & Personas)
-**Date:** February 15, 2026
-**Status:** **Stable** (Enhanced Scoring Logic & UI Polish)
+# VinSight Project Handover (v9.8 - Portfolio Dashboard)
+**Date:** February 16, 2026
+**Status:** **Stable** (New Portfolio Visualization & Management)
 **Target Audience:** Engineering Team / Next Agent
 
 ---
@@ -12,22 +12,11 @@ This release focuses on **determinism and clarity**. We eliminated scoring varia
 
 ---
 
-## 2. Completed Work (v9.7.1)
-
-### AI Strategist (`watchlist_summary.py`)
-- **Timeout**: Increased to **180s** (Prev: 45s).
-- **Prompt**: Added `Forward P/E` and `PEG` for valuation context.
-- **UI**: Added "Model Badge" and refined typography in `WatchlistSummaryCard.tsx`.
-
-### AI Scoring Engine (`reasoning_scorer.py`)
-- **Persona Weights**: Explicitly defined in `PERSONAS` dict (e.g., `scoring_weights: {"Valuation": 30...}`).
-- **Temperature**: Hardcoded to `0.1` (Groq/Gemini/OpenRouter) or `0.0` (DeepSeek) for near-zero variance.
-- **Prompt Engineering**: Injected "CRITICAL CONSISTENCY RULES" (e.g., P/E > 50 cap) to prevent hallucinations.
-
-### UI Refinements (`Dashboard.tsx`)
-- **Top Section**: Added **Rating Badge** (Buy/Sell) and full **Verdict** text next to the score ring.
-- **Cards**: Restored `<ul>` lists for **Key Opportunities** (Bull Card) and **Key Risks** (Bear Card).
-- **Cleanliness**: Removed duplicate verdict from the Briefing header.
+### Portfolio View & Dashboard (v9.8.0)
+- **Portfolio Dashboard**: Implemented sortable holdings table, sector donut chart, and real-time stats bar (Total Value, P&L, Day Change).
+- **CSV Importer**: Robust parser for generic and Robinhood CSVs with instant market hydration.
+- **AI Portfolio Manager**: DeepSeek R1-powered 6-point audit for active portfolios.
+- **Reliability**: Fixed 500 error in AI summary pipeline and improved watchlist performance.
 
 ---
 
@@ -41,21 +30,18 @@ This release focuses on **determinism and clarity**. We eliminated scoring varia
 ## 4. Next Session Instructions (Context Prompt)
 *Copy and paste this into the next chat to retain context:*
 
-> **SYSTEM CONTEXT RESTORE: VinSight v9.7.1 (Precision & Transparency)**
+> **SYSTEM CONTEXT RESTORE: VinSight v9.8.0 (Portfolio Intelligence)**
 >
 > **Current Architecture:**
+> -   **Portfolio Engine**: Backend supports multi-portfolio CRUD and specialized CSV parsing (Generic/Robinhood).
+> -   **Dashboard**: Context-aware UI. Displays **AI Strategist** (Watchlists) or **AI Portfolio Manager** (Portfolios).
 > -   **Scoring Logic**: `reasoning_scorer.py` uses STRICT persona weights and `temperature=0.1`.
-> -   **AI Strategist**: 180s Timeout. Uses DeepSeek R1 (OpenRouter) -> Gemini 2.0 (Fallback).
-> -   **UI Layout**: Verdict at TOP. Strategist displays Model Badge.
->
-> **Recent Changes:**
-> -   **Backend**: Increased Strategist timeout to 180s. Added Valuation metrics to prompt.
-> -   **Frontend**: Refined Typography. Added Model Badge.
+> -   **AI Models**: 180s Timeout for DeepSeek R1 (Strategist/Portfolio Manager). Gemini 2.0 fallback.
 >
 > **Rules:**
-> 1.  **Do NOT raise temperature**: Keep it low for consistency.
-> 2.  **Respect Persona Weights**: Any new personas must have explicit `scoring_weights`.
-> 3.  **Maintain UI Layout**: Keep Verdict at the top, do not duplicate in Briefing header.
+> 1.  **Context Hygiene**: Ensure UI correctly state-toggles between Watchlist and Portfolio modes.
+> 2.  **Model Discipline**: Keep temperature low (0.1) for all AI scoring/analysis tasks.
+> 3.  **Data Hydration**: Always prefer batch pricing/enrichment to avoid API waterfalls.
 
 ---
 **Handover Signature:**

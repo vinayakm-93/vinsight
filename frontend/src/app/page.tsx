@@ -16,6 +16,7 @@ export default function Home() {
   const [watchlistStocks, setWatchlistStocks] = useState<string[]>([]);
   const [activeWatchlist, setActiveWatchlist] = useState<Watchlist | null>(null);
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
+  const [sidebarMode, setSidebarMode] = useState<'watchlist' | 'portfolio'>('watchlist');
   const { user, logout } = useAuth();
   const { theme, setTheme, effectiveTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -144,6 +145,7 @@ export default function Home() {
                 onWatchlistChange={setWatchlistStocks}
                 onActiveWatchlistChange={setActiveWatchlist}
                 onActivePortfolioChange={setActivePortfolio}
+                onModeChange={setSidebarMode}
               />
             </div>
           )}
@@ -155,6 +157,7 @@ export default function Home() {
               watchlistStocks={watchlistStocks}
               activeWatchlist={activeWatchlist}
               activePortfolio={activePortfolio}
+              viewMode={sidebarMode}
               onClearSelection={() => setSelectedTicker(null)}
               onRequireAuth={() => setShowAuthModal(true)}
               onSelectStock={setSelectedTicker}

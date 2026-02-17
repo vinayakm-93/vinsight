@@ -8,8 +8,10 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 ---
 
-## 🚀 Key Features (v9.5)
+## 🚀 Key Features (v9.8.0)
 
+- **Institutional Portfolio Dashboard**: Real-time aggregate metrics (Net Worth, P&L, Day Change) with sector allocation charts and high-density holdings tables.
+- **Smart CSV Importer**: Seamlessly import holdings from Robinhood or generic CSV exports with instant market data enrichment.
 - **Institutional Conviction Index**: Triple-factor signal synthesis (Algo + Smart Money + Sentiment) for decisive trading verdicts.
 - **Progressive Hydration Dashboard**: Ultra-fast initial rendering (Formula Engine) with background LLM hydration for deep reasoning.
 - **AI Sentinel**: Multi-source news sentiment with Groq-powered reasoning, spin detection, and DIY earnings scraper.
