@@ -53,12 +53,20 @@ graph TD
     - **3. Algo Baseline**: Mathematical ground truth (70% Fundamental / 30% Technical).
 - **Progressive Hydration Pattern**: Dual-engine fetch strategy. Light Algo data renders first; AI Reasoning lazy-loads.
 
-## 4. Infrastructure & Security
-- **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.
-- **Secrets**: Zero-knowledge credential storage via Google Secret Manager.
-- **Alerts**: Background cron job (Worker) triggered every 5 minutes during US market hours.
+## 5. Thesis Agent Architecture
+-   **Hybrid Agent Model**: Combines DeepSeek R1 (Reasoning) with Llama 3.3 (Sentiment) and Gemini 2.0 (Fallback).
+-   **Autonomous Loop**:
+    1.  **Monitor**: Scheduled Cloud Run Job triggers event detection.
+    2.  **Evaluate**: Specialized prompts determine if an event breaks the user's specific thesis.
+    3.  **Act**: Updates status and sends proactive email alerts.
+-   **Documentation**: See [Thesis Agent Docs](../.gemini/antigravity/brain/797d5707-6eeb-42e7-9505-2b09f8dbab87/THESIS_AGENT.md) for full details.
 
-## 5. Detailed Technical Documentation
+## 6. Infrastructure & Security
+-   **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.
+-   **Secrets**: Zero-knowledge credential storage via Google Secret Manager.
+-   **Alerts**: Background cron job (Worker) triggered every 5 minutes during US market hours.
+
+## 7. Detailed Technical Documentation
 - **[Security & Compliance](./SECURITY.md)**: OWASP compliance, Encryption audits, and Rotation schedules.
 - **[Maintenance & Incident Log](./MAINTENANCE_LOG.md)**: Fix history and Root Cause Analyses.
 - **[Deployment Guide](./DEPLOY.md)**: Instructions for pushing to Google Cloud.

@@ -236,3 +236,93 @@ async def send_alert_email(email: EmailStr, symbol: str, price: float, condition
     except Exception as e:
         logger.error(f"Failed to send alert email to {email}: {str(e)}")
         print(f"MOCK FALLBACK ALERT: {symbol} ${price}")
+
+
+async def send_guardian_alert_email(email: EmailStr, alert):
+    """
+    Sends a formatted Guardian alert email.
+    alert: GuardianAlert model instance (or dict with similar attributes)
+    """
+    symbol = alert.symbol if hasattr(alert, 'symbol') else alert['symbol']
+    status = alert.thesis_status if hasattr(alert, 'thesis_status') else alert['thesis_status']
+    reasoning = alert.reasoning if hasattr(alert, 'reasoning') else alert['reasoning']
+    events = alert.events_detected if hasattr(alert, 'events_detected') else alert['events_detected']
+    
+    logger.info(f"Preparing Guardian alert email for {email} (Symbol: {symbol})")
+    
+    if MOCK_MODE:
+        logger.info(f"[MOCK] Guardian Alert for {email}: {symbol} status {status}")
+        print(f"[MOCK GUARDIAN] {symbol} {status}")
+        return
+
+    # Use FRONTEND_URL from env, which is set in deploy.sh
+    app_link = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    if app_link.endswith("/"):
+        app_link = app_link[:-1]
+        
+    dashboard_link = f"{app_link}/dashboard?ticker={symbol}&tab=guardian"
+    
+    # Colors & Badges
+    if status == 'BROKEN':
+        color = "#ef4444" # Red
+        icon = "🚨"
+        action_text = "Urgent Review Needed"
+    else: # AT_RISK
+        color = "#f59e0b" # Amber
+        icon = "⚠️"
+        action_text = "Watch Closely"
+
+    html = f"""
+    <div style="{get_base_style()}">
+        {get_header("Thesis Warning")}
+        
+        <div style="padding: 32px 24px; text-align: left;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid #334155; padding-bottom: 16px;">
+                <span style="font-size: 20px; font-weight: bold; color: #f8fafc;">{symbol}</span>
+                <span style="font-size: 14px; background-color: {color}20; color: {color}; padding: 4px 12px; border-radius: 99px; border: 1px solid {color}40; font-weight: bold;">
+                    {icon} {status}
+                </span>
+            </div>
+            
+            <p style="font-size: 16px; color: #cbd5e1; margin-bottom: 16px; line-height: 1.6;">
+                <b>VinSight Guardian</b> has detected events that threaten your investment thesis.
+            </p>
+            
+            <div style="background-color: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid {color};">
+                <h3 style="margin: 0 0 8px 0; font-size: 14px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px;">AI Assessment</h3>
+                <p style="margin: 0; color: #e2e8f0; font-style: italic; font-size: 15px;">"{reasoning}"</p>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px;">Events Detected</h3>
+                <p style="color: #cbd5e1; font-family: monospace; background: #0f172a; padding: 12px; border-radius: 6px; font-size: 13px;">{events}</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 32px;">
+                <a href="{dashboard_link}" style="background-color: {color}; color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+                    View Full Analysis
+                </a>
+            </div>
+        </div>
+        
+        <div style="background-color: #0f172a; padding: 24px; text-align: center; border-top: 1px solid #1e293b;">
+             <p style="color: #64748b; font-size: 12px; margin: 0;">&copy; 2025 VinSight Finance. <a href="{app_link}/settings" style="color: #64748b; text-decoration: underline;">Manage Alerts</a></p>
+        </div>
+    </div>
+    """
+
+    message = MessageSchema(
+        subject=f"{icon} Guardian Alert: {symbol} thesis is {status}",
+        recipients=[email],
+        body=html,
+        subtype=MessageType.html
+    )
+
+    fm = FastMail(conf)
+    try:
+        await fm.send_message(message)
+        logger.info(f"Guardian alert email sent successfully to {email} for {symbol}")
+    except Exception as e:
+        logger.error(f"Failed to send guardian alert to {email}: {str(e)}")
+        print(f"MOCK GUARDIAN FALLBACK: {symbol} {status}")
+

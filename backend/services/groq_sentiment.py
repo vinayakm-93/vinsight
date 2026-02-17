@@ -428,7 +428,8 @@ Output EXACT JSON:
             if self.groq_client:
                 try:
                     logger.debug("Attempting dual-period analysis with Groq...")
-                    completion = self._call_groq(groq_messages, temperature=0.2, max_tokens=400, timeout=8.0, response_format={"type": "json_object"})
+                    # Groq SDK doesn't support timeout in create() directly, handled by client config or transport
+                    completion = self._call_groq(groq_messages, temperature=0.2, max_tokens=400, response_format={"type": "json_object"})
                     response_content = completion.choices[0].message.content
                     source = "Llama 3.3 (Reasoning)"
                     logger.debug("Groq dual-period analysis successful.")

@@ -27,6 +27,8 @@ class User(Base):
     # Alert Limits & Tracking
     alerts_triggered_this_month = Column(Integer, default=0)
     alert_limit = Column(Integer, default=30) # Default limit: 30 alerts per month
+    guardian_limit = Column(Integer, default=10) # Default limit: 10 active guardian stocks
+
     last_alert_reset = Column(DateTime, default=datetime.utcnow)
     is_vip = Column(Boolean, default=False)
     
@@ -112,3 +114,43 @@ class EarningsAnalysis(Base):
     __table_args__ = (
         UniqueConstraint('ticker', 'quarter', 'year', name='uq_ticker_quarter_year'),
     )
+
+class GuardianThesis(Base):
+    __tablename__ = "guardian_theses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    symbol = Column(String, index=True, nullable=False)
+    thesis = Column(Text, nullable=False)
+    auto_generated = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    last_checked_at = Column(DateTime, nullable=True)
+    last_price = Column(Float, nullable=True)
+    check_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'symbol', name='uq_user_guardian_thesis'),
+    )
+
+class GuardianAlert(Base):
+    __tablename__ = "guardian_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    symbol = Column(String, index=True, nullable=False)
+    thesis_status = Column(String, nullable=False)      # INTACT / AT_RISK / BROKEN
+    confidence = Column(Float, nullable=True)
+    reasoning = Column(Text, nullable=True)
+    recommended_action = Column(String, nullable=True)  # HOLD / REDUCE / SELL
+    key_evidence = Column(Text, nullable=True)          # JSON string
+    events_detected = Column(Text, nullable=True)       # JSON string
+    is_read = Column(Boolean, default=False)
+    email_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")

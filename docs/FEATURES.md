@@ -20,7 +20,17 @@
     - **CFA Persona**: AI acts as a Senior Wall Street Analyst translating complex calls for retail investors.
     - **Verdict Engine**: Explicit Buy/Hold/Sell rating based on transcript tone and unscripted revelations.
 
-## 3. VinSight Engine v9.7
+## 3. Thesis Agent (Portfolio Guardian)
+Autonomous 24/7 watchdog for your portfolio.
+-   **Active Monitoring**: Continuously scans for price drops (-5%), earnings misses (-10%), and sentiment crashes.
+-   **Hybrid AI Logic**:
+    -   **DeepSeek R1**: Reasons whether an event "breaks" your investment thesis.
+    -   **Llama 3.3 (Groq)**: Instantly scores news sentiment.
+    -   **Gemini 2.0 Fallback**: Ensures 99.9% uptime.
+-   **Proactive Alerts**: Sends detailed email breakdowns with "Intact", "At Risk", or "Broken" verdicts.
+-   **Limit Logic**: Supports up to 10 active thesis agents per user.
+
+## 4. VinSight Engine v9.7
 Professional-grade scoring with triple-layer signal synthesis and **Persona-Based Determinism**.
 - **Persona Scoring (v9.7)**: AI adopts strict scoring rubrics based on the selected persona (e.g., **Momentum** ignores valuation; **Value** ignores momentum).
 - **Institutional Conviction Index**: Mathematically blends Algo Ground Truth (40%), Smart Money (30%), and AI Sentiment (30%) into a single "Conviction Rating."

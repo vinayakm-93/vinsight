@@ -28,7 +28,7 @@ export default function TestPage() {
     const runAllTests = async () => {
         setResults([]);
         setLoading(true);
-        const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
         await runTest('Check Backend Health', () => axios.get(`${BASE}/`));
         await runTest('Get Watchlists', () => axios.get(`${BASE}/api/watchlist/`));

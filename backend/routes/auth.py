@@ -44,6 +44,7 @@ class UserCodeVerify(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
+    guardian_limit: int = 10
     
     class Config:
         from_attributes = True

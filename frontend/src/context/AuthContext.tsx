@@ -13,6 +13,9 @@ import {
 interface User {
     id: number;
     email: string;
+    first_name?: string;
+    last_name?: string;
+    guardian_limit?: number;
 }
 
 interface AuthContextType {

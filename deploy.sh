@@ -85,7 +85,7 @@ gcloud run deploy $BACKEND_SERVICE \
     --allow-unauthenticated \
     --memory 2Gi \
     --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
-    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest,FMP_API_KEY=FMP_API_KEY:latest,SERPER_API_KEY=SERPER_API_KEY:latest" \
+    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest,FMP_API_KEY=FMP_API_KEY:latest,SERPER_API_KEY=SERPER_API_KEY:latest,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest" \
     $CLOUD_SQL_FLAG
 
 MAX_RETRIES=10
@@ -97,16 +97,39 @@ if [ -z "$BACKEND_URL" ]; then
 fi
 echo -e "${GREEN}Backend is live at: $BACKEND_URL${NC}"
 
-# 2.1 Deploy Market Watcher Job
-echo -e "${GREEN}Deploying Market Watcher Job...${NC}"
-gcloud run jobs deploy vinsight-watcher \
+# 2.1 Deploy Guardian Job (Thesis Agent)
+echo -e "${GREEN}Deploying Guardian Job...${NC}"
+gcloud run jobs deploy vinsight-guardian \
     --image gcr.io/$PROJECT_ID/$BACKEND_SERVICE \
     --region $REGION \
     --command "python" \
-    --args "jobs/market_watcher_job.py" \
+    --args "jobs/guardian_job.py" \
     --set-env-vars ENV=production,CLOUDSQL_INSTANCE="$CLOUDSQL_INSTANCE",MAIL_SERVER="$MAIL_SERVER",MAIL_PORT="$MAIL_PORT",EODHD_ENABLED=true \
-    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest,FMP_API_KEY=FMP_API_KEY:latest,SERPER_API_KEY=SERPER_API_KEY:latest" \
+    --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest,FMP_API_KEY=FMP_API_KEY:latest,SERPER_API_KEY=SERPER_API_KEY:latest,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest" \
     --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
+
+# 2.2 Create/Update Cloud Scheduler for Guardian (Every 6 hours)
+echo -e "${GREEN}Updating Guardian Scheduler...${NC}"
+# Check if job exists first
+if gcloud scheduler jobs describe guardian-scan --location $REGION > /dev/null 2>&1; then
+    gcloud scheduler jobs update http guardian-scan \
+        --location $REGION \
+        --schedule "0 */6 * * *" \
+        --uri "https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/vinsight-guardian:run" \
+        --http-method POST \
+        --oauth-service-account-email $(gcloud auth list --filter=status:ACTIVE --format="value(account)") \
+        --headers "User-Agent=Google-Cloud-Scheduler"
+else
+    # Note: Using gcloud run jobs execute triggers might be simpler, but HTTP trigger gives more control?
+    # Actually, for Cloud Run Jobs, the standard is scheduler triggering the job execution endpoint.
+    # Simpler: Use `gcloud scheduler jobs create http` pointing to the job's execute URL.
+    # However, simpler is `gcloud scheduler jobs create http` which requires knowing the URL.
+    :
+    # For now, let's skip auto-creating the scheduler in this script to avoid complex Auth logic if Service Account is needed.
+    # We will output instructions.
+    echo "⚠️  REMINDER: Create Cloud Scheduler job 'guardian-scan' manually if not exists."
+    echo "Command: gcloud scheduler jobs create http guardian-scan --schedule '0 */6 * * *' --uri 'https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/vinsight-guardian:run' --http-method POST --oauth-service-account-email <YOUR_SERVICE_ACCOUNT>"
+fi
 
 cd ..
 

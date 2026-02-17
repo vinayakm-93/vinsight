@@ -14,6 +14,7 @@ import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
 import { Watchlist } from '../lib/api';
 import WatchlistSummaryCard from './WatchlistSummaryCard';
+import GuardianSection from './GuardianSection';
 
 const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
@@ -119,7 +120,7 @@ export default function Dashboard({
 
 
     // Updated Active Tab Type
-    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections' | 'guardian'>('ai');
     const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
 
 
@@ -250,7 +251,7 @@ export default function Dashboard({
     }, [selectedPersona, useReasoning]);
     // -------------------------------------------------------------------------
 
-    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections') => {
+    const handleTabChange = async (tab: 'ai' | 'stats' | 'earnings' | 'smart_money' | 'sentiment' | 'projections' | 'guardian') => {
         setActiveTab(tab);
 
         // Refresh Earnings
@@ -1134,6 +1135,12 @@ export default function Dashboard({
                         ⚡ Vinsight AI
                     </button>
                     <button
+                        className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'guardian' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                        onClick={() => handleTabChange('guardian')}
+                    >
+                        🛡️ Thesis Agent
+                    </button>
+                    <button
                         className={`py-2 px-4 text-sm font-medium whitespace-nowrap rounded-t-lg transition-all ${activeTab === 'stats' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
                         onClick={() => handleTabChange('stats')}
                     >
@@ -1165,6 +1172,10 @@ export default function Dashboard({
                         Projections
                     </button>
                 </div>
+
+                {activeTab === 'guardian' && (
+                    <GuardianSection ticker={ticker!} />
+                )}
 
                 {activeTab === 'ai' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">

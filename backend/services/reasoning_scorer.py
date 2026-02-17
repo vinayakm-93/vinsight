@@ -544,3 +544,11 @@ You MUST respond with a single valid JSON object. No other text.
                  "opportunities": []
             }
         }
+
+def clean_thought_process(text: str) -> str:
+    """Helper to remove <think>...</think> tags from LLM responses."""
+    if not text:
+        return ""
+    # Remove thought process tags
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    return cleaned
