@@ -177,14 +177,56 @@ export const importWatchlistFile = async (watchlistId: number, file: File): Prom
 };
 
 export const parseImportFile = async (file: File): Promise<string[]> => {
-  // For MVP, we might handle file upload later or client-side parsing.
-  // Integrating backend file upload if needed, but for now let's assume client-side or mocked.
-  // Actually, let's implement a simple backend upload if we want robust parsing, 
-  // but the user requirement was simple. Let's do a simple FormData upload if detailed later.
-  // For now, simpler to parse CSV client side or send to a new endpoint.
-  // Let's add a backend endpoint for upload later if complex excel needed. 
-  // For now we will allow manual entry.
   return [];
+};
+
+// --- Portfolio API ---
+
+export interface PortfolioHolding {
+  id: number;
+  symbol: string;
+  quantity: number;
+  avg_cost: number | null;
+  imported_at: string | null;
+}
+
+export interface Portfolio {
+  id: number;
+  name: string;
+  created_at: string | null;
+  holdings: PortfolioHolding[];
+}
+
+export const createPortfolio = async (name: string): Promise<Portfolio> => {
+  const response = await api.post<Portfolio>('/api/portfolio/', { name });
+  return response.data;
+};
+
+export const getPortfolios = async (): Promise<Portfolio[]> => {
+  const response = await api.get<Portfolio[]>('/api/portfolio/');
+  return response.data;
+};
+
+export const deletePortfolio = async (id: number): Promise<void> => {
+  await api.delete(`/api/portfolio/${id}`);
+};
+
+export const importPortfolioCSV = async (portfolioId: number, file: File): Promise<Portfolio> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post<Portfolio>(`/api/portfolio/${portfolioId}/import`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const clearPortfolioHoldings = async (portfolioId: number): Promise<void> => {
+  await api.delete(`/api/portfolio/${portfolioId}/holdings`);
+};
+
+export const getPortfolioSummary = async (id: number): Promise<{ text: string; model: string }> => {
+  const response = await api.get<{ text: string; model: string }>(`/api/portfolio/${id}/summary`);
+  return response.data;
 };
 
 // Auth API

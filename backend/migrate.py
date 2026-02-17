@@ -111,6 +111,78 @@ def migrate():
                     conn.commit()
 
                 logger.info("Migration check complete.")
+
+                # --- Portfolio Schema ---
+                logger.info("Checking 'portfolios' schema...")
+                if is_postgres:
+                    result = conn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='portfolios')"))
+                    portfolios_exist = result.scalar()
+                else:
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='portfolios'"))
+                    portfolios_exist = result.fetchone() is not None
+
+                if not portfolios_exist:
+                    logger.info("Creating 'portfolios' table...")
+                    conn.execute(text("""
+                        CREATE TABLE portfolios (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL REFERENCES users(id),
+                            name VARCHAR NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_summary_at TIMESTAMP,
+                            last_summary_text TEXT,
+                            last_summary_source VARCHAR,
+                            UNIQUE(user_id, name)
+                        )
+                    """) if not is_postgres else text("""
+                        CREATE TABLE portfolios (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL REFERENCES users(id),
+                            name VARCHAR NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_summary_at TIMESTAMP,
+                            last_summary_text TEXT,
+                            last_summary_source VARCHAR,
+                            UNIQUE(user_id, name)
+                        )
+                    """))
+                    conn.commit()
+                    logger.info("'portfolios' table created.")
+
+                if is_postgres:
+                    result = conn.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='portfolio_holdings')"))
+                    holdings_exist = result.scalar()
+                else:
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='portfolio_holdings'"))
+                    holdings_exist = result.fetchone() is not None
+
+                if not holdings_exist:
+                    logger.info("Creating 'portfolio_holdings' table...")
+                    conn.execute(text("""
+                        CREATE TABLE portfolio_holdings (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+                            symbol VARCHAR NOT NULL,
+                            quantity FLOAT NOT NULL DEFAULT 0,
+                            avg_cost FLOAT,
+                            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(portfolio_id, symbol)
+                        )
+                    """) if not is_postgres else text("""
+                        CREATE TABLE portfolio_holdings (
+                            id SERIAL PRIMARY KEY,
+                            portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+                            symbol VARCHAR NOT NULL,
+                            quantity FLOAT NOT NULL DEFAULT 0,
+                            avg_cost FLOAT,
+                            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(portfolio_id, symbol)
+                        )
+                    """))
+                    conn.commit()
+                    logger.info("'portfolio_holdings' table created.")
+
+                logger.info("Portfolio migration check complete.")
                     
             except Exception as e:
                 logger.error(f"Migration error: {e}")

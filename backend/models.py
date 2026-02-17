@@ -36,6 +36,7 @@ class User(Base):
 
     watchlists = relationship("Watchlist", back_populates="user")
     alerts = relationship("Alert", back_populates="user", cascade="all, delete-orphan")
+    portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
 
 class Feedback(Base):
     __tablename__ = "feedback"
@@ -154,3 +155,39 @@ class GuardianAlert(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # AI Summary Fields (mirrors Watchlist pattern)
+    last_summary_at = Column(DateTime, nullable=True)
+    last_summary_text = Column(Text, nullable=True)
+    last_summary_source = Column(String, nullable=True)
+
+    user = relationship("User", back_populates="portfolios")
+    holdings = relationship("PortfolioHolding", back_populates="portfolio", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name', name='uq_user_portfolio_name'),
+    )
+
+class PortfolioHolding(Base):
+    __tablename__ = "portfolio_holdings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    symbol = Column(String, index=True, nullable=False)
+    quantity = Column(Float, nullable=False, default=0)
+    avg_cost = Column(Float, nullable=True)
+    imported_at = Column(DateTime, default=datetime.utcnow)
+
+    portfolio = relationship("Portfolio", back_populates="holdings")
+
+    __table_args__ = (
+        UniqueConstraint('portfolio_id', 'symbol', name='uq_portfolio_symbol'),
+    )

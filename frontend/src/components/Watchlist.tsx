@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
     getWatchlists,
     createWatchlist,
@@ -14,11 +14,17 @@ import {
     getBatchPrices,
     reorderWatchlists,
     reorderStocks,
-    Watchlist
+    Watchlist,
+    Portfolio,
+    getPortfolios,
+    createPortfolio,
+    deletePortfolio as apiDeletePortfolio,
+    importPortfolioCSV,
+    clearPortfolioHoldings
 } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
-import { Plus, Search, Trash2, ArrowRightLeft, X, Check, MoreVertical, LayoutGrid, Upload, FileSpreadsheet, GripVertical } from 'lucide-react';
+import { Plus, Search, Trash2, ArrowRightLeft, X, Check, MoreVertical, LayoutGrid, Upload, FileSpreadsheet, GripVertical, Briefcase, TrendingUp, TrendingDown, FolderUp } from 'lucide-react';
 
 // DND Kit Imports
 import {
@@ -45,6 +51,7 @@ interface WatchlistProps {
     onSelectStock?: (symbol: string) => void;
     onWatchlistChange?: (stocks: string[]) => void;
     onActiveWatchlistChange?: (watchlist: Watchlist | null) => void;
+    onActivePortfolioChange?: (portfolio: Portfolio | null) => void;
 }
 
 // --- Sortable Helper Components ---
@@ -219,7 +226,7 @@ function SortableStockRow({
 
 // --- Main Component ---
 
-export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange }: WatchlistProps) {
+export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange, onActivePortfolioChange }: WatchlistProps) {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [activeWatchlistId, setActiveWatchlistId] = useState<number | null>(null);
 
@@ -231,6 +238,18 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         stocks: ["AAPL", "NVDA", "SPY", "TSLA", "AMZN", "MSFT", "GOOGL"],
         position: 0
     };
+
+    // --- Mode Toggle ---
+    const [sidebarMode, setSidebarMode] = useState<'watchlist' | 'portfolio'>('watchlist');
+
+    // --- Portfolio State ---
+    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const [activePortfolioId, setActivePortfolioId] = useState<number | null>(null);
+    const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
+    const [newPortfolioName, setNewPortfolioName] = useState('');
+    const [portfolioStockData, setPortfolioStockData] = useState<Record<string, any>>({});
+    const [portfolioLoading, setPortfolioLoading] = useState(false);
+    const [isDraggingFile, setIsDraggingFile] = useState(false);
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -281,6 +300,14 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             onActiveWatchlistChange(activeWatchlist || null);
         }
     }, [activeWatchlist, onActiveWatchlistChange]);
+
+    // Report active portfolio to parent
+    useEffect(() => {
+        if (onActivePortfolioChange) {
+            const active = portfolios.find(p => p.id === activePortfolioId) || null;
+            onActivePortfolioChange(active);
+        }
+    }, [activePortfolioId, portfolios, onActivePortfolioChange]);
 
     const handleWatchlistDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -651,39 +678,209 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         e.target.value = '';
     };
 
+    // --- Portfolio Handlers ---
+    const fetchPortfolios = useCallback(async () => {
+        if (!user) return;
+        try {
+            setPortfolioLoading(true);
+            const data = await getPortfolios();
+            setPortfolios(data);
+            if (data.length > 0 && !activePortfolioId) {
+                setActivePortfolioId(data[0].id);
+            }
+        } catch (e) {
+            console.error('Failed to fetch portfolios:', e);
+        } finally {
+            setPortfolioLoading(false);
+        }
+    }, [user, activePortfolioId]);
+
+    useEffect(() => {
+        if (sidebarMode === 'portfolio' && user) {
+            fetchPortfolios();
+        }
+    }, [sidebarMode, user]);
+
+    // Fetch prices for portfolio holdings
+    useEffect(() => {
+        if (sidebarMode !== 'portfolio') return;
+        const allSymbols = portfolios.flatMap(p => p.holdings.map(h => h.symbol));
+        const unique = [...new Set(allSymbols)].filter(s => !portfolioStockData[s]);
+        if (unique.length === 0) return;
+        getBatchPrices(unique).then(prices => {
+            const newData: Record<string, any> = { ...portfolioStockData };
+            prices.forEach((p: any) => {
+                if (p.symbol) newData[p.symbol] = p;
+            });
+            setPortfolioStockData(newData);
+        }).catch(console.error);
+    }, [portfolios, sidebarMode]);
+
+    const handleCreatePortfolio = async () => {
+        if (!newPortfolioName.trim()) return;
+        try {
+            const created = await createPortfolio(newPortfolioName.trim());
+            setPortfolios([...portfolios, created]);
+            setActivePortfolioId(created.id);
+            setNewPortfolioName('');
+            setIsCreatingPortfolio(false);
+        } catch (e: any) {
+            alert(e.response?.data?.detail || 'Failed to create portfolio');
+        }
+    };
+
+    const handleDeletePortfolio = async () => {
+        if (!activePortfolioId) return;
+        const portfolio = portfolios.find(p => p.id === activePortfolioId);
+        if (!portfolio) return;
+        if (!window.confirm(`Delete "${portfolio.name}" and all ${portfolio.holdings.length} holdings?`)) return;
+        try {
+            await apiDeletePortfolio(activePortfolioId);
+            const remaining = portfolios.filter(p => p.id !== activePortfolioId);
+            setPortfolios(remaining);
+            setActivePortfolioId(remaining.length > 0 ? remaining[0].id : null);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to delete portfolio');
+        }
+    };
+
+    const handlePortfolioImport = async (file: File) => {
+        if (!activePortfolioId) return;
+        try {
+            setPortfolioLoading(true);
+            const updated = await importPortfolioCSV(activePortfolioId, file);
+            setPortfolios(portfolios.map(p => p.id === activePortfolioId ? updated : p));
+        } catch (e: any) {
+            alert(e.response?.data?.detail || 'Import failed. Check file format.');
+        } finally {
+            setPortfolioLoading(false);
+        }
+    };
+
+    const handlePortfolioFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        await handlePortfolioImport(e.target.files[0]);
+        e.target.value = '';
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDraggingFile(false);
+        const file = e.dataTransfer.files[0];
+        if (file) await handlePortfolioImport(file);
+    };
+
+    // Portfolio computed values
+    const activePortfolio = portfolios.find(p => p.id === activePortfolioId);
+    const allHoldings = portfolios.flatMap(p => p.holdings);
+
+    const computeHoldingPL = (symbol: string, quantity: number, avgCost: number | null) => {
+        const data = portfolioStockData[symbol];
+        const currentPrice = data?.currentPrice || data?.regularMarketPrice || 0;
+        const marketValue = quantity * currentPrice;
+        const costBasis = quantity * (avgCost || 0);
+        const pl = avgCost ? marketValue - costBasis : 0;
+        const plPct = costBasis > 0 ? (pl / costBasis) * 100 : 0;
+        return { currentPrice, marketValue, costBasis, pl, plPct };
+    };
+
+    const computePortfolioTotals = (holdings: typeof allHoldings) => {
+        let totalValue = 0;
+        let totalCost = 0;
+        holdings.forEach(h => {
+            const { marketValue, costBasis } = computeHoldingPL(h.symbol, h.quantity, h.avg_cost);
+            totalValue += marketValue;
+            totalCost += costBasis;
+        });
+        const totalPL = totalValue - totalCost;
+        const totalPLPct = totalCost > 0 ? (totalPL / totalCost) * 100 : 0;
+        return { totalValue, totalCost, totalPL, totalPLPct };
+    };
+
     return (
         <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl p-3 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 h-full flex flex-col relative transition-all duration-500" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
+            {/* Segmented Toggle: Watchlist | Portfolio */}
             <div className="flex justify-between items-center mb-4 shrink-0">
-                <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
-                    {user ? "My Watchlist" : "Watchlist"}
-                </h2>
-                <div className="flex gap-1">
-                    {activeWatchlistId && (
+                {user ? (
+                    <div className="flex bg-gray-100 dark:bg-gray-800/60 rounded-xl p-0.5 border border-gray-200 dark:border-gray-700/50">
                         <button
-                            onClick={handleDeleteWatchlist}
-                            className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
-                            title="Delete this watchlist"
+                            onClick={() => setSidebarMode('watchlist')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sidebarMode === 'watchlist'
+                                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                }`}
                         >
-                            <Trash2 size={18} />
+                            <LayoutGrid size={14} />
+                            Watchlist
                         </button>
-                    )}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
-                        className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white transition-colors"
-                        title="Create new watchlist"
-                    >
-                        <Plus size={20} />
-                    </button>
-                    {activeWatchlistId && (
-                        <label className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors cursor-pointer" title="Import from Excel/CSV">
-                            <Upload size={18} />
-                            <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleImport} />
-                        </label>
+                        <button
+                            onClick={() => setSidebarMode('portfolio')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sidebarMode === 'portfolio'
+                                ? 'bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                }`}
+                        >
+                            <Briefcase size={14} />
+                            Portfolio
+                        </button>
+                    </div>
+                ) : (
+                    <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
+                        Watchlist
+                    </h2>
+                )}
+                {/* Action buttons change based on mode */}
+                <div className="flex gap-1">
+                    {sidebarMode === 'watchlist' ? (
+                        <>
+                            {activeWatchlistId && (
+                                <button
+                                    onClick={handleDeleteWatchlist}
+                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
+                                    title="Delete this watchlist"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
+                                className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white transition-colors"
+                                title="Create new watchlist"
+                            >
+                                <Plus size={20} />
+                            </button>
+                            {activeWatchlistId && (
+                                <label className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors cursor-pointer" title="Import from Excel/CSV">
+                                    <Upload size={18} />
+                                    <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleImport} />
+                                </label>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            {activePortfolioId && (
+                                <button
+                                    onClick={handleDeletePortfolio}
+                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
+                                    title="Delete this portfolio"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsCreatingPortfolio(true); }}
+                                className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-white transition-colors"
+                                title="Create new portfolio"
+                            >
+                                <Plus size={20} />
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
 
-            {isCreating && (
+            {sidebarMode === 'watchlist' && isCreating && (
                 <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="text"
@@ -704,14 +901,14 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             )}
 
             {/* Loading State */}
-            {isLoading && (
+            {sidebarMode === 'watchlist' && isLoading && (
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-gray-500 animate-pulse">Loading watchlists...</div>
                 </div>
             )}
 
             {/* Error State */}
-            {error && !isLoading && (
+            {sidebarMode === 'watchlist' && error && !isLoading && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                     {error}
                     <button
@@ -724,7 +921,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             )}
 
             {/* Empty State - No Watchlists */}
-            {!isLoading && !error && watchlists.length === 0 && user && (
+            {sidebarMode === 'watchlist' && !isLoading && !error && watchlists.length === 0 && user && (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                     <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
                         <LayoutGrid className="text-blue-600 dark:text-blue-400" size={28} />
@@ -741,7 +938,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             )}
 
             {/* Tabs - Only show when there are watchlists */}
-            {!isLoading && watchlists.length > 0 && (
+            {sidebarMode === 'watchlist' && !isLoading && watchlists.length > 0 && (
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
                     <DndContext
                         sensors={sensors}
@@ -766,7 +963,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             )}
 
             {/* Active Watchlist Content */}
-            {activeWatchlist && (
+            {sidebarMode === 'watchlist' && activeWatchlist && (
                 <div className="space-y-3 flex-1 flex flex-col min-h-0">
                     {/* Add Stock / Search */}
                     <div className="relative shrink-0 z-50">
@@ -863,6 +1060,193 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                             </DndContext>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* ============ PORTFOLIO MODE ============ */}
+            {sidebarMode === 'portfolio' && user && (
+                <>
+                    {/* Create Portfolio Inline */}
+                    {isCreatingPortfolio && (
+                        <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
+                            <input
+                                type="text"
+                                value={newPortfolioName}
+                                onChange={(e) => setNewPortfolioName(e.target.value)}
+                                placeholder="Portfolio Name"
+                                className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-emerald-500 outline-none"
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreatePortfolio()}
+                                autoFocus
+                            />
+                            <button onClick={handleCreatePortfolio} className="px-3 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
+                                <Check size={16} />
+                            </button>
+                            <button onClick={() => setIsCreatingPortfolio(false)} className="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white transition-colors">
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Portfolio Loading */}
+                    {portfolioLoading && portfolios.length === 0 && (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-gray-500 animate-pulse">Loading portfolios...</div>
+                        </div>
+                    )}
+
+                    {/* Empty State: No Portfolios */}
+                    {!portfolioLoading && portfolios.length === 0 && !isCreatingPortfolio && (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
+                                <Briefcase className="text-emerald-600 dark:text-emerald-400" size={28} />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Portfolios Yet</h3>
+                            <p className="text-gray-500 text-sm mb-4">Import your holdings from Robinhood<br />or create a portfolio manually.</p>
+                            <button
+                                onClick={() => setIsCreatingPortfolio(true)}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                            >
+                                <Plus size={16} /> Create Portfolio
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Portfolio Tabs */}
+                    {portfolios.length > 0 && (
+                        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
+                            {portfolios.map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => setActivePortfolioId(p.id)}
+                                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border shrink-0 ${activePortfolioId === p.id
+                                        ? 'bg-emerald-100 dark:bg-emerald-600/20 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
+                                        }`}
+                                >
+                                    {p.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Active Portfolio Content */}
+                    {activePortfolio && (
+                        <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                            {/* Portfolio Summary Card */}
+                            {activePortfolio.holdings.length > 0 && (() => {
+                                const totals = computePortfolioTotals(activePortfolio.holdings);
+                                return (
+                                    <div className="bg-gray-50 dark:bg-gray-800/40 rounded-xl p-3 border border-gray-200 dark:border-gray-700/50 shrink-0">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total Value</div>
+                                                <div className="text-lg font-black text-gray-900 dark:text-white tabular-nums">
+                                                    ${totals.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total P&L</div>
+                                                <div className={`text-sm font-bold tabular-nums ${totals.totalPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                                    }`}>
+                                                    {totals.totalPL >= 0 ? '+' : ''}${totals.totalPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    <span className="ml-1 text-[10px]">
+                                                        ({totals.totalPL >= 0 ? '+' : ''}{totals.totalPLPct.toFixed(1)}%)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Import Zone (when portfolio has no holdings) */}
+                            {activePortfolio.holdings.length === 0 && (
+                                <div
+                                    className={`text-center py-8 border-2 border-dashed rounded-xl transition-all ${isDraggingFile
+                                        ? 'border-emerald-500 bg-emerald-500/10'
+                                        : 'border-gray-300 dark:border-gray-700'
+                                        }`}
+                                    onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                                    onDragLeave={() => setIsDraggingFile(false)}
+                                    onDrop={handleDrop}
+                                >
+                                    <FolderUp size={32} className="mx-auto text-gray-400 mb-3" />
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Drop CSV here</p>
+                                    <p className="text-xs text-gray-500 mb-3">or click to browse</p>
+                                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">
+                                        <Upload size={14} />
+                                        Upload CSV
+                                        <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
+                                    </label>
+                                </div>
+                            )}
+
+                            {/* Re-import button (when portfolio has holdings) */}
+                            {activePortfolio.holdings.length > 0 && (
+                                <div className="flex gap-2 shrink-0">
+                                    <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+                                        <Upload size={12} />
+                                        Re-import CSV
+                                        <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
+                                    </label>
+                                </div>
+                            )}
+
+                            {/* Holdings List */}
+                            <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
+                                {activePortfolio.holdings.map((holding) => {
+                                    const { currentPrice, pl, plPct } = computeHoldingPL(holding.symbol, holding.quantity, holding.avg_cost);
+                                    return (
+                                        <div
+                                            key={holding.id}
+                                            onClick={() => onSelectStock && onSelectStock(holding.symbol)}
+                                            className="flex items-center py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                                        >
+                                            {/* Left: Ticker & Holdings Info */}
+                                            <div className="flex-1 min-w-0 pr-1">
+                                                <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{holding.symbol}</h3>
+                                                <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
+                                                    {holding.quantity} shares{holding.avg_cost ? ` · avg $${holding.avg_cost.toFixed(2)}` : ''}
+                                                </p>
+                                            </div>
+                                            {/* Right: Price & P&L */}
+                                            <div className="text-right shrink-0">
+                                                {currentPrice ? (
+                                                    <>
+                                                        <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight tabular-nums">
+                                                            ${currentPrice.toFixed(2)}
+                                                        </span>
+                                                        {holding.avg_cost ? (
+                                                            <span className={`text-[10px] font-bold tabular-nums block mt-0.5 ${pl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                                                }`}>
+                                                                {pl >= 0 ? '+' : ''}${pl.toFixed(0)} ({pl >= 0 ? '+' : ''}{plPct.toFixed(1)}%)
+                                                            </span>
+                                                        ) : null}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-xs text-blue-400 animate-pulse">---</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Portfolio mode: Not logged in */}
+            {sidebarMode === 'portfolio' && !user && (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                    <Briefcase className="text-gray-400 mb-3" size={32} />
+                    <p className="text-gray-500 text-sm mb-3">Sign in to import your portfolio</p>
+                    <button
+                        onClick={() => setShowAuthModal(true)}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                        Sign In
+                    </button>
                 </div>
             )}
         </div>

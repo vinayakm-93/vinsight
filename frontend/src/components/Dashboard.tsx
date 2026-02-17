@@ -12,8 +12,9 @@ import { Shield, ShieldCheck } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
-import { Watchlist } from '../lib/api';
+import { Watchlist, Portfolio } from '../lib/api';
 import WatchlistSummaryCard from './WatchlistSummaryCard';
+import PortfolioSummaryCard from './PortfolioSummaryCard';
 import GuardianSection from './GuardianSection';
 
 const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
@@ -54,6 +55,7 @@ interface DashboardProps {
     onRequireAuth?: () => void;
     onSelectStock?: (ticker: string) => void;
     activeWatchlist?: Watchlist | null;
+    activePortfolio?: Portfolio | null;
 }
 
 const TIME_RANGES = [
@@ -82,7 +84,8 @@ export default function Dashboard({
     onClearSelection,
     onRequireAuth,
     onSelectStock,
-    activeWatchlist
+    activeWatchlist,
+    activePortfolio
 }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
@@ -598,6 +601,14 @@ export default function Dashboard({
                         watchlistName={activeWatchlist.name}
                         stockCount={activeWatchlist.stocks.length}
                         symbols={activeWatchlist.stocks}
+                    />
+                )}
+
+                {activePortfolio && (
+                    <PortfolioSummaryCard
+                        portfolioId={activePortfolio.id}
+                        portfolioName={activePortfolio.name}
+                        holdingCount={activePortfolio.holdings.length}
                     />
                 )}
 
