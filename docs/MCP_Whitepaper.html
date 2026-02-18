@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VinSight MCP Architecture & Rationale</title>
+    <style>
+        body {
+            font-family: "Calibri", "Helvetica", sans-serif;
+            line-height: 1.6;
+            max_width: 800px;
+            margin: 40px auto;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h2 { border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 30px; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: "Consolas", monospace; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .warning { color: #856404; background-color: #fff3cd; padding: 10px; border: 1px solid #ffeeba; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<h1>VinSight MCP: Architecture & Rationale</h1>
+
+<p>
+    <strong>Date:</strong> February 2026<br>
+    <strong>Version:</strong> 1.0 (Production)<br>
+    <strong>Format:</strong> Single-File Implementation Guide
+</p>
+
+<hr>
+
+<h2>1. Executive Rationale: Why MCP?</h2>
+
+<h3>The Problem</h3>
+<p>Traditional financial dashboards are <strong>passive</strong>. Users must click, scroll, and interpret data themselves. To answer "Is AAPL a buy?", a user has to check news, look at charts, and read filings separately.</p>
+
+<h3>The Solution: "Agentic Finance"</h3>
+<p>We transformed VinSight from a passive dashboard into an <strong>Active Agent</strong>.<br>
+By implementing the <strong>Model Context Protocol (MCP)</strong>, we allow AI Agents (like Claude, Gemini, or OpenAI) to:</p>
+<ol>
+    <li><strong>See</strong> our data (Stock Prices, News, Portfolios).</li>
+    <li><strong>Act</strong> on our tools (Run Simulations, Audit Holdings).</li>
+    <li><strong>Reason</strong> across multiple sources (Combine Earnings sentiment with Price volatility).</li>
+</ol>
+
+<h3>Why MCP?</h3>
+<p>We chose MCP over a custom API because it is the <strong>Universal Standard</strong>.</p>
+<ul>
+    <li><strong>Interoperability</strong>: One server works with Claude Desktop, Cursor, Windsurf, and future interfaces.</li>
+    <li><strong>Security</strong>: Runs locally (stdio) or securely (SSE), keeping user data private.</li>
+    <li><strong>Future-Proofing</strong>: As "Omni" models evolve, our data layer remains compatible.</li>
+</ul>
+
+<hr>
+
+<h2>2. Implementation Overview</h2>
+
+<p>We implemented a <strong>Python-based MCP Server</strong> (<code>backend/mcp_server.py</code>) that acts as a sidecar to our main application. It exposes <strong>4 High-Value Skills</strong>:</p>
+
+<h3>Skill 1: The News Analyst (<code>analyze_sentiment</code>)</h3>
+<ul>
+    <li><strong>Logic</strong>: Fetches last 7 days of news via Finnhub -> Uses Llama 3.3 (Groq) to analyze "Fear vs Greed".</li>
+    <li><strong>Rationale</strong>: Raw news is noisy. We need <em>synthesized sentiment</em> to understand market mood.</li>
+    <li><strong>Perf</strong>: &lt;2s latency.</li>
+</ul>
+
+<h3>Skill 2: The Risk Quant (<code>run_monte_carlo</code>)</h3>
+<ul>
+    <li><strong>Logic</strong>: Fetches 2 years of price history -> Runs 5,000 NumPy simulations.</li>
+    <li><strong>Output</strong>: P10 (Bad Case), P50 (Expected), P90 (Bull Case).</li>
+    <li><strong>Rationale</strong>: "Past performance doesn't guarantee future results," but statistical probability gives better bounds than guessing.</li>
+</ul>
+
+<h3>Skill 3: The Insider (<code>analyze_earnings</code>)</h3>
+<ul>
+    <li><strong>Logic</strong>: Scrapes the latest earnings call transcript -> Extracts CEO confidence & Forward Guidance.</li>
+    <li><strong>Rationale</strong>: Management tone often predicts price moves before the numbers do.</li>
+</ul>
+
+<h3>Skill 4: The Wealth Manager (<code>get_portfolio_summary</code>)</h3>
+<ul>
+    <li><strong>Logic</strong>: Audits the user's <em>actual</em> database portfolio -> Enriches with live prices -> Generates a holistic report.</li>
+    <li><strong>Rationale</strong>: Personalized advice requires access to private data (Holdings), which public LLMs don't have.</li>
+</ul>
+
+<hr>
+
+<h2>3. Safety Architecture ("The Fortress")</h2>
+
+<p>Giving an AI access to tools is risky. We implemented a <strong>Defense-in-Depth</strong> strategy.</p>
+
+<h3>Layer 1: The Kill Switch</h3>
+<ul>
+    <li><strong>What</strong>: A lock file (<code>mcp_kill_switch.lock</code>).</li>
+    <li><strong>Why</strong>: If the AI enters a loop or spends too much money, we need a "hard physical stop" that works instantly.</li>
+</ul>
+
+<h3>Layer 2: Persistent Rate Limits</h3>
+<ul>
+    <li><strong>Global Cap</strong>: <strong>100 calls/day</strong>.</li>
+    <li><strong>Hourly Caps</strong>: Conservative limits per tool (e.g., 3 Portfolio audits/hour).</li>
+    <li><strong>Why</strong>: To prevent "Denial of Wallet" attacks (where an AI loop drains $500 in API credits in an hour). Persistence ensures restarting the server doesn't reset the limits.</li>
+</ul>
+
+<h3>Layer 3: Secure Logging</h3>
+<ul>
+    <li><strong>What</strong>: We log <em>actions</em>, not <em>content</em>.</li>
+    <li><strong>Why</strong>: We need an audit trail ("Did the AI check sentiment?"), but we must NEVER log user prompts or API keys.</li>
+</ul>
+
+<hr>
+
+<h2>4. Economic Analysis</h2>
+
+<p>We designed the system to be <strong>Cost-Resilient</strong>.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Tool</th>
+            <th>Cost per Call</th>
+            <th>Worst-Case Daily Burn (100 calls)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Earnings Analysis</strong></td>
+            <td>~$0.05 (Long Context)</td>
+            <td>$5.00</td>
+        </tr>
+        <tr>
+            <td><strong>Portfolio Audit</strong></td>
+            <td>~$0.02 (Reasoning Model)</td>
+            <td>$2.00</td>
+        </tr>
+        <tr>
+            <td><strong>Sentiment/Sim</strong></td>
+            <td>&lt;$0.01</td>
+            <td>&lt;$1.00</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Conclusion</strong>: Even in a worst-case scenario (maxing out the daily limit on the most expensive tool), the cost is capped at <strong>~$5.00/day</strong>. Normal usage is cents per day.</p>
+
+<hr>
+
+<h2>5. Summary</h2>
+<p>VinSight MCP is a <strong>Production-Grade, Safety-First</strong> implementation of Agentic AI. It turns a static financial database into a dynamic, reasoning financial advisor, protected by strict economic and security controls.</p>
+
+</body>
+</html>
