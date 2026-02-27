@@ -26,6 +26,7 @@ textblob
 
 # AI / Google
 google-generativeai>=0.4.0
+google-genai
 openai
 uvicorn>=0.4.0
 groq
