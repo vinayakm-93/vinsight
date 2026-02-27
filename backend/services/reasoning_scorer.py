@@ -502,6 +502,10 @@ You MUST respond with a single valid JSON object. No other text.
         else:
             # Parse new structured fields
             structured_summary["verdict"] = summary_obj.get("verdict", "No verdict provided.")
+            
+            # Fix dynamic score mismatch (Replace the AI's raw score with the confidence-discounted score)
+            structured_summary["verdict"] = re.sub(r"Rated \d+/100", f"Rated {final_score}/100", structured_summary["verdict"])
+
             structured_summary["bull_case"] = summary_obj.get("bull_case", "No bull case provided.")
             structured_summary["bear_case"] = summary_obj.get("bear_case", "No bear case provided.")
             structured_summary["fundamental_analysis"] = summary_obj.get("fundamental_analysis", "")
