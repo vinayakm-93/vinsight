@@ -1023,23 +1023,28 @@ def get_batch_prices(tickers: list):
     """
     if not tickers: return []
     
+    sorted_tickers = sorted(tickers)
+    cache_key = f"batch_prices_{'_'.join(sorted_tickers)}"
+    cached_data = price_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     results = []
     try:
         # Fetch 5 days to ensure we have previous close even after weekends/holidays
         # group_by='ticker' ensures consistent structure even for single ticker
-        start_time = time.time()
-        # threads=True is default but explicit doesn't hurt. 
-        # auto_adjust=True gives split-adjusted, but we want actual price? 
-        # Actually regular market price usually implies unadjusted for immediate view?
-        # But 'Close' is fine.
-        df = yf.download(tickers, period="5d", group_by='ticker', progress=False, threads=True)
+        # threads=False to avoid rate limits and potential worker crashes
+        df = yf.download(tickers, period="5d", group_by='ticker', progress=False, threads=False)
         
         # Parse DataFrame (CPU bound, fast)
         for symbol in tickers:
             try:
                 # Handle MultiIndex
                 if len(tickers) > 1:
-                    ticker_df = df[symbol]
+                    if symbol in df.columns.levels[0]: # Check if symbol exists in top level keys
+                        ticker_df = df[symbol]
+                    else:
+                        continue
                 else:
                     ticker_df = df
                     
@@ -1055,6 +1060,10 @@ def get_batch_prices(tickers: list):
 
                 curr_row = ticker_df.iloc[-1]
                 
+                # Check if Close exists
+                if 'Close' not in curr_row:
+                    continue
+
                 current = float(curr_row['Close'])
                 prev = None
                 
@@ -1079,8 +1088,14 @@ def get_batch_prices(tickers: list):
                 # logger.warning(f"Error parsing batch price for {symbol}: {e}")
                 continue
                 
+                # Store in cache for 60 seconds (Short TTL for prices)
+        if results:
+            price_cache.set(cache_key, results, ttl=60)
+                
     except Exception as e:
-        logger.error(f"Batch fetch error: {e}")
+        logger.warning(f"Batch fetch error (Rate Limit?): {e}")
+        # Circuit Breaker: Cache empty result for 15s to prevent hammering API
+        price_cache.set(cache_key, [], ttl=15)
         return []
 
     return results

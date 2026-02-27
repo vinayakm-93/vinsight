@@ -8,6 +8,7 @@ from groq import Groq
 from typing import Dict, Optional
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,14 +82,6 @@ class GroqSentimentAnalyzer:
         # For gemini-1.5-flash with response_mime_type, the system instruction is less critical as the model is constrained to JSON.
         # However, for consistency and clarity, we can still include it in the prompt.
         
-        # The user's provided `_call_gemini` was `self.gemini_model.generate_content(prompt)`.
-        # I need to adapt it to take system_instruction and user_prompt.
-        # For Gemini, the system instruction is often prepended to the user prompt or handled via tools/functions.
-        # Given the `response_mime_type` is set in `__init__`, the model is already primed for JSON.
-        # I will pass the system instruction as part of the user prompt for clarity, or just the user prompt.
-        # Let's stick to the user's provided `_call_gemini` signature for now, which takes a single `prompt`.
-        # The `analyze` method will construct the full prompt.
-        
         # Re-evaluating the user's `_call_gemini` and `analyze` method:
         # `_call_gemini(self, prompt, max_tokens=300)`
         # `analyze` calls `_call_gemini(prompt_content)`
@@ -157,8 +150,6 @@ class GroqSentimentAnalyzer:
                     logger.warning(f"Groq Sentiment Analysis Failed: {e}. Falling back to Gemini 2.0 Flash...")
                     if self.gemini_model:
                         try:
-                            # For Gemini, the system instruction is often part of the prompt or handled by model config.
-                            # Since `response_mime_type` is set, we just need the user prompt.
                             completion = self._call_gemini(
                                 system_instruction="You are a financial sentiment analysis expert. Analyze the sentiment of financial news and provide a JSON response.",
                                 user_prompt=prompt_content,
@@ -332,13 +323,14 @@ Respond ONLY with the JSON.
                     if self.gemini_model:
                         try:
                             completion = self._call_gemini(
-                                system_instruction="You are a senior financial analyst. You are skeptical, fact-based, and immune to corporate spin. You analyze aggregate news to determine true market sentiment.",
+                                system_instruction="You are a senior financial analyst. Output valid JSON only.",
                                 user_prompt=prompt_content,
                                 temperature=0.2,
                                 max_tokens=300
                             )
                             response_content = completion.text
-                            logger.debug("Gemini batch analysis successful.")
+                            source_label = "Gemini 2.0 Flash (Fallback)"
+                            logger.info(f"Successfully generated summary via {source_label}")
                         except Exception as gemini_e:
                             logger.error(f"Gemini Batch Analysis Failed: {gemini_e}. No fallback available.")
                             raise gemini_e
@@ -353,9 +345,10 @@ Respond ONLY with the JSON.
                     max_tokens=300
                 )
                 response_content = completion.text
-                logger.debug("Gemini batch analysis successful.")
+                source_label = "Gemini 2.0 Flash"
+                logger.info(f"Gemini 2.0 summary generation successful.")
             else:
-                logger.error("No LLM client available for batch analysis.")
+                logger.error("No LLM client available for summary generation.")
                 return self._empty_result()
             
             return self._parse_response(response_content)
@@ -594,7 +587,7 @@ Output EXACT JSON:
                - "quality": 1 sentence analyzing valuation, margins, or solvency. Mention any missing fundamental data if relevant.
                - "timing": 1 sentence analyzing trend, momentum, or volume.
             3. "risk_factors": A list of 2-3 specific risks (e.g. "Margin compression", "Data Gaps", "Sector rotation"). bullet points style strings.
-            4. "outlook": A dictionary with keys "3m" (Tactical), "6m" (Catalyst), "12m" (Strategic). Max 10 words each.
+            4. "outlook": A dictionary with keys "3m" (Tactical), "6m" (Catalyst), "12m" (Strategic). Max 10 words each. 
             
             TONE:
             - Professional, sophisticated, decisive.
@@ -624,7 +617,7 @@ Output EXACT JSON:
                     logger.debug("Attempting summary generation with Groq...")
                     completion = self._call_groq(groq_messages, temperature=0.3, max_tokens=600, response_format={"type": "json_object"})
                     response_text = completion.choices[0].message.content
-                    source_label = "Llama 3.3 (Groq)"
+                    source_label = "Llama 3.3 (Reasoning)"
                     logger.debug("Groq summary generation successful.")
                 except Exception as e:
                     logger.warning(f"Groq Summary Gen Failed: {e}. Trying Gemini...")
@@ -730,11 +723,11 @@ Output EXACT JSON:
         
         summary_text = ""
         if len(parts) == 1:
-            summary_text = f"The score is driven by {parts[0]}."
+            summary_text = f"The score is driven by {parts[0]}. "
         elif len(parts) == 2:
-            summary_text = f"The score is anchored by {parts[0]}, with {parts[1]}."
+            summary_text = f"The score is anchored by {parts[0]}, with {parts[1]}. "
         else:
-            summary_text = f"The score is anchored by {parts[0]}, but affected by {parts[1]} and {parts[2]}."
+            summary_text = f"The score is anchored by {parts[0]}, but affected by {parts[1]} and {parts[2]}. "
 
         return {
             "executive_summary": summary_text,

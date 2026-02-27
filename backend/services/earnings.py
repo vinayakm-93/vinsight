@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from models import EarningsAnalysis
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
+from google.genai import Client
 
 # Env vars
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -22,15 +23,13 @@ else:
     groq_client = None
 
 # Configure Gemini
-import google.generativeai as genai
 if GEMINI_API_KEY:
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel('models/gemini-2.0-flash', generation_config={"response_mime_type": "application/json"})
+        gemini_client = Client()
     except:
-        gemini_model = None
+        gemini_client = None
 else:
-    gemini_model = None
+    gemini_client = None
 
 
 def search_transcript_url(ticker: str, quarter: int = None, year: int = None):
@@ -196,7 +195,7 @@ def get_transcript_data(ticker: str):
     year = str(current_year)
     
     # Try match from URL first (more reliable)
-    match = re.search(r'q([1-4])-(\d{4})', url) 
+    match = re.search(r'q([1-4])-(\d{{4}})', url) 
     if match:
         quarter = match.group(1)
         year = match.group(2)
@@ -228,7 +227,7 @@ def analyze_earnings(ticker: str, db: Session):
         # Assuming earnings are every 3 months.
         # If the specific Q/Y is "N/A", we might want to re-scrape to fix it, but let's assume valid.
         days_since = (datetime.utcnow() - latest_cache.last_api_check).days
-        if days_since < 60: # Conservative: if checked < 2 months ago, serve it.
+        if days_since < 60: # Conservative: if checked < 2 months ago, serve it. 
              # Parse existing content to see if source data is there, else default
              try:
                  content_json = json.loads(latest_cache.content)
@@ -246,7 +245,7 @@ def analyze_earnings(ticker: str, db: Session):
             }
 
     # --- Fetch New Data ---
-    if not groq_client and not gemini_model: 
+    if not groq_client and not gemini_client: 
         return {
             "error": "Missing AI API Keys (GROQ_API_KEY or GEMINI_API_KEY).",
             "error_code": "MISSING_AI_KEYS"

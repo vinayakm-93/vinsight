@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            background: white;
+            margin: 40px;
+            font-family: Arial, sans-serif;
+        }
+
+        .diagram {
+            margin-bottom: 60px;
+            page-break-after: always;
+        }
+
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #6366f1;
+            padding-bottom: 8px;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="diagram">
+        <h2>Figure 1: System Architecture</h2>
+        <div class="mermaid">
+            graph TB
+            subgraph Frontend_NextJS["Frontend (Next.js)"]
+            UI["Glassmorphism Dashboard"]
+            WL["Watchlist & Portfolio"]
+            end
+            subgraph Backend_FastAPI["Backend (FastAPI)"]
+            API["REST API"]
+            SCORER["CFA Scorer"]
+            ROUTER["AI Model Router"]
+            end
+            subgraph AI_Models["AI Models"]
+            DS["DeepSeek R1 - Strategic Reasoning"]
+            GROQ["Llama 3.3 via Groq - Sentiment"]
+            GEM["Gemini 2.0 Flash - Fallback"]
+            end
+            subgraph MCP_Server["MCP Server (4 Tools)"]
+            T1["analyze_sentiment"]
+            T2["run_monte_carlo"]
+            T3["analyze_earnings"]
+            T4["get_portfolio_summary"]
+            end
+            subgraph Data_Sources["Data Sources"]
+            YF["Yahoo Finance"]
+            FH["Finnhub News"]
+            SP["Serper Search"]
+            end
+            subgraph Google_Cloud["Infrastructure (Google Cloud)"]
+            CR["Cloud Run"]
+            SM["Secret Manager"]
+            SQL["Cloud SQL PostgreSQL"]
+            end
+            UI --> API
+            WL --> API
+            API --> SCORER
+            API --> ROUTER
+            ROUTER --> DS
+            ROUTER --> GROQ
+            ROUTER --> GEM
+            API --> T1
+            API --> T2
+            API --> T3
+            API --> T4
+            T1 --> FH
+            T2 --> YF
+            T3 --> SP
+            T4 --> SQL
+            CR --> API
+            SM --> CR
+        </div>
+    </div>
+
+    <div class="diagram">
+        <h2>Figure 2: Two-Brain AI Pipeline</h2>
+        <div class="mermaid">
+            flowchart LR
+            NEWS["50+ Headlines"] --> FAST["Fast Brain - Llama 3.3 / Groq"]
+            FAST -->|"Sentiment: -0.4"| SLOW["Slow Brain - DeepSeek R1"]
+            SCORE["CFA Score: 85"] --> SLOW
+            EARN["Earnings Transcript"] --> SLOW
+            SLOW --> THESIS["Investment Thesis - Buy / Hold / Sell"]
+            style FAST fill:#f97316,color:#fff
+            style SLOW fill:#6366f1,color:#fff
+            style THESIS fill:#10b981,color:#fff
+        </div>
+    </div>
+
+    <div class="diagram">
+        <h2>Figure 3: Thesis Agent - Autonomous 4-Stage Flow</h2>
+        <div class="mermaid">
+            flowchart TD
+            CRON["Cloud Run Cron Job"] --> S1["Stage 1: Fast Filter"]
+            S1 -->|"5 Signals Check"| DEC{"Event Detected?"}
+            DEC -->|"No"| SAFE["Thesis INTACT"]
+            DEC -->|"Yes"| S2["Stage 2: Gather Evidence"]
+            S2 --> S3["Stage 3: LLM Evaluation - DeepSeek R1"]
+            S3 --> VERDICT{"Verdict?"}
+            VERDICT -->|"INTACT"| LOG["Log and Continue"]
+            VERDICT -->|"AT_RISK / BROKEN"| S4["Stage 4: Email Alert"]
+            S4 --> USER["User Notified via Email"]
+            style CRON fill:#6366f1,color:#fff
+            style S3 fill:#f97316,color:#fff
+            style S4 fill:#ef4444,color:#fff
+            style SAFE fill:#10b981,color:#fff
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+
+</html>

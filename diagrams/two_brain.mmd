@@ -1,0 +1,10 @@
+flowchart LR
+    NEWS["50+ Headlines"] --> FAST["Fast Brain<br/>Llama 3.3 / Groq"]
+    FAST --> |"Sentiment: -0.4"| SLOW["Slow Brain<br/>DeepSeek R1"]
+    SCORE["CFA Score: 85"] --> SLOW
+    EARN["Earnings Transcript"] --> SLOW
+    SLOW --> THESIS["Investment Thesis<br/>Buy / Hold / Sell"]
+
+    style FAST fill:#f97316,color:#fff
+    style SLOW fill:#6366f1,color:#fff
+    style THESIS fill:#10b981,color:#fff

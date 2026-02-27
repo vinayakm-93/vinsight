@@ -1,12 +1,11 @@
 import os
 import logging
 import re
-import google.generativeai as genai
+from google.genai import Client
 from openai import OpenAI
 from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
-
 
 def _get_openrouter_client():
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -17,71 +16,9 @@ def _get_openrouter_client():
         )
     return None
 
-
 def _strip_think_tags(text: str) -> str:
     """Remove <think>...</think> blocks from DeepSeek R1 output."""
     return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-
-
-def _format_holdings_for_prompt(holdings_data: List[Dict]) -> tuple:
-    """
-    Format holdings with live prices into prompt-ready text.
-    
-    Each holding dict: {symbol, quantity, avg_cost, currentPrice, sector, companyName}
-    Returns: (formatted_text, total_value, total_cost, largest_symbol, largest_pct)
-    """
-    total_value = 0
-    total_cost = 0
-    formatted = []
-
-    for h in holdings_data:
-        current_price = h.get('currentPrice', 0) or 0
-        quantity = h.get('quantity', 0)
-        avg_cost = h.get('avg_cost') or 0
-        market_value = quantity * current_price
-        cost_basis = quantity * avg_cost
-        pl = market_value - cost_basis if avg_cost else 0
-        pl_pct = (pl / cost_basis * 100) if cost_basis > 0 else 0
-        total_value += market_value
-        total_cost += cost_basis
-        sector = h.get('sector', 'N/A')
-
-        formatted.append({
-            'symbol': h['symbol'],
-            'quantity': quantity,
-            'avg_cost': avg_cost,
-            'current_price': current_price,
-            'market_value': market_value,
-            'pl': pl,
-            'pl_pct': pl_pct,
-            'sector': sector,
-            'weight': 0  # computed after totals
-        })
-
-    # Compute weights
-    for f in formatted:
-        f['weight'] = (f['market_value'] / total_value * 100) if total_value > 0 else 0
-
-    # Sort by weight (largest first)
-    formatted.sort(key=lambda x: x['weight'], reverse=True)
-
-    largest = formatted[0] if formatted else None
-    largest_symbol = largest['symbol'] if largest else 'N/A'
-    largest_pct = f"{largest['weight']:.1f}" if largest else '0'
-
-    lines = []
-    for f in formatted:
-        sign = '+' if f['pl'] >= 0 else ''
-        avg_str = f"${f['avg_cost']:.2f}" if f['avg_cost'] else "N/A"
-        lines.append(
-            f"- **{f['symbol']}**: {f['quantity']:.0f} shares @ {avg_str} avg "
-            f"→ Current: ${f['current_price']:.2f} ({sign}${f['pl']:.2f}, "
-            f"**{sign}{f['pl_pct']:.1f}%**) | Weight: **{f['weight']:.1f}%** "
-            f"| Sector: {f['sector']}"
-        )
-
-    return '\n'.join(lines), total_value, total_cost, largest_symbol, largest_pct
-
 
 def generate_portfolio_summary(portfolio_name: str, holdings_data: List[Dict]) -> Dict:
     """
@@ -158,7 +95,7 @@ Be their trusted advisor: honest, specific, and actionable.
 - **Tone**: Trusted advisor. Candid but not alarmist.
 - **Depth**: 600-800 words. Comprehensive narrative, not bullet soup.
 - **Formatting**: Use MARKDOWN headers (##, ###).
-- **Data Highlighting (CRITICAL)**: Wrap in ** double asterisks **:
+- **Data Highlighting (CRITICAL)**: You MUST wrap EVERY instance of the following in double asterisks `**`:
     - All Tickers: **NVDA**, **AAPL**
     - All Percentages: **+97.9%**, **-15.1%**
     - All Dollar Amounts: **$4,404**, **$127,450**
@@ -175,7 +112,7 @@ RESPOND IN MARKDOWN ONLY.
             completion = openrouter.chat.completions.create(
                 model="deepseek/deepseek-r1",
                 messages=[
-                    {"role": "system", "content": "You are a Certified Financial Planner and Portfolio Strategist at a premier advisory firm. You provide candid, data-driven portfolio analysis for retail investors."},
+                    {"role": "system", "content": "You are a Certified Financial Planner and Portfolio Strategist at a premier advisory firm. You provide candid, data-driven portfolio analysis for retail investors."}, 
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.5,
@@ -204,9 +141,12 @@ RESPOND IN MARKDOWN ONLY.
         }
 
     try:
-        genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel('models/gemini-2.0-flash')
-        response = model.generate_content(prompt, generation_config={"temperature": 0.4})
+        gemini_client = Client()
+        model = gemini_client.models.GenerativeModel('gemini-2.0-flash') # No tools for this model
+        response = model.generate_content(
+            contents=prompt, 
+            generation_config={"temperature": 0.4}
+        )
 
         if response and response.text:
             return {

@@ -2,7 +2,8 @@ import os
 import sys
 import json
 import subprocess
-import google.genai as genai
+import google.generativeai as genai
+import google.generativeai.types as genai_types
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,7 +23,7 @@ if not API_KEY:
     print("❌ Error: GEMINI_API_KEY environment variable not set.")
     sys.exit(1)
 
-
+genai.configure(api_key=API_KEY)
 
 # --- MCP CLIENT HELPER ---
 class MCPClient:
@@ -138,7 +139,6 @@ mcp_tools = [
 
 # --- MAIN CHAT LOOP ---
 def main():
-    print("DEBUG: main started")
     print("🚀 Connecting to VinSight MCP Server...")
     client = MCPClient()
     print("✅ Connected.")
@@ -148,7 +148,6 @@ def main():
         model_name='gemini-2.0-flash', 
         tools=mcp_tools
     )
-    print("DEBUG: model created")
     # Start chat (auto-function calling is tricky with manual execution, using low-level generate_content loop for control)
     # chat = model.start_chat(enable_automatic_function_calling=True) 
 
@@ -160,7 +159,6 @@ def main():
         print(f"👤 Auto-Input: {initial_prompt}")
         run_turn(model, client, initial_prompt, [])
         client.close()
-        print("DEBUG: main finished")
         return
 
     history = []
@@ -183,20 +181,16 @@ def main():
     print("👋 Bye!")
 
 def run_turn(model, client, user_input, history):
-    print("DEBUG: run_turn started")
     # Construct message list from history + new input
     messages = history + [{"role": "user", "parts": [user_input]}]
     
     # 1. Send Message to Gemini
-    print("DEBUG: calling model.generate_content")
     response = model.generate_content(messages)
-    print("DEBUG: model.generate_content returned")
     
     # 2. Check for Function Call
     # Gemini 2.0 returns function calls in parts
     try:
         part = response.candidates[0].content.parts[0]
-        print("DEBUG: function call found")
     except:
         print(f"🤖 Gemini: {response.text}")
         history.append({"role": "model", "parts": [response.text]})
@@ -208,43 +202,23 @@ def run_turn(model, client, user_input, history):
         plugin_args = dict(fc.args)
 
         # 3. Execute with MCP
-        print(f"DEBUG: calling tool {tool_name}")
         result_text = client.call_tool(tool_name, plugin_args)
-        print(f"DEBUG: tool returned: {result_text}")
         
         # 4. Feed Result back to Gemini
         # Construct function response
-        messages.append(
-            {
-                "role": "model",
-                "parts": [
-                    {
-                        "function_call": {
-                            "name": tool_name,
-                            "args": plugin_args,
-                        }
-                    }
-                ],
-            }
-        )
-        messages.append(
-            {
-                "role": "function",
-                "parts": [
-                    {
-                        "function_response": {
-                            "name": tool_name,
-                            "response": {"result": result_text},
-                        }
-                    }
-                ],
-            }
+        function_response_part = genai_types.Part(
+            function_response=genai_types.FunctionResponse(
+                name=tool_name,
+                response={'result': result_text}
+            )
         )
         
+        # Add the model's function call and our response to history/messages
+        messages.append({"role": "model", "parts": [part]})
+        messages.append({"role": "function", "parts": [function_response_part]})
+        
         # Generate final answer from Gemini
-        print("DEBUG: calling final model.generate_content")
         final_response = model.generate_content(messages)
-        print("DEBUG: final model.generate_content returned")
         print(f"🤖 Gemini: {final_response.text}")
         
         # Update history (simplified: just append user and final answer for next turn context)
@@ -257,7 +231,6 @@ def run_turn(model, client, user_input, history):
         print(f"🤖 Gemini: {response.text}")
         history.append({"role": "model", "parts": [response.text]})
         
-    print("DEBUG: run_turn finished")
     return history
 
 if __name__ == "__main__":

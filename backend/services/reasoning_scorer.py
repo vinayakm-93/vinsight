@@ -104,7 +104,7 @@ class ReasoningScorer:
         elif self.deepseek: default_provider = "deepseek"
         else: default_provider = "gemini"
         # self.provider = os.getenv("AI_PROVIDER", default_provider).lower()
-        self.provider = default_provider # FORCE DEFAULT LOGIC (User Request: Llama 3.3)
+        self.provider = default_provider # FORCE DEFAULT LOGIC (User Request: Llama 3.3) 
         
         self.fallback_scorer = VinSightScorer() # The v9.0 Math Engine
 
@@ -194,17 +194,21 @@ class ReasoningScorer:
                 "Forward P/E": stock.fundamentals.forward_pe,
                 "PEG": stock.fundamentals.peg_ratio,
                 "P/B": getattr(stock.fundamentals, 'price_to_book', "N/A"),
-                "EV/EBITDA": getattr(stock.fundamentals, 'ev_to_ebitda', "N/A")
+                "EV/EBITDA": getattr(stock.fundamentals, 'ev_to_ebitda', "N/A"),
+                "Payout Ratio": getattr(stock.fundamentals, 'payout_ratio', "N/A"),
+                "Dividend Yield": f"{stock.dividend_yield:.2f}%" if stock.dividend_yield else "N/A"
             },
             "Profitability": {
                 "ROE": f"{stock.fundamentals.roe:.1%}",
                 "Net Margin": f"{stock.fundamentals.profit_margin:.1%}",
-                "Operating Margin": f"{stock.fundamentals.operating_margin:.1%}"
+                "Operating Margin": f"{stock.fundamentals.operating_margin:.1%}",
+                "FCF Yield": f"{stock.fundamentals.fcf_yield:.1%}" if stock.fundamentals.fcf_yield else "N/A"
             },
             "Health": {
                 "Debt/Equity": stock.fundamentals.debt_to_equity,
                 "Interest Coverage": stock.fundamentals.interest_coverage,
-                "Current Ratio": stock.fundamentals.current_ratio
+                "Current Ratio": stock.fundamentals.current_ratio,
+                "Altman Z-Score": getattr(stock.fundamentals, 'altman_z_score', "N/A")
             },
             "Growth": {
                 "Revenue Growth (3y)": f"{stock.fundamentals.revenue_growth_3y:.1%}" if stock.fundamentals.revenue_growth_3y else "N/A",
@@ -216,6 +220,10 @@ class ReasoningScorer:
                 "RSI": stock.technicals.rsi,
                 "Relative Vol": stock.technicals.relative_volume,
                 "Momentum": stock.technicals.momentum_label
+            },
+            "Conviction Signals": {
+                "Short Ratio": getattr(stock.fundamentals, 'short_ratio', "N/A"),
+                "Insider Ownership": f"{stock.fundamentals.held_percent_insiders:.1%}" if stock.fundamentals.held_percent_insiders else "N/A"
             }
         }
         
@@ -243,6 +251,10 @@ class ReasoningScorer:
             "Article Count": stock.sentiment.news_article_count
         }
 
+        market_regime = {
+            "Bull Market": stock.market_bull_regime
+        }
+
         return {
             "ticker": stock.ticker,
             "sector": stock.fundamentals.sector_name,
@@ -251,12 +263,26 @@ class ReasoningScorer:
             "price_context": price_context,
             "sentiment_context": sentiment_context,
             "persona": persona_cfg,
-            "earnings_context": earnings_context
+            "earnings_context": earnings_context,
+            "market_regime": market_regime
         }
 
     def _build_system_prompt(self, context: Dict) -> str:
         weights = context['persona'].get('scoring_weights', {})
         weight_str = "\n".join([f"- {k}: {v}%" for k, v in weights.items()])
+        persona_style = context['persona']['style']
+        
+        # Persona-Specific Sensitivity Logic
+        sensitivity_rule = ""
+        p_name = context['persona'].get('description', 'Standard')
+        if "Conservative" in p_name: # CFA / Income
+             sensitivity_rule = "SENSITIVITY: Penalize P/E > sector median by 1.5x. Reward FCF Yield > 5%. Punish dividend cuts severely."
+        elif "Aggressive" in p_name: # Momentum
+             sensitivity_rule = "SENSITIVITY: Ignore P/E and P/B. Score is 90% Price Action/Volume. If Price < SMA200, Score MUST be < 50."
+        elif "Value" in p_name:
+             sensitivity_rule = "SENSITIVITY: Reward Low P/B and Insider Buying. Penalize any stock at 52w High. Contrarian bias."
+        elif "Growth" in p_name:
+             sensitivity_rule = "SENSITIVITY: Forgive negative margins if Revenue Growth > 30%. Penalize growth deceleration heavily."
 
         return f"""
 You are a expert financial mentor for a Retail Investor.
@@ -266,24 +292,38 @@ YOUR AUDIENCE:
 - Smart retail investors who want to understand *WHY* a stock is good or bad.
 - Avoid excessive jargon. Explain implications (e.g., "High Debt means rising rates will hurt profits").
 
-STYLE: {context['persona']['style']}
+STYLE: {persona_style}
 FOCUS: {context['persona']['focus']}
+{sensitivity_rule}
 
-SCORING RUBRIC ({context['persona'].get('description', 'Standard')}):
+SCORING RUBRIC ({p_name}):
 The Final Score MUST be a weighted average based on the following priorities:
 {weight_str}
 
-SCORE CALIBRATION (Retail-Adjusted Risk Rubric):
-- 0-39: **AVOID / SELL**. Major red flags (Solvency risk, broken business model).
-- 40-59: **HOLD / WATCH**. Good company at bad price, or mixed signals.
-- 60-79: **BUY**. Solid fundamentals + Reasonable Valuation.
-- 80-100: **STRONG BUY**. Exceptional quality + Discounted Price. Rare.
+SCORE CALIBRATION (10-Tier Precision Deciles):
+- 0-19: ☠️ **Bankruptcy Risk**. (Solvency failure likely).
+- 20-39: 🛑 **Hard Sell**. (Broken thesis / Exit now).
+- 40-49: ⚠️ **Underperform**. (Deteriorating fundamentals, sell into strength).
+- 50-59: 📉 **Weak Hold**. (Dead money / Value Trap).
+- 60-69: 🤞 **Speculative**. (Turnaround play / 50-50 odds).
+- 70-74: ✅ **Watchlist Buy**. (Good company, wait for better price).
+- 75-79: 📈 **Buy**. (Solid compounder, start position).
+- 80-84: 🚀 **Strong Buy**. (Beating expectations, add aggressively).
+- 85-89: 💎 **High Conviction**. (Institutional quality, rare).
+- 90-100: 🦄 **Generational**. (Perfect storm of Value + Growth + Momentum).
 
-CRITICAL CONSISTENCY RULES:
-1. **Risk Penalty**: If Debt/Equity > 2.0 OR FCF is negative -> MAX SCORE = 60 (unless 'Momentum' persona).
-2. **Valuation Discipline**: If P/E > 50 AND Revenue Growth < 20% -> MAX SCORE = 55 (unless 'Growth' persona).
-3. **Trend Alignment**: If Price < SMA200 AND 'Momentum' persona -> MAX SCORE = 50.
-4. **Sentiment Check**: If News Sentiment is "Bearish" -> MAX SCORE = 70.
+ANTI-CLUSTERING DISCIPLINE:
+- Scores 80+ are RARE. Require exceptional quality AND discounted price.
+- Scores below 40 are EXPECTED for companies with broken fundamentals.
+- The MEDIAN stock should score 55-65. If you rate everything 65-75, you are being lazy.
+- Be ruthless.
+
+CRITICAL KILL SWITCHES (Apply these Point Deductions EXPLICITLY):
+1. **Solvency Risk**: Debt/Equity > 2.0 OR Negative FCF -> **DEDUCT 20 POINTS** (Unless 'Growth' persona & Growth > 30%).
+2. **Valuation Trap**: P/E > 50 AND Growth < 10% -> **DEDUCT 15 POINTS** (Unless 'Momentum' persona).
+3. **Broken Trend**: Price < SMA200 -> **DEDUCT 10 POINTS** (Unless 'Value' persona).
+4. **Revenue Collapse**: Revenue Growth < -10% -> **DEDUCT 15 POINTS**.
+5. **Bearish News**: Sentiment is "Bearish" -> **DEDUCT 10 POINTS**.
 
 BENCHMARK CONTEXT ({context['sector']}):
 - Median P/E: {context['benchmarks'].get('pe_median', 'N/A')}
@@ -298,6 +338,9 @@ FUNDAMENTAL & TECHNICAL DATA:
 
 NEWS SENTIMENT:
 {json.dumps(context['sentiment_context'], indent=2)}
+
+MARKET REGIME:
+{json.dumps(context.get('market_regime', {}), indent=2)}
 
 QUALITATIVE CONTEXT:
 - Earnings Call Analysis: {context['earnings_context']}
@@ -336,7 +379,7 @@ You MUST respond with a single valid JSON object. No other text.
     "trend": <int 0-10>,
     "volume": <int 0-10>
   }},
-  "risk_factors": ["<string>", "<string>"],
+  "risk_factors": ["<string: e.g. 'SOLVENCY RISK: -20 pts (Debt/Equity > 2.0)'>", "<string>"],
   "opportunities": ["<string>", "<string>"]
 }}
 """
@@ -433,8 +476,15 @@ You MUST respond with a single valid JSON object. No other text.
 
     def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any) -> Dict:
         """Merge AI conviction with algo metrics."""
-        score = llm_response.get("total_score", 50)
-        confidence = llm_response.get("confidence_score", 0)
+        raw_score = llm_response.get("total_score", 50)
+        confidence = llm_response.get("confidence_score", 70) # Default to 70 if missing
+        
+        # CONFIDENCE-WEIGHTED SCORING (New v10.0 Logic)
+        # Apply score 'haircut' if confidence is low.
+        # Discount factor: ranges from 0.8 (0% confidence) to 1.0 (100% confidence).
+        # We don't want to crush the score too hard, but soft-penalize uncertainty.
+        discount_factor = 0.8 + 0.2 * (confidence / 100)
+        final_score = round(raw_score * discount_factor)
         
         # New Summary Structure Parsing
         summary_obj = llm_response.get("summary", {})
@@ -465,7 +515,7 @@ You MUST respond with a single valid JSON object. No other text.
             
         risks = llm_response.get("risk_factors", [])
         opps = llm_response.get("opportunities", [])
-        rating = self._score_to_rating(score)
+        rating = self._score_to_rating(final_score)
         
         comps = llm_response.get("component_scores", {})
         
@@ -494,7 +544,7 @@ You MUST respond with a single valid JSON object. No other text.
         details = algo_result.details
 
         return {
-            "score": score,
+            "score": final_score,
             "rating": rating, 
             "color": self._get_color(rating), 
             "justification": summary_text,
@@ -513,15 +563,21 @@ You MUST respond with a single valid JSON object. No other text.
         }
 
     def _score_to_rating(self, score: int) -> str:
+        # Adjusted v10.0 Tiers (Deciles)
+        if score >= 90: return "Generational Buy"
+        if score >= 85: return "High Conviction"
         if score >= 80: return "Strong Buy"
-        if score >= 60: return "Buy"
-        if score >= 40: return "Hold"
-        if score >= 20: return "Sell"
-        return "Strong Sell"
+        if score >= 75: return "Buy"
+        if score >= 70: return "Watchlist Buy"
+        if score >= 60: return "Speculative Hold"
+        if score >= 50: return "Weak Hold"
+        if score >= 40: return "Underperform"
+        if score >= 20: return "Hard Sell"
+        return "Bankruptcy Risk"
 
     def _get_color(self, rating: str) -> str:
-        if "Buy" in rating: return "green"
-        if "Sell" in rating: return "red"
+        if "Buy" in rating or "High" in rating or "Generational" in rating: return "green"
+        if "Sell" in rating or "Risk" in rating or "Underperform" in rating: return "red"
         return "yellow"
 
     def _fallback_to_formula(self, stock: StockData) -> Dict:

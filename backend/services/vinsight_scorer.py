@@ -506,11 +506,16 @@ class VinSightScorer:
         return self.sector_benchmarks.get(sector_name, self.defaults)
 
     def _get_rating(self, score: float) -> str:
-        if score >= 90: return "Strong Buy"
-        elif score >= 75: return "Buy"
-        elif score >= 60: return "Hold"
-        elif score >= 40: return "Sell"
-        else: return "Strong Sell"
+        if score >= 90: return "Generational Buy"
+        if score >= 85: return "High Conviction"
+        if score >= 80: return "Strong Buy"
+        if score >= 75: return "Buy"
+        if score >= 70: return "Watchlist Buy"
+        if score >= 60: return "Speculative Hold"
+        if score >= 50: return "Weak Hold"
+        if score >= 40: return "Underperform"
+        if score >= 20: return "Hard Sell"
+        return "Bankruptcy Risk"
 
     def _generate_narrative(self, ticker, final, q, t, mods) -> str:
         narrative = f"{ticker} is rated {self._get_rating(final)} ({final:.0f}/100). "

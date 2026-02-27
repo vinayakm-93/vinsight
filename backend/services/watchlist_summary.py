@@ -68,7 +68,7 @@ Provide a high-conviction, professional market intelligence briefing for the "{w
 
 ### INSTRUCTIONS (The "Deep Monitor" Protocol):
 1. **Thematic Intelligence**: Synthesize the watchlist into 1-2 core investment themes.
-   - Don't just list moves. Explain: "Tech is selling off because 10Y yields hit 4.5%."
+   - Don't just list moves. Explain: "Tech is selling off because 10Y yields hit 4.5%".
 2. **Movers & Implications**: Analyze the Top 3 Gainers/Losers.
    - Explain *WHY* they moved and *WHAT* it means for the rest of the list.
 3. **Valuation Pulse**: Flag outliers.
@@ -79,11 +79,11 @@ Provide a high-conviction, professional market intelligence briefing for the "{w
 
 ### STYLE RULES:
 - **Tone**: "Mentor / Senior Partner". Candid, decisive, and educational.
-- **Depth**: Write a Comprehensive Narrative (**500-600 words**). No "too long; didn't read" summaries.
+- **Depth**: 600-800 words. Comprehensive narrative, not bullet soup.
 - **Formatting**: Use MARKDOWN headers (`##`, `###`).
 - **Data Highlighting (CRITICAL)**: You MUST wrap EVERY instance of the following in double asterisks `**`:
-    - All Tickers: e.g., **NVDA**, **AAPL**, **TSLA**
-    - All Percentages: e.g., **+5.2%**, **(-1.2%)**, **26.2% YTD**
+    - All Tickers: **NVDA**, **AAPL**
+    - All Percentages: **+5.2%**, **(-1.2%)**, **26.2% YTD**
     - All Valuations: e.g., **22.5x P/E**, **371.2x**
 
 RESPOND IN MARKDOWN ONLY.

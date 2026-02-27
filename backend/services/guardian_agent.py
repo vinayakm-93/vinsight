@@ -104,7 +104,7 @@ def generate_thesis_detected(symbol: str) -> str:
         
         Context: {summary}
         
-        The thesis should focus on:
+The thesis should focus on:
         1. The primary growth driver or competitive advantage.
         2. The key risk factor to watch.
         

@@ -1568,7 +1568,12 @@ export default function Dashboard({
                                                         {(() => {
                                                             const rawQuality = (analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? analysis.ai_analysis.score;
                                                             const rawTiming = (analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? analysis.ai_analysis.score;
-                                                            const dynamicScore = ((rawQuality * fundWeight) + (rawTiming * (100 - fundWeight))) / 100;
+
+                                                            // FIX: If using AI Reasoning, use the AI's weighted score directly.
+                                                            // Otherwise (Algo Mode), use the slider to dynamically weight Quality vs Timing.
+                                                            const dynamicScore = useReasoning
+                                                                ? (analysis.ai_analysis.score)
+                                                                : ((rawQuality * fundWeight) + (rawTiming * (100 - fundWeight))) / 100;
 
                                                             let ringColor = 'emerald';
                                                             if (dynamicScore < 40) ringColor = 'red';
@@ -1602,16 +1607,66 @@ export default function Dashboard({
                                                         })()}
                                                     </div>
                                                     <div className="flex-1">
-                                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
+                                                            {analysis.ai_analysis.meta?.confidence && (
+                                                                <div className="flex items-center gap-3">
+                                                                    {/* Methodology Tooltip */}
+                                                                    <div className="group relative">
+                                                                        <Info size={14} className="text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
+                                                                        <div className="absolute right-0 top-6 w-64 p-3 bg-gray-900/95 backdrop-blur text-white text-[10px] leading-relaxed rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-gray-700">
+                                                                            <strong className="block text-blue-400 mb-1">VinSight Scoring v10.0</strong>
+                                                                            Score (0-100) is a weighted conviction rating based on your active <strong>{selectedPersona}</strong> persona.
+                                                                            <ul className="list-disc pl-3 mt-1 space-y-0.5 text-gray-300">
+                                                                                <li><strong>90-100:</strong> Generational Opportunity</li>
+                                                                                <li><strong>80-89:</strong> High Conviction Buy</li>
+                                                                                <li><strong>0-39:</strong> Sell / Bankruptcy Risk</li>
+                                                                            </ul>
+                                                                            <div className="mt-2 pt-2 border-t border-gray-700 text-gray-400 italic">
+                                                                                Includes active penalties for solvency, valuation traps, and momentum breakdowns.
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Confidence Meter */}
+                                                                    <div className="flex items-center gap-2 group relative">
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span className="text-[10px] uppercase font-bold text-gray-400">Confidence</span>
+                                                                            <span className={`text-xs font-bold ${analysis.ai_analysis.meta.confidence > 80 ? 'text-emerald-500' : analysis.ai_analysis.meta.confidence > 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                                                                                {analysis.ai_analysis.meta.confidence}%
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className={`h-full rounded-full ${analysis.ai_analysis.meta.confidence > 80 ? 'bg-emerald-500' : analysis.ai_analysis.meta.confidence > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                                                style={{ width: `${analysis.ai_analysis.meta.confidence}%` }}
+                                                                            />
+                                                                        </div>
+                                                                        {/* Tooltip */}
+                                                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                                                            AI Confidence based on data completeness and signal clarity. <br />
+                                                                            &lt; 50% triggers a score penalty.
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
                                                         <div className="flex flex-col gap-2 mt-2">
                                                             {/* Rating Badge + Verdict Text */}
                                                             <div className="flex flex-col gap-2">
                                                                 {(() => {
                                                                     const rating = (analysis.ai_analysis as any).rating || "Hold";
                                                                     let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
-                                                                    if (rating.includes("Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
-                                                                    if (rating.includes("Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
-                                                                    if (rating.includes("Hold")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+
+                                                                    // 10-Tier Color Mapping
+                                                                    if (rating.includes("Generational") || rating.includes("High Conviction")) badgeColor = "bg-purple-100/50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800";
+                                                                    else if (rating.includes("Strong Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+                                                                    else if (rating.includes("Buy")) badgeColor = "bg-green-100/50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+                                                                    else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+                                                                    else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+                                                                    else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
+                                                                    else if (rating.includes("Bankruptcy") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
 
                                                                     return (
                                                                         <div className="flex items-start gap-3">
@@ -1628,29 +1683,24 @@ export default function Dashboard({
                                                                 })()}
                                                             </div>
 
-                                                            {/* Embedded Veto/Bonus Tags */}
-                                                            {(analysis.ai_analysis.modifications?.length > 0) && (
+                                                            {/* Penalty Badges (Risk Factors) */}
+                                                            {((analysis.ai_analysis.score_explanation?.factors?.length > 0) || (analysis.ai_analysis.modifications?.length > 0)) && (
                                                                 <div className="flex flex-wrap gap-2 pt-1">
-                                                                    {analysis.ai_analysis.modifications.map((mod: string, i: number) => {
-                                                                        const isPenalty = mod.includes("Penalty") || mod.includes("-") || mod.toLowerCase().includes("veto");
-                                                                        const isBonus = mod.includes("Bonus") || mod.includes("+");
-                                                                        const displayText = mod.replace(/.*VETO:\s*/i, '').trim();
+                                                                    {/* Display explicit Risk Factors from AI */}
+                                                                    {/* Display explicit Risk Factors from AI */}
+                                                                    {analysis.ai_analysis.score_explanation?.factors?.filter((f: string) => f.includes("Risk") || f.includes("Trap") || f.includes("pts") || f.includes("Collapse")).map((factor: string, i: number) => (
+                                                                        <span key={`risk-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                                            {factor}
+                                                                        </span>
+                                                                    ))}
 
-                                                                        return (
-                                                                            <span
-                                                                                key={i}
-                                                                                className={`px-2 py-1 rounded-md text-[9px] font-bold flex items-center gap-1.5 border backdrop-blur-sm ${isPenalty
-                                                                                    ? "bg-red-500/5 text-red-600 dark:text-red-400 border-red-500/20"
-                                                                                    : isBonus
-                                                                                        ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                                                                        : "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
-                                                                                    }`}
-                                                                            >
-                                                                                {isPenalty ? <TrendingDown size={10} className="text-red-500" /> : isBonus ? <Zap size={10} className="text-emerald-500" /> : null}
-                                                                                {displayText}
-                                                                            </span>
-                                                                        );
-                                                                    })}
+                                                                    {/* Fallback to legacy modifications if no structured factors */}
+                                                                    {(!analysis.ai_analysis.score_explanation?.factors?.length) && analysis.ai_analysis.modifications?.map((mod: string, i: number) => (
+                                                                        <span key={`mod-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                                                                            {mod.replace(/.*VETO:\s*/i, '').trim()}
+                                                                        </span>
+                                                                    ))}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1863,11 +1913,12 @@ export default function Dashboard({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Calculated Algo Score (70/30)</span>
-                                            <span className="text-lg font-mono font-black text-purple-600 dark:text-purple-400">
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Algo Baseline (Reference)</span>
+                                            <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
                                                 {Math.round(
-                                                    ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * 0.7) +
-                                                    ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * 0.3)
+                                                    /* ALGO BASELINE: Always uses the slider weights (fundWeight) to show the mathematical ground truth */
+                                                    ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * (fundWeight / 100)) +
+                                                    ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * ((100 - fundWeight) / 100))
                                                 )}
                                             </span>
                                         </div>
@@ -1990,7 +2041,8 @@ export default function Dashboard({
                             )
                         }
                     </div >
-                )}
+                )
+                }
 
                 {
                     activeTab === 'smart_money' && (

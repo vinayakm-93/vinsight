@@ -1,5 +1,23 @@
 # Changelog
 
+## [v10.0.0] - The Era of Objectivity (2026-02-19)
+
+### 🚀 Scoring Engine: VinSight v10.0
+- **10-Tier Rubric**: Replaced binary Buy/Sell with a calibrated decile system (`0-19` Bankruptcy to `90-100` Generational).
+- **Universal Kill Switches**: Explicit point deductions for "Solvency Risk" (-20pts), "Valuation Cap" (-15pts), and "Momentum Crash" (-10pts).
+- **Confidence Weighting**: AI confidence score now mathematically discounts the final rating (e.g., 50% confidence = 50% score reduction).
+
+### 🎨 UI Transparency
+- **Penalty Badges**: Red/Amber tags visible below the score ring showing active kill switches.
+- **Confidence Meter**: Visual bar indicating AI's certainty level.
+- **Assessment Tooltip**: New `ⓘ` icon explaining the active persona's scoring logic.
+
+### 🧠 Backend
+- **Persona Tuning**: Calibrated prompt sensitivity for `Value`, `Growth`, `Momentum`, and `CFA` personas.
+- **Math Engine**: Aligned `vinsight_scorer` fallback model with the new 10-tier mapping.
+
+---
+
 ## [v9.8.0] - Institutional Portfolio Dashboard (2026-02-16)
 
 ### 📊 Portfolio Dashboard: Real-Time Intelligence

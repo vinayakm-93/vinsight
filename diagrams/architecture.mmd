@@ -1,0 +1,51 @@
+graph TB
+    subgraph "Frontend [Next.js]"
+        UI["Glassmorphism Dashboard"]
+        WL["Watchlist & Portfolio"]
+    end
+
+    subgraph "Backend [FastAPI]"
+        API["REST API"]
+        SCORER["CFA Scorer"]
+        ROUTER["AI Model Router"]
+    end
+
+    subgraph "AI Models"
+        DS["DeepSeek R1<br/>Strategic Reasoning"]
+        GROQ["Llama 3.3 via Groq<br/>Sentiment Analysis"]
+        GEM["Gemini 2.0 Flash<br/>Fallback"]
+    end
+
+    subgraph "MCP Server [4 Tools]"
+        T1["analyze_sentiment"]
+        T2["run_monte_carlo"]
+        T3["analyze_earnings"]
+        T4["get_portfolio_summary"]
+    end
+
+    subgraph "Data Sources"
+        YF["Yahoo Finance"]
+        FH["Finnhub News"]
+        SP["Serper Search"]
+    end
+
+    subgraph "Infrastructure [Google Cloud]"
+        CR["Cloud Run"]
+        SM["Secret Manager"]
+        SQL["Cloud SQL PostgreSQL"]
+    end
+
+    UI --> API
+    WL --> API
+    API --> SCORER
+    API --> ROUTER
+    ROUTER --> DS
+    ROUTER --> GROQ
+    ROUTER --> GEM
+    API --> T1 & T2 & T3 & T4
+    T1 --> FH
+    T2 --> YF
+    T3 --> SP
+    T4 --> SQL
+    CR --> API
+    SM --> CR
