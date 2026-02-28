@@ -67,6 +67,7 @@ class Sentiment:
     news_sentiment_label: str
     news_sentiment_score: float
     news_article_count: int
+    news_data: Optional[Dict] = None
 
 @dataclass
 class Projections:

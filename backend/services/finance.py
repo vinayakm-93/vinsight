@@ -240,53 +240,55 @@ def get_peg_ratio(ticker: str) -> Optional[float]:
         return None
 
 
-def get_news(ticker: str):
-    """Fetch news for a stock."""
-    stock = yf.Ticker(ticker)
-    news = stock.news
-    # Normalize data for frontend
-    data = []
-    for item in (news or []):
-        if not item:
-            continue
-        try:
-            # Check if data is nested in 'content' (common in new yfinance structure)
-            info = item.get('content', item)
-            
-            if not info or not isinstance(info, dict):
-                continue
+from services import finnhub_news
 
-            # Extract fields with fallbacks
-            title = info.get('title')
+# 15-minute TTL Cache for News to prevent Rate Limiting
+cache_news = TTLCache(maxsize=100, ttl=900)
+
+def get_news(ticker: str):
+    """
+    Fetch news for a stock using Finnhub (14-day history).
+    Implements a 15-minute TTLCache and a Volatility Bypass.
+    """
+    # 1. Volatility Bypass Check (Check if price dropped > 5% today)
+    bypass_cache = False
+    try:
+        # Quick check using our cached info to avoid double-hitting yfinance if possible
+        info = get_stock_info(ticker)
+        if info:
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            prev_close = info.get('previousClose') or info.get('regularMarketPreviousClose')
             
-            # Link can be in clickThroughUrl (object) or link (string)
-            link = info.get('clickThroughUrl', {}).get('url')
-            if not link:
-                link = item.get('link') # Fallback to top-level
-                
-            # Publisher
-            publisher = info.get('provider', {}).get('displayName') or "Yahoo Finance"
+            if current_price and prev_close and prev_close > 0:
+                drop_pct = (prev_close - current_price) / prev_close
+                if drop_pct > 0.05:  # 5% Drop
+                    logger.warning(f"VOLATILITY BYPASS TRIGGERED FOR {ticker}: Price dropped {drop_pct:.1%}. Bypassing News Cache.")
+                    bypass_cache = True
+    except Exception as e:
+        logger.error(f"Volatility check failed for {ticker}: {e}")
+
+    # 2. Cache Check
+    if not bypass_cache:
+        cached_news = cache_news.get(ticker)
+        if cached_news:
+            return cached_news
+
+    # 3. Fetch from Finnhub
+    try:
+        # Fetch 14 days of news for the Intelligence Agent
+        news_data = finnhub_news.fetch_company_news(ticker, days=14)
+        
+        # We store the raw structured Finnhub data in the cache.
+        # The frontend/routes will flatter it if needed, and the ReasoningScorer will use it separated
+        if news_data and (news_data.get('latest') or news_data.get('historical')):
+            cache_news[ticker] = news_data
+            return news_data
             
-            publish_time = item.get('providerPublishTime') or info.get('providerPublishTime')
-            if not publish_time and 'pubDate' in info:
-                publish_time = info['pubDate']
-                
-            # Thumbnail
-            thumb = info.get('thumbnail', {}).get('resolutions', [{}])[0].get('url') if info.get('thumbnail') else None
-            
-            data.append({
-                "title": title,
-                "link": link,
-                "publisher": publisher,
-                "providerPublishTime": publish_time,
-                "thumbnail": thumb
-            })
-        except Exception as e:
-            print(f"Error parsing news item: {e}")
-            continue
-    # Sort by latest first
-    data.sort(key=lambda x: x.get('providerPublishTime', 0) or 0, reverse=True)
-    return data
+    except Exception as e:
+        logger.error(f"Error fetching Finnhub news for {ticker}: {e}")
+        
+    # Return empty structured dict if failed
+    return {"latest": [], "historical": []}
 
 def get_institutional_change(ticker: str, stock=None) -> dict:
     """

@@ -11,7 +11,7 @@ os.environ["AI_PROVIDER"] = "groq"
 # Assuming GROQ_API_KEY is already in the environment or .env file
 
 # Add valid path to sys.path to import services
-sys.path.append(os.path.join(os.getcwd(), 'backend'))
+sys.path.append("/Users/vinayak/Documents/Antigravity/Project 1/backend")
 
 try:
     from services.reasoning_scorer import ReasoningScorer
@@ -65,7 +65,7 @@ def run_test():
             momentum_label="Bullish",
             volume_trend="Rising"
         ),
-        sentiment=Sentiment("Positive", 0.6, 20),
+        sentiment=Sentiment("Positive", 0.6, 20, None),
         projections=Projections(230.0, 250.0, 200.0, 220.0)
     )
 

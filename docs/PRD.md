@@ -1,10 +1,10 @@
 # VinSight Product Requirements Document (PRD)
 
-**Version:** 9.5 (High-Performance Upgrade)
+**Version:** 10.0 (Dumb AI, Smart Python Redesign)
 **Status:** Live in Production
 
 ## 1. Executive Summary
-VinSight is an AI-powered financial analytics platform that democratizes institutional-grade investment research. It combines real-time technical analysis with Large Language Model (LLM) reasoning to provide clear, actionable insights ("VinSight Score") for retail investors.
+VinSight is an AI-powered financial analytics platform that democratizes institutional-grade investment research. It combines deterministic Python math with Large Language Model (LLM) narrative reasoning to provide clear, actionable and hallucination-free insights ("VinSight Score") for retail investors.
 
 ## 2. Target Audience
 - **Self-Directed Investors**: Looking for data-backed conviction without reading 10-Ks for hours.
@@ -19,9 +19,9 @@ VinSight is an AI-powered financial analytics platform that democratizes institu
 - Insider conviction scoring (Discretionary vs. Automatic 10b5-1 trades).
 
 ### 3.2 Dynamic Scoring (VinSight Score)
-- **Quality (70%)**: Industry-relative fundamental health (Margins, ROE, Debt).
-- **Timing (30%)**: Technical momentum and risk-adjusted volatility (Trend, RSI, Beta).
-- **Veto Logic**: Absolute "Kill Switches" for high-risk flags (Insolvency, Extreme Overvaluation).
+- **Deterministic Baseline**: Base scores bounded by rigid Python mathematics, multiplied by selected persona weights.
+- **Kill Switches**: Absolute logic penalties applied in Python for high-risk flags (Insolvency, Extreme Overvaluation).
+- **Grounding Validation**: Real-time LLM narrative sanitation. Any generated text hallucinating beyond a 5% margin of the true financial data is instantly suppressed to protect the user.
 
 ### 3.3 Advanced Projections
 - **Monte Carlo Engine**: Simulating 10,000+ price paths to define Bull/Base/Bear scenarios.

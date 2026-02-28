@@ -191,3 +191,14 @@ class PortfolioHolding(Base):
     __table_args__ = (
         UniqueConstraint('portfolio_id', 'symbol', name='uq_portfolio_symbol'),
     )
+
+class ScoreHistory(Base):
+    __tablename__ = "score_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True, nullable=False)
+    score = Column(Float, nullable=False)
+    rating = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

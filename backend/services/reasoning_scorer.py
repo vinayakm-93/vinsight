@@ -5,11 +5,39 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import google.generativeai as genai
-from groq import Groq
 from openai import OpenAI
+from pydantic import BaseModel, Field
 from services.vinsight_scorer import StockData, ScoreResult, VinSightScorer
+from services.grounding_validator import GroundingValidator
 
 logger = logging.getLogger(__name__)
+
+# Pydantic Schemas for Phase 1 Strict Grounding & Validation
+class ComponentScores(BaseModel):
+    valuation: int = Field(ge=0, le=10)
+    growth: int = Field(ge=0, le=10)
+    profitability: int = Field(ge=0, le=10)
+    health: int = Field(ge=0, le=10)
+    technicals: int = Field(ge=0, le=10)
+    momentum: int = Field(ge=0, le=10, default=5)
+    volume: int = Field(ge=0, le=10, default=5)
+
+class SummaryDetails(BaseModel):
+    verdict: str
+    bull_case: str
+    bear_case: str
+    fundamental_analysis: str
+    technical_analysis: str
+
+class AIResponseSchema(BaseModel):
+    thought_process: str
+    confidence_score: int = Field(ge=0, le=100)
+    primary_driver: str
+    summary: SummaryDetails
+    component_scores: ComponentScores
+    risk_factors: List[str]
+    opportunities: List[str]
+
 
 # Personas Configuration
 PERSONAS = {
@@ -107,6 +135,7 @@ class ReasoningScorer:
         self.provider = default_provider # FORCE DEFAULT LOGIC (User Request: Llama 3.3) 
         
         self.fallback_scorer = VinSightScorer() # The v9.0 Math Engine
+        self.grounding_validator = GroundingValidator(tolerance_pct=0.05) # Phase 2 Validator
 
     def _get_benchmarks(self, sector: str) -> Dict:
         return self.fallback_scorer._get_benchmarks(sector)
@@ -140,7 +169,19 @@ class ReasoningScorer:
 
         # 3. Prepare AI Context
         try:
-            context = self._build_context(stock, persona, earnings_analysis)
+            # We now inject the partitioned news data (if available) into the context builder
+            # to feed the dual-period Intelligence Agent 
+            news_data = stock.sentiment.news_data if hasattr(stock.sentiment, 'news_data') else {}
+            
+            # Phase 3 Agent Collaboration: Fetch Guardian Thesis Status
+            from services.guardian_client import get_guardian_status
+            guardian_status = get_guardian_status(stock.ticker)
+            
+            # Phase 4 Scoring Memory: Fetch last 3 scores to track trajectory
+            from services.score_memory import get_history
+            score_history = get_history(stock.ticker, limit=3)
+            
+            context = self._build_context(stock, persona, earnings_analysis, news_data, algo_result, guardian_status, score_history)
         except Exception as e:
             logger.error(f"Context build failed: {e}")
             return self._fallback_to_formula(stock)
@@ -183,7 +224,7 @@ class ReasoningScorer:
             logger.error(f"Response parsing failed: {e}", exc_info=True)
             return self._fallback_to_formula(stock)
 
-    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict]) -> Dict:
+    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict], news_data: Optional[Dict] = None, algo_result = None, guardian_status: str = "INTACT", score_history: list = None) -> Dict:
         """Construct the data payload for the AI."""
         benchmarks = self._get_benchmarks(stock.fundamentals.sector_name)
         persona_cfg = PERSONAS.get(persona, PERSONAS["CFA"])
@@ -228,6 +269,9 @@ class ReasoningScorer:
         }
         
         # Price context for valuation judgment
+        # Phase 3: Injecting the baseline algo score into the price context
+        algo_score_str = f"{algo_result.score}/100" if algo_result else "N/A"
+        
         price_context = {
             "Current Price": f"${stock.technicals.price:.2f}",
             "52W Change": f"{stock.fundamentals.fifty_two_week_change:.1%}" if stock.fundamentals.fifty_two_week_change else "N/A",
@@ -236,7 +280,8 @@ class ReasoningScorer:
             "Monte Carlo P50 Target": f"${stock.projections.monte_carlo_p50:.2f}",
             "Monte Carlo Upside (P90)": f"${stock.projections.monte_carlo_p90:.2f}",
             "Monte Carlo Downside (P10)": f"${stock.projections.monte_carlo_p10:.2f}",
-            "Beta": f"{stock.beta:.2f}"
+            "Beta": f"{stock.beta:.2f}",
+            "Offline Algo Baseline Score": algo_score_str
         }
 
         earnings_context = "Not Available (Cache Miss)"
@@ -244,10 +289,33 @@ class ReasoningScorer:
             verdict = earnings_analysis.get('summary', {}).get('verdict', {})
             earnings_context = f"Analyst Verdict: {verdict.get('rating')}. Reasoning: {verdict.get('reasoning')}"
         
+        # Intelligence Agent (Phase 0): Run dual-period sentiment analysis on Finnhub news
+        intelligence_report = "News analysis unavailable."
+        try:
+            if news_data and (news_data.get('latest') or news_data.get('historical')):
+                from services.groq_sentiment import get_groq_analyzer
+                groq_agent = get_groq_analyzer()
+                latest = news_data.get('latest', [])
+                historical = news_data.get('historical', [])
+                
+                # Fetch distilled dual-period analysis
+                ai_sentiment = groq_agent.analyze_dual_period(latest, historical, context=stock.ticker)
+                
+                reasoning = ai_sentiment.get('reasoning', '')
+                drivers = ai_sentiment.get('key_drivers', [])
+                
+                intelligence_report = f"Distilled Insight: {reasoning}"
+                if drivers:
+                    intelligence_report += f"\nKey Drivers: {', '.join(drivers)}"
+            else:
+                # Fallback to the legacy sentiment label if no partitioned data was passed
+                intelligence_report = f"Legacy Sentiment: {stock.sentiment.news_sentiment_label} (Score: {stock.sentiment.news_sentiment_score:.2f})"
+        except Exception as e:
+            logger.error(f"Intelligence Agent failed during context build: {e}")
+        
         # News sentiment context
         sentiment_context = {
-            "News Sentiment": stock.sentiment.news_sentiment_label,
-            "Sentiment Score": f"{stock.sentiment.news_sentiment_score:.2f}",
+            "Intelligence Report": intelligence_report,
             "Article Count": stock.sentiment.news_article_count
         }
 
@@ -264,7 +332,9 @@ class ReasoningScorer:
             "sentiment_context": sentiment_context,
             "persona": persona_cfg,
             "earnings_context": earnings_context,
-            "market_regime": market_regime
+            "market_regime": market_regime,
+            "guardian_status": guardian_status,
+            "score_history": score_history or []
         }
 
     def _build_system_prompt(self, context: Dict) -> str:
@@ -284,6 +354,19 @@ class ReasoningScorer:
         elif "Growth" in p_name:
              sensitivity_rule = "SENSITIVITY: Forgive negative margins if Revenue Growth > 30%. Penalize growth deceleration heavily."
 
+        # Phase 3 Agent Collaboration
+        guardian_status = context.get('guardian_status', 'INTACT')
+        guardian_directive = ""
+        if guardian_status == "BROKEN":
+            guardian_directive = "\n🚨 GUARDIAN ALERT: The quantitative Guardian Agent has marked the thesis for this stock as BROKEN. You MUST acknowledge this risk in your bear case and ensure your final score reflects a broken thesis penalty."
+
+        # Phase 4 Scoring Memory: Format history string
+        history = context.get('score_history', [])
+        history_str = "No historical AI scores on record."
+        if history:
+            history_lines = [f"- {h['date']}: {h['score']}/100 ({h['rating']}) at ${h['price']:.2f}" for h in history]
+            history_str = "\n".join(history_lines)
+
         return f"""
 You are a expert financial mentor for a Retail Investor.
 Your name is VinSight AI. Evaluate {context['ticker']} ({context['sector']}) and assign a conviction score (0-100).
@@ -294,7 +377,7 @@ YOUR AUDIENCE:
 
 STYLE: {persona_style}
 FOCUS: {context['persona']['focus']}
-{sensitivity_rule}
+{sensitivity_rule}{guardian_directive}
 
 SCORING RUBRIC ({p_name}):
 The Final Score MUST be a weighted average based on the following priorities:
@@ -318,13 +401,6 @@ ANTI-CLUSTERING DISCIPLINE:
 - The MEDIAN stock should score 55-65. If you rate everything 65-75, you are being lazy.
 - Be ruthless.
 
-CRITICAL KILL SWITCHES (Apply these Point Deductions EXPLICITLY):
-1. **Solvency Risk**: Debt/Equity > 2.0 OR Negative FCF -> **DEDUCT 20 POINTS** (Unless 'Growth' persona & Growth > 30%).
-2. **Valuation Trap**: P/E > 50 AND Growth < 10% -> **DEDUCT 15 POINTS** (Unless 'Momentum' persona).
-3. **Broken Trend**: Price < SMA200 -> **DEDUCT 10 POINTS** (Unless 'Value' persona).
-4. **Revenue Collapse**: Revenue Growth < -10% -> **DEDUCT 15 POINTS**.
-5. **Bearish News**: Sentiment is "Bearish" -> **DEDUCT 10 POINTS**.
-
 BENCHMARK CONTEXT ({context['sector']}):
 - Median P/E: {context['benchmarks'].get('pe_median', 'N/A')}
 - Fair PEG: {context['benchmarks'].get('peg_fair', 'N/A')}
@@ -336,8 +412,12 @@ PRICE CONTEXT:
 FUNDAMENTAL & TECHNICAL DATA:
 {json.dumps(context['metrics'], indent=2)}
 
-NEWS SENTIMENT:
+NEWS INTELLIGENCE REPORT:
 {json.dumps(context['sentiment_context'], indent=2)}
+
+HISTORICAL SCORING TRAJECTORY:
+{history_str}
+*INSTRUCTION:* If the score is degrading/improving over time, explain *why* the fundamentals or price action caused this shift in your narrative.
 
 MARKET REGIME:
 {json.dumps(context.get('market_regime', {}), indent=2)}
@@ -349,7 +429,7 @@ INSTRUCTIONS:
 1. **Chain of Thought (The "Why")**: Write a 300-400 word deep-dive using paragraphs.
 2. **The "Retail Reality"**: Answer: "Can I sleep well owning this?"
 3. **Forward Looking**: Focus on what's next (Guidance, Catalysts).
-4. **VERDICT FORMAT**: The 'verdict' field MUST start with "Rated [Score]/100 because..." followed by the single most important reason.
+4. **VERDICT FORMAT**: The 'verdict' field MUST be a clear, 1-sentence action.
 
 COMPONENT SCORE GUIDE (0-10):
 - <4: Weak / Risky.
@@ -361,7 +441,6 @@ OUTPUT FORMAT:
 You MUST respond with a single valid JSON object. No other text.
 {{
   "thought_process": "<string: Detailed reasoning chain, 300-400 words. Use paragraphs.>",
-  "total_score": <int 0-100>,
   "confidence_score": <int 0-100>,
   "primary_driver": "<string: The ONE reason to Buy or Sell>",
   "summary": {{
@@ -375,11 +454,12 @@ You MUST respond with a single valid JSON object. No other text.
     "valuation": <int 0-10>,
     "growth": <int 0-10>,
     "profitability": <int 0-10>,
+    "health": <int 0-10>,
+    "technicals": <int 0-10>,
     "momentum": <int 0-10>,
-    "trend": <int 0-10>,
     "volume": <int 0-10>
   }},
-  "risk_factors": ["<string: e.g. 'SOLVENCY RISK: -20 pts (Debt/Equity > 2.0)'>", "<string>"],
+  "risk_factors": ["<string: List any critical risks detected>", "<string>"],
   "opportunities": ["<string>", "<string>"]
 }}
 """
@@ -475,63 +555,126 @@ You MUST respond with a single valid JSON object. No other text.
         return json.loads(completion.choices[0].message.content)
 
     def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any) -> Dict:
-        """Merge AI conviction with algo metrics."""
-        raw_score = llm_response.get("total_score", 50)
-        confidence = llm_response.get("confidence_score", 70) # Default to 70 if missing
+        """Validate with Pydantic, apply Python Kill Switches, and merge AI conviction with algo metrics."""
         
+        # 1. Pydantic Validation (Phase 1 Grounding)
+        parsed_data = AIResponseSchema.model_validate(llm_response)
+        
+        confidence = parsed_data.confidence_score
+        
+        # 2. Python-based Baseline Calculation based on Persona Weights (Phase 1)
+        weights = PERSONAS[persona].get("scoring_weights", {})
+        comps_dict = parsed_data.component_scores.model_dump()
+        
+        weight_map = {
+            "Valuation": comps_dict.get("valuation", 5),
+            "Profitability": comps_dict.get("profitability", 5),
+            "Growth": comps_dict.get("growth", 5),
+            "Health": comps_dict.get("health", 5),
+            "Technicals": comps_dict.get("technicals", 5),
+            "Momentum": comps_dict.get("momentum", 5),
+            "Volume": comps_dict.get("volume", 5),
+        }
+        
+        base_score = 0
+        for category, weight_pct in weights.items():
+            comp_score_0_to_10 = weight_map.get(category, 5)
+            # Scale 0-10 component to 0-100 impact, multiplied by weight percentage
+            base_score += (comp_score_0_to_10 * 10) * (weight_pct / 100.0)
+            
+        raw_score = base_score
+        
+        # 3. Python Kill Switches & Stacking Penalties (Phase 1)
+        deductions = 0
+        kill_switch_logs = []
+
+        rev_growth = stock.fundamentals.revenue_growth_3y or 0
+        pe = stock.fundamentals.pe_ratio or 0
+        fcf = stock.fundamentals.fcf_yield or 0
+        de = stock.fundamentals.debt_to_equity or 0
+        price = stock.technicals.price or 0
+        sma200 = stock.technicals.sma200 or 0
+        sentiment_label = stock.sentiment.news_sentiment_label or "" if hasattr(stock, 'sentiment') else ""
+
+        # Solvency Risk
+        if (de > 2.0 or fcf < 0) and not (persona == "Growth" and rev_growth > 0.30):
+            deductions += 20
+            kill_switch_logs.append("Solvency Risk (-20 pts): Debt/Equity > 2.0 or Negative FCF.")
+        
+        # Valuation Trap
+        if pe > 50 and rev_growth < 0.10 and persona != "Momentum":
+            deductions += 15
+            kill_switch_logs.append("Valuation Trap (-15 pts): P/E > 50 with < 10% Growth.")
+            
+        # Broken Trend
+        if sma200 > 0 and price < sma200 and persona != "Value":
+            deductions += 10
+            kill_switch_logs.append("Broken Trend (-10 pts): Price below SMA200.")
+            
+        # Revenue Collapse
+        if rev_growth < -0.10:
+            deductions += 15
+            kill_switch_logs.append("Revenue Collapse (-15 pts): Revenue growth < -10%.")
+            
+        # Bearish News
+        if "Bearish" in sentiment_label:
+            deductions += 10
+            kill_switch_logs.append("Bearish News (-10 pts): Negative sentiment intelligence.")
+
+        # Apply Deductions
+        penalized_score = max(0, raw_score - deductions)
+
         # CONFIDENCE-WEIGHTED SCORING (New v10.0 Logic)
-        # Apply score 'haircut' if confidence is low.
-        # Discount factor: ranges from 0.8 (0% confidence) to 1.0 (100% confidence).
-        # We don't want to crush the score too hard, but soft-penalize uncertainty.
         discount_factor = 0.8 + 0.2 * (confidence / 100)
-        final_score = round(raw_score * discount_factor)
+        final_score = round(penalized_score * discount_factor)
+        
+        # 4. Integrate Phase 2 Grounding Verification
+        # Validate that the LLM is not hallucinating P/E ratios or growth claims.
+        hallucination_count = 0
+        raw_metrics = algo_result.details # pass raw context into the validator
+        
+        # Merge kill switch logs into AI's risk factors
+        risk_factors = parsed_data.risk_factors + kill_switch_logs
+        
+        for field in [parsed_data.summary.bull_case, parsed_data.summary.bear_case, 
+                      parsed_data.summary.fundamental_analysis, parsed_data.summary.technical_analysis]:
+            
+            # The context list is a flat list of dicts: [{'value': 15.5}, {'value': 'Bullish'}]
+            context_dict = {"metrics": [d.get("value") for d in raw_metrics]} if algo_result else {}
+            hallucination_count += self.grounding_validator.check_hallucinations(field, context_dict)
         
         # New Summary Structure Parsing
-        summary_obj = llm_response.get("summary", {})
         structured_summary = {
-            "verdict": "N/A",
-            "bull_case": "N/A",
-            "bear_case": "N/A",
-            "fundamental_analysis": "",
-            "technical_analysis": ""
+            "verdict": parsed_data.summary.verdict,
+            "bull_case": parsed_data.summary.bull_case,
+            "bear_case": parsed_data.summary.bear_case,
+            "fundamental_analysis": parsed_data.summary.fundamental_analysis,
+            "technical_analysis": parsed_data.summary.technical_analysis
         }
+        
+        # Ensure verdict has score
+        structured_summary["verdict"] = f"Rated {final_score}/100. {structured_summary['verdict']}"
+        
+        if hallucination_count > 2:
+            logger.warning(f"Grounding Failure: Detected {hallucination_count} hallucinated numbers. Suppressing AI text.")
+            structured_summary["bull_case"] = "AI narrative suppressed due to data grounding mismatch."
+            structured_summary["bear_case"] = "Please refer to the raw mathematical scoring breakdowns."
+            structured_summary["fundamental_analysis"] = ""
+            structured_summary["technical_analysis"] = ""
+        
+        summary_text = f"VERDICT: {structured_summary['verdict']}\n\nBULL: {structured_summary['bull_case']}\n\nBEAR: {structured_summary['bear_case']}"
 
-        if isinstance(summary_obj, str): # Handle legacy string summaries (fallback)
-            structured_summary["bull_case"] = summary_obj
-            summary_text = summary_obj
-        else:
-            # Parse new structured fields
-            structured_summary["verdict"] = summary_obj.get("verdict", "No verdict provided.")
-            
-            # Fix dynamic score mismatch (Replace the AI's raw score with the confidence-discounted score)
-            structured_summary["verdict"] = re.sub(r"Rated \d+/100", f"Rated {final_score}/100", structured_summary["verdict"])
-
-            structured_summary["bull_case"] = summary_obj.get("bull_case", "No bull case provided.")
-            structured_summary["bear_case"] = summary_obj.get("bear_case", "No bear case provided.")
-            structured_summary["fundamental_analysis"] = summary_obj.get("fundamental_analysis", "")
-            structured_summary["technical_analysis"] = summary_obj.get("technical_analysis", "")
-            
-            # Legacy fallback for justification
-            summary_text = f"VERDICT: {structured_summary['verdict']}\n\nBULL: {structured_summary['bull_case']}\n\nBEAR: {structured_summary['bear_case']}"
-
-        primary_driver = llm_response.get("primary_driver", "N/A")
-        thought_process = llm_response.get("thought_process", "")
-            
-        risks = llm_response.get("risk_factors", [])
-        opps = llm_response.get("opportunities", [])
         rating = self._score_to_rating(final_score)
         
-        comps = llm_response.get("component_scores", {})
-        
         # Calculate derived aggregates from AI's 0-10 ratings
-        q_val = comps.get("valuation", 5)
-        q_gro = comps.get("growth", 5)
-        q_pro = comps.get("profitability", 5)
+        q_val = comps_dict.get("valuation", 5)
+        q_gro = comps_dict.get("growth", 5)
+        q_pro = comps_dict.get("profitability", 5)
         quality_score = ((q_val + q_gro + q_pro) / 3) * 10
 
-        t_mom = comps.get("momentum", 5)
-        t_tre = comps.get("trend", 5)
-        t_vol = comps.get("volume", 5)
+        t_mom = comps_dict.get("momentum", 5)
+        t_tre = comps_dict.get("technicals", 5) # Map new AI field technically to 'trend'
+        t_vol = comps_dict.get("volume", 5)
         timing_score = ((t_mom + t_tre + t_vol) / 3) * 10
 
         meta = {
@@ -539,8 +682,8 @@ You MUST respond with a single valid JSON object. No other text.
             "persona": persona,
             "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST"),
             "confidence": confidence,
-            "primary_driver": primary_driver,
-            "thought_process": thought_process
+            "primary_driver": parsed_data.primary_driver,
+            "thought_process": parsed_data.thought_process
         }
 
         # algo_result is the v9.0 Math Engine result
@@ -559,8 +702,8 @@ You MUST respond with a single valid JSON object. No other text.
             },
             "algo_breakdown": algo_breakdown,
             "score_explanation": { 
-                "factors": risks,
-                "opportunities": opps
+                "factors": risk_factors,
+                "opportunities": parsed_data.opportunities
             },
             "meta": meta,
             "details": details 

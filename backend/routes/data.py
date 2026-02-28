@@ -141,8 +141,12 @@ def get_stock_history_data(ticker: str, period: str = "1mo", interval: str = "1d
 @router.get("/news/{ticker}")
 def get_stock_news(ticker: str):
     try:
-        news = finance.get_news(ticker)
-        return news
+        news_data = finance.get_news(ticker)
+        # Flatten the segmented finnhub news payload for backward compatibility with the frontend
+        if isinstance(news_data, dict):
+            flattened = news_data.get('latest', []) + news_data.get('historical', [])
+            return flattened
+        return news_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -160,7 +164,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         history = data_bundle.get('history', [])
         fundamentals_info = data_bundle.get('info', {})
-        news = data_bundle.get('news', [])
+        news = data_bundle.get('news', {}) # Now expect a dict with latest and historical
         institutional = data_bundle.get('institutional', {})
         advanced_metrics = data_bundle.get('advanced', {})
         
@@ -265,8 +269,11 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         else:
             sentiment_score = 0
             sentiment_label = 'Neutral'
-            # Fix: Use actual news count even if deep analysis was skipped
-            news_art_count = len(news) if news else 0
+            # If news is a dict (finnhub partitioned), sum the lengths
+            if isinstance(news, dict):
+                news_art_count = len(news.get('latest', [])) + len(news.get('historical', []))
+            else:
+                news_art_count = len(news) if news else 0
             
         # Social Volume Proxy: High if article count > 5 (arbitrary for now)
         news_vol_high = news_art_count > 5
@@ -499,7 +506,8 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             sentiment_data = Sentiment(
                 news_sentiment_label=sentiment_label,
                 news_sentiment_score=sentiment_score,
-                news_article_count=news_art_count
+                news_article_count=news_art_count,
+                news_data=news if isinstance(news, dict) else None # Store raw partitioned data for ReasoningScorer
                 # v6.5: insider_activity removed from scoring - MSPR now display-only
             )
         except TypeError as e:
@@ -649,6 +657,17 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
 
              ai_analysis_response = legacy_ai_analysis
 
+        # Phase 4 Scoring Memory: Trigger a background or synchronous save
+        try:
+            # We capture the final numerical score and the rating cleanly, whether it came from LLM or formula
+            final_score = ai_analysis_response.get("score")
+            final_rating = ai_analysis_response.get("rating")
+            if final_score is not None and final_rating is not None:
+                # Save the new temporal score (throttled internally by save_score logic)
+                save_score(ticker, float(final_score), final_rating, current_price)
+        except Exception as e:
+            logger.error(f"Post-Evaluation Score Memory save failed for {ticker}: {e}")
+
         # Prepare SMA dict for frontend
         sma_data = {
             "sma_5": latest_ind.get('SMA_5'),
@@ -671,7 +690,7 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             # CONSOLIDATED DATA (For Frontend Optimization)
             "simulation": sim_result,
             "institutional": institutional,
-            "news": news,
+            "news": news.get('latest', []) + news.get('historical', []) if isinstance(news, dict) else news,
             "history": history, # Optionally returned, frontend can use to init chart
             "stock_details": fundamentals_info # Consolidated: Return raw info too
         }

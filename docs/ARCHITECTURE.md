@@ -43,16 +43,15 @@ graph TD
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
 ## 3. Core Engine Logic
-- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the Dynamic Benchmark Model (v9.0).
-- **Persona-Based AI Scoring (v9.7)**:
-    - **Determinism**: Zero-temperature (`0.0`-`0.1`) usage across all models ensures reproducible scores.
-    - **Persona Weights**: Distinct scoring rubrics for **CFA** (Valuation/Profitability), **Momentum** (Technicals/Trend), **Growth** (Revenue/Future), **Value** (Margins/Safety), and **Income** (Yield/Health).
-    - **Strict Formatting**: Verdicts are enforced to explain the "Why" immediately.
-- **Tri-Layer Signal Synthesis**:
-    - **1. AI Strategist**: DeepSeek R1 (via OpenRouter) provides "Thinking" capabilities for portfolio-level synthesis (Fallback: Gemini 2.0).
-    - **2. AI Conviction**: Llama 3.3 (via Groq) provides instant stock-level scoring.
-    - **3. Algo Baseline**: Mathematical ground truth (70% Fundamental / 30% Technical).
-- **Progressive Hydration Pattern**: Dual-engine fetch strategy. Light Algo data renders first; AI Reasoning lazy-loads.
+- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the "Dumb AI, Smart Python" Re-architecture (v11.0).
+- **Persona-Based Deterministic Scoring**:
+    - **Algorithmic Math**: 0-100 baseline scores are calculated deterministically in Python using strict persona-weighted multipliers (Value, Growth, CFA, Momentum).
+    - **Python Guardrails (Kill Switches)**: Extreme fundamental flaws (e.g., negative FCF, debt traps) trigger absolute point penalties injected into the AI context *before* the narrative is generated.
+- **Agent Collaboration & Grounding Validation**:
+    - **1. Tri-Layer Synthesis**: DeepSeek R1/Llama 3.3 handles qualitative synthesis, anchored to the offline `VinSightScorer` algorithmic baseline score.
+    - **2. Guardian Integration**: `ReasoningScorer` queries the `GuardianAlert` module via Postgres. If a thesis is "BROKEN", the reasoning engine is forced to aggressively address the risks.
+    - **3. Scoring Memory**: AI fetches the last 3 score outputs from Postgres (throttled locally by volatility) to evaluate temporal momentum rather than scoring in a vacuum.
+    - **4. Strict Grounding Layer**: All generated numbers and quotes are validated against a 5% Pydantic/Regex fuzzy-matcher. Hallucinations >2 automatically suppress the AI text.
 
 ## 5. Thesis Agent Architecture
 -   **Hybrid Agent Model**: Combines DeepSeek R1 (Reasoning) with Llama 3.3 (Sentiment) and Gemini 2.0 (Fallback).
