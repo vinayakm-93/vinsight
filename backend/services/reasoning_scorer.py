@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 from openai import OpenAI
+from groq import Groq
 from pydantic import BaseModel, Field
 from services.vinsight_scorer import StockData, ScoreResult, VinSightScorer
 from services.grounding_validator import GroundingValidator
@@ -270,7 +271,7 @@ class ReasoningScorer:
         
         # Price context for valuation judgment
         # Phase 3: Injecting the baseline algo score into the price context
-        algo_score_str = f"{algo_result.score}/100" if algo_result else "N/A"
+        algo_score_str = f"{algo_result.total_score}/100" if algo_result else "N/A"
         
         price_context = {
             "Current Price": f"${stock.technicals.price:.2f}",

@@ -7,6 +7,7 @@ from services.search import search_ticker
 from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections, ScoreResult
 from services.reasoning_scorer import ReasoningScorer
 from services.groq_sentiment import get_groq_analyzer
+from services.score_memory import save_score
 import yfinance as yf
 import requests
 import logging
