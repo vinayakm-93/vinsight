@@ -1626,7 +1626,7 @@ export default function Dashboard({
                                                                 else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
                                                                 else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
                                                                 else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
-                                                                else if (rating.includes("Bankruptcy") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+                                                                else if (rating.includes("Critical Risk") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
 
                                                                 return (
                                                                     <div className="flex items-start gap-3">
@@ -1789,148 +1789,148 @@ export default function Dashboard({
                                     </div>
                                 </div>
                             </div>
-                ) : (
-                <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                        ) : (
+                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
                         )}
-                {/* 2.5 Detailed Breakdown Table (Sectioned) */}
-                {
-                    analysis?.ai_analysis?.details && (
-                        <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-purple-500/10 rounded-lg">
-                                        <Grid size={16} className="text-purple-500" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                                            Algorithmic Score Breakdown
-                                            <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v11.1 Engine</span>
-                                        </h4>
-                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Python Multi-Factor Baseline (Persona-Weighted)</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Python Engine Score</span>
-                                    <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
-                                        {Math.round(
-                                            analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="p-4 space-y-4">
-
-                                {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
-                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
-                                                <ShieldCheck size={16} />
-                                            </div>
-                                            <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
-                                        </div>
+                        {/* 2.5 Detailed Breakdown Table (Sectioned) */}
+                        {
+                            analysis?.ai_analysis?.details && (
+                                <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
-                                            </span>
-                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                        </div>
-                                    </summary>
-                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                    <tr>
-                                                        <th className="px-4 py-2 font-bold">Metric</th>
-                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                        <th className="px-4 py-2 font-bold">Status</th>
-                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
-                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                        const s = row.status.toLowerCase();
-                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                        return (
-                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                    <span>{row.metric}</span>
-                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                </td>
-                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                <td className="px-4 py-3">
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </details>
-
-                                {/* SECTION 2: TIMING (TECHNICAL) */}
-                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
-                                                <TrendingUp size={16} />
+                                            <div className="p-2 bg-purple-500/10 rounded-lg">
+                                                <Grid size={16} className="text-purple-500" />
                                             </div>
-                                            <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                            <div className="flex flex-col">
+                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                                    Algorithmic Score Breakdown
+                                                    <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v11.1 Engine</span>
+                                                </h4>
+                                                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Python Multi-Factor Baseline (Persona-Weighted)</p>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
-                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Python Engine Score</span>
+                                            <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
+                                                {Math.round(
+                                                    analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0
+                                                )}
                                             </span>
-                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                        </div>
-                                    </summary>
-                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                    <tr>
-                                                        <th className="px-4 py-2 font-bold">Metric</th>
-                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                        <th className="px-4 py-2 font-bold">Status</th>
-                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
-                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                        const s = row.status.toLowerCase();
-                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                        return (
-                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                    <span>{row.metric}</span>
-                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                </td>
-                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                <td className="px-4 py-3">
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
                                         </div>
                                     </div>
-                                </details>
+                                    <div className="p-4 space-y-4">
+
+                                        {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
+                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
+                                                        <ShieldCheck size={16} />
+                                                    </div>
+                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
+                                                    </span>
+                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                </div>
+                                            </summary>
+                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                            <tr>
+                                                                <th className="px-4 py-2 font-bold">Metric</th>
+                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                <th className="px-4 py-2 font-bold">Status</th>
+                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
+                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                const s = row.status.toLowerCase();
+                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                return (
+                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                            <span>{row.metric}</span>
+                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                        <td className="px-4 py-3">
+                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </details>
+
+                                        {/* SECTION 2: TIMING (TECHNICAL) */}
+                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
+                                                        <TrendingUp size={16} />
+                                                    </div>
+                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                                    </span>
+                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                </div>
+                                            </summary>
+                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                            <tr>
+                                                                <th className="px-4 py-2 font-bold">Metric</th>
+                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                <th className="px-4 py-2 font-bold">Status</th>
+                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
+                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                const s = row.status.toLowerCase();
+                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                return (
+                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                            <span>{row.metric}</span>
+                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                        <td className="px-4 py-3">
+                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </details>
                                     </div>
                                 </div>
                             )

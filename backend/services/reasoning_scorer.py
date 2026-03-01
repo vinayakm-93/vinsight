@@ -687,7 +687,7 @@ You MUST respond with a single valid JSON object. No other text.
         if score >= 50: return "Weak Hold"
         if score >= 40: return "Underperform"
         if score >= 20: return "Hard Sell"
-        return "Bankruptcy Risk"
+        return "Critical Risk"
 
     def _get_color(self, rating: str) -> str:
         if "Buy" in rating or "High" in rating or "Generational" in rating: return "green"

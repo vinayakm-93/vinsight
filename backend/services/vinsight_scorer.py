@@ -798,7 +798,7 @@ class VinSightScorer:
         if score >= 50: return "Weak Hold"
         if score >= 40: return "Underperform"
         if score >= 20: return "Hard Sell"
-        return "Bankruptcy Risk"
+        return "Critical Risk"
 
     def _generate_narrative(self, ticker, final, q, t, mods) -> str:
         narrative = f"{ticker} is rated {self._get_rating(final)} ({final:.0f}/100). "
