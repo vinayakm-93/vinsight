@@ -218,11 +218,256 @@ class VinSightScorer:
         
         return ScoreResult(final_score, rating, narrative, full_breakdown, modifications, missing_fields, self.details)
 
+    # --- Persona Weight Definitions ---
+    PERSONAS = {
+        "CFA":      {"valuation": 25, "profitability": 25, "health": 20, "growth": 15, "technicals": 15},
+        "Momentum": {"valuation": 0,  "profitability": 5,  "health": 5,  "growth": 10, "technicals": 80},
+        "Value":    {"valuation": 40, "profitability": 15, "health": 25, "growth": 10, "technicals": 10},
+        "Growth":   {"valuation": 10, "profitability": 15, "health": 5,  "growth": 50, "technicals": 20},
+        "Income":   {"valuation": 15, "profitability": 25, "health": 35, "growth": 10, "technicals": 15},
+    }
+
+    def _score_component(self, scores: list, max_pts_list: list) -> float:
+        """
+        Averages non-None scores, normalized to 0-10 scale.
+        Returns 5.0 (neutral) if all data is missing.
+        """
+        valid_scores = []
+        valid_max = []
+        for s, m in zip(scores, max_pts_list):
+            if s is not None:
+                valid_scores.append(s)
+                valid_max.append(m)
+        if not valid_scores:
+            return 5.0  # No data = neutral, not zero
+        total_earned = sum(valid_scores)
+        total_available = sum(valid_max)
+        if total_available == 0:
+            return 5.0
+        return (total_earned / total_available) * 10.0
+
+    def _compute_components(self, stock: StockData) -> Dict:
+        """
+        Returns 5 Python-computed component scores, each 0-10.
+        None-safe: missing metrics are excluded per component.
+        """
+        f = stock.fundamentals
+        t = stock.technicals
+        benchmarks = self._get_benchmarks(f.sector_name)
+
+        # --- Valuation (PEG, FCF Yield, Forward P/E) ---
+        target_peg = benchmarks.get('peg_fair', 1.5)
+        target_fcf = benchmarks.get('fcf_yield_strong', 0.05)
+        pe_median = benchmarks.get('pe_median', 24)
+        s_peg = self._linear_score(f.peg_ratio, ideal=target_peg, zero=target_peg + 2.0, max_pts=10, label="PEG", category="_comp")
+        s_fcf = self._linear_score(f.fcf_yield, ideal=target_fcf, zero=target_fcf * 0.2, max_pts=10, label="FCF Yield", category="_comp")
+        s_fpe = self._linear_score(f.forward_pe, ideal=pe_median, zero=pe_median * 2.5, max_pts=10, label="Fwd P/E", category="_comp")
+        valuation = self._score_component([s_peg, s_fcf, s_fpe], [10, 10, 10])
+
+        # --- Profitability (ROE, Net Margin, Operating Margin) ---
+        target_roe = benchmarks.get('roe_strong', 0.15)
+        target_margin = benchmarks.get('margin_healthy', 0.12)
+        s_roe = self._linear_score(f.roe, ideal=target_roe, zero=target_roe * 0.3, max_pts=10, label="ROE", category="_comp")
+        s_margin = self._linear_score(f.profit_margin, ideal=target_margin, zero=target_margin * 0.4, max_pts=10, label="Net Margin", category="_comp")
+        s_op_margin = self._linear_score(f.operating_margin, ideal=target_margin * 1.5, zero=target_margin * 0.3, max_pts=10, label="Op Margin", category="_comp")
+        profitability = self._score_component([s_roe, s_margin, s_op_margin], [10, 10, 10])
+
+        # --- Health (D/E, Interest Coverage, Current Ratio, Altman Z) ---
+        debt_safe = benchmarks.get('debt_safe', 1.0)
+        s_de = self._linear_score(f.debt_to_equity, ideal=debt_safe, zero=debt_safe * 3, max_pts=10, label="D/E", category="_comp")
+        s_icr = self._linear_score(f.interest_coverage, ideal=8.0, zero=1.5, max_pts=10, label="ICR", category="_comp")
+        s_cr = self._linear_score(f.current_ratio, ideal=2.0, zero=0.8, max_pts=10, label="Current Ratio", category="_comp")
+        s_z = self._linear_score(f.altman_z_score, ideal=3.0, zero=1.8, max_pts=10, label="Altman Z", category="_comp")
+        health = self._score_component([s_de, s_icr, s_cr, s_z], [10, 10, 10, 10])
+
+        # --- Growth (Rev Growth 3y, Earnings QoQ, EPS Surprise) ---
+        target_growth = benchmarks.get('growth_strong', 0.10)
+        s_rev = self._linear_score(f.revenue_growth_3y, ideal=target_growth, zero=0.0, max_pts=10, label="Rev Growth", category="_comp")
+        s_earn = self._linear_score(f.earnings_growth_qoq, ideal=target_growth, zero=0.0, max_pts=10, label="Earn QoQ", category="_comp")
+        s_eps = self._linear_score(f.eps_surprise_pct, ideal=0.05, zero=-0.05, max_pts=10, label="EPS Surprise", category="_comp")
+        growth = self._score_component([s_rev, s_earn, s_eps], [10, 10, 10])
+
+        # --- Technicals (SMA200, SMA50, RSI continuous, RVOL) ---
+        tech_scores = []
+        tech_max = []
+        if t.sma200 and t.sma200 > 0:
+            s_sma200 = self._linear_score(t.price / t.sma200, ideal=1.05, zero=0.95, max_pts=10, label="vs SMA200", category="_comp")
+            tech_scores.append(s_sma200)
+            tech_max.append(10)
+        if t.sma50 and t.sma50 > 0:
+            s_sma50 = self._linear_score(t.price / t.sma50, ideal=1.03, zero=0.95, max_pts=10, label="vs SMA50", category="_comp")
+            tech_scores.append(s_sma50)
+            tech_max.append(10)
+        # RSI continuous
+        if t.rsi is not None and t.rsi > 0:
+            if 45 <= t.rsi <= 60:
+                rsi_s = 10.0
+            elif t.rsi < 25 or t.rsi > 85:
+                rsi_s = 0.0
+            elif t.rsi < 45:
+                rsi_s = 10.0 * ((t.rsi - 25) / 20)
+            else:
+                rsi_s = 10.0 * ((85 - t.rsi) / 25)
+            tech_scores.append(rsi_s)
+            tech_max.append(10)
+        s_rvol = self._linear_score(t.relative_volume, ideal=1.5, zero=0.5, max_pts=10, label="RVOL", category="_comp")
+        tech_scores.append(s_rvol)
+        tech_max.append(10)
+        technicals = self._score_component(tech_scores, tech_max)
+
+        return {
+            "valuation": round(valuation, 1),
+            "profitability": round(profitability, 1),
+            "health": round(health, 1),
+            "growth": round(growth, 1),
+            "technicals": round(technicals, 1),
+        }
+
+    def _apply_persona_weights(self, components: Dict, persona: str = "CFA") -> float:
+        """
+        Applies persona-specific weightings to Python-computed components.
+        Returns base score 0-100.
+        """
+        weights = self.PERSONAS.get(persona, self.PERSONAS["CFA"])
+        score = 0.0
+        for comp, weight_pct in weights.items():
+            comp_score_0_10 = components.get(comp, 5.0)
+            score += (comp_score_0_10 * 10) * (weight_pct / 100)
+        return round(score, 1)
+
+    # --- Penalty Sensitivity per Persona ---
+    PENALTY_SENSITIVITY = {
+        "CFA":      {"solvency": 1.0, "overvaluation": 1.0, "trend": 0.7, "revenue": 1.0},
+        "Momentum": {"solvency": 0.3, "overvaluation": 0.0, "trend": 1.5, "revenue": 0.3},
+        "Value":    {"solvency": 1.2, "overvaluation": 0.5, "trend": 0.3, "revenue": 1.0},
+        "Growth":   {"solvency": 0.5, "overvaluation": 0.3, "trend": 0.8, "revenue": 1.5},
+        "Income":   {"solvency": 1.5, "overvaluation": 0.8, "trend": 0.5, "revenue": 1.0},
+    }
+
+    def _compute_penalties(self, stock: StockData, persona: str = "CFA") -> tuple:
+        """
+        Continuous proportional penalties with buffer-then-gradient shape.
+        Each penalty has: [threshold] → [buffer zone: 0 pts] → [gradient zone: 0 to max] → [cap: max pts]
+        Returns (total_deductions: float, logs: list[dict]).
+        All None-safe: skip penalty if data is missing.
+        """
+        deductions = 0.0
+        logs = []
+        f = stock.fundamentals
+        t = stock.technicals
+        benchmarks = self._get_benchmarks(f.sector_name)
+        sens = self.PENALTY_SENSITIVITY.get(persona, self.PENALTY_SENSITIVITY["CFA"])
+        debt_safe = benchmarks.get('debt_safe', 1.0)
+        pe_median = benchmarks.get('pe_median', 20)
+
+        # Helper: compute penalty with buffer zone
+        def _buffered_penalty(value, buffer_start, gradient_end, max_pts, direction="above"):
+            """
+            direction='above': penalty when value > buffer_start, full at gradient_end
+            direction='below': penalty when value < buffer_start, full at gradient_end
+            """
+            if direction == "above":
+                if value <= buffer_start:
+                    return 0.0
+                # Ensure gradient_end is greater than buffer_start to avoid division by zero or negative range
+                if gradient_end <= buffer_start:
+                    return max_pts if value > buffer_start else 0.0
+                severity = min(1.0, (value - buffer_start) / (gradient_end - buffer_start))
+            else:  # below
+                if value >= buffer_start:
+                    return 0.0
+                # Ensure buffer_start is greater than gradient_end
+                if buffer_start <= gradient_end:
+                    return max_pts if value < buffer_start else 0.0
+                severity = min(1.0, (buffer_start - value) / (buffer_start - gradient_end))
+            return severity * max_pts
+
+        # 1. Solvency: Buffer at D/E 2.0 (Double safe), full -20 at D/E 4.0
+        # First principle: Debt isn't bad unless it's excessive. 1.5x safe is variance. 2.0x is structural risk.
+        if f.debt_to_equity is not None and f.debt_to_equity > debt_safe:
+            buffer_start = debt_safe * 2.0   
+            gradient_end = debt_safe * 4.0   
+            raw_penalty = _buffered_penalty(f.debt_to_equity, buffer_start, gradient_end, 20)
+            penalty = round(raw_penalty * sens.get("solvency", 1.0), 1)
+            if penalty > 0:
+                deductions += penalty
+                logs.append({
+                    "type": "Solvency Risk",
+                    "severity": penalty,
+                    "raw_value": f.debt_to_equity,
+                    "threshold": debt_safe,
+                    "buffer": buffer_start,
+                    "detail": f"D/E {f.debt_to_equity:.1f} vs safe {debt_safe:.1f} (buffer {buffer_start:.1f}, -{penalty:.1f}pts)"
+                })
+
+        # 2. Overvaluation: Buffer at 2.0x median P/E, full -15 at 4x median
+        # First principle: Great companies rightfully trade at premiums. Only punish blatant bubbles.
+        if f.pe_ratio is not None and f.pe_ratio > pe_median:
+            buffer_start = pe_median * 2.0   
+            gradient_end = pe_median * 4.0   
+            # Growth offset: high-growth companies get halved penalty (growing into their valuation)
+            growth_offset = 0.0
+            if f.revenue_growth_3y is not None and f.revenue_growth_3y > 0.15:
+                growth_offset = 0.5
+            raw_penalty = _buffered_penalty(f.pe_ratio, buffer_start, gradient_end, 15) * (1 - growth_offset)
+            penalty = round(raw_penalty * sens.get("overvaluation", 1.0), 1)
+            if penalty > 0:
+                deductions += penalty
+                logs.append({
+                    "type": "Overvaluation",
+                    "severity": penalty,
+                    "raw_value": f.pe_ratio,
+                    "threshold": pe_median,
+                    "buffer": buffer_start,
+                    "detail": f"P/E {f.pe_ratio:.0f} vs median {pe_median} (buffer {buffer_start:.0f}, -{penalty:.1f}pts)"
+                })
+
+        # 3. Broken Trend: Buffer at 5% below SMA200, full -10 at 20% below
+        # First principle: A 3% dip under a moving average is a normal pullback. 10%+ is an institutional exodus.
+        if t.sma200 and t.sma200 > 0 and t.price < t.sma200:
+            pct_below = (t.sma200 - t.price) / t.sma200  # 0.0 to 1.0
+            buffer_pct = 0.05   # 5% below = no penalty yet 
+            gradient_pct = 0.20  # 20% below = full penalty 
+            raw_penalty = _buffered_penalty(pct_below, buffer_pct, gradient_pct, 10)
+            penalty = round(raw_penalty * sens.get("trend", 1.0), 1)
+            if penalty > 0:
+                deductions += penalty
+                below_pct = -pct_below * 100
+                logs.append({
+                    "type": "Broken Trend",
+                    "severity": penalty,
+                    "raw_value": t.price,
+                    "threshold": t.sma200,
+                    "detail": f"{below_pct:.1f}% below SMA200 (buffer -5%, -{penalty:.1f}pts)"
+                })
+
+        # 4. Revenue Decline: Buffer at -10%, full -15 at -30%
+        # First principle: A -5% revenue miss is a weak quarter. A -20% contraction is a dying business.
+        if f.revenue_growth_3y is not None and f.revenue_growth_3y < 0:
+            pct_decline = abs(f.revenue_growth_3y)  # positive number
+            buffer_pct = 0.10   # -10% = no penalty yet (cyclical variance)
+            gradient_pct = 0.30  # -30% = full penalty 
+            raw_penalty = _buffered_penalty(pct_decline, buffer_pct, gradient_pct, 15)
+            penalty = round(raw_penalty * sens.get("revenue", 1.0), 1)
+            if penalty > 0:
+                deductions += penalty
+                logs.append({
+                    "type": "Revenue Decline",
+                    "severity": penalty,
+                    "raw_value": f.revenue_growth_3y,
+                    "threshold": 0.0,
+                    "detail": f"Revenue growth {f.revenue_growth_3y:.1%} (buffer -10%, -{penalty:.1f}pts)"
+                })
+
+        return round(deductions, 1), logs
+
     def _score_quality(self, f: Fundamentals) -> tuple[float, Dict]:
         """
         Calculates the Quality Score (Max 100).
+        None-safe: missing metrics are excluded, score normalizes over available points.
         """
         score = 0.0
+        available_pts = 0.0
         breakdown = {}
         
         benchmarks = self._get_benchmarks(f.sector_name)
@@ -234,8 +479,10 @@ class VinSightScorer:
             f.peg_ratio, ideal=target_peg, zero=target_peg + 2.0, max_pts=20,
             label="PEG Ratio", category="Quality (Valuation)"
         )
-        score += s_peg
-        breakdown['PEG'] = s_peg
+        if s_peg is not None:
+            score += s_peg
+            available_pts += 20
+        breakdown['PEG'] = s_peg if s_peg is not None else 0.0
         
         # 2. FCF Yield (15 pts) - Dynamic Target
         target_fcf = benchmarks.get('fcf_yield_strong', 0.05)
@@ -243,8 +490,10 @@ class VinSightScorer:
             f.fcf_yield, ideal=target_fcf, zero=target_fcf * 0.2, max_pts=15,
             label="FCF Yield", category="Quality (Valuation)", unit="%"
         )
-        score += s_fcf
-        breakdown['FCF Yield'] = s_fcf
+        if s_fcf is not None:
+            score += s_fcf
+            available_pts += 15
+        breakdown['FCF Yield'] = s_fcf if s_fcf is not None else 0.0
         
         # --- B. Profitability (35 Pts) ---
         # 3. ROE (15 pts) - Dynamic Target
@@ -253,8 +502,10 @@ class VinSightScorer:
             f.roe, ideal=target_roe, zero=target_roe * 0.3, max_pts=15,
             label="ROE", category="Quality (Profitability)", unit="%"
         )
-        score += s_roe
-        breakdown['ROE'] = s_roe
+        if s_roe is not None:
+            score += s_roe
+            available_pts += 15
+        breakdown['ROE'] = s_roe if s_roe is not None else 0.0
         
         # 4. Net Margin (10 pts) - Dynamic Target
         target_margin = benchmarks.get('margin_healthy', 0.12)
@@ -262,8 +513,10 @@ class VinSightScorer:
             f.profit_margin, ideal=target_margin, zero=target_margin * 0.4, max_pts=10,
             label="Net Margin", category="Quality (Profitability)", unit="%"
         )
-        score += s_margin
-        breakdown['Net Margin'] = s_margin
+        if s_margin is not None:
+            score += s_margin
+            available_pts += 10
+        breakdown['Net Margin'] = s_margin if s_margin is not None else 0.0
         
         # 5. Gross Margin Trend (10 pts) - Rising YoY
         s_gm_trend = 0.0
@@ -278,6 +531,7 @@ class VinSightScorer:
             status = "Poor"
             
         score += s_gm_trend
+        available_pts += 10  # GM Trend is always available (string field)
         breakdown['GM Trend'] = s_gm_trend
         self._add_detail("Quality (Profitability)", "Gross Margin Trend", f.gross_margin_trend, "Rising", s_gm_trend, 10, status)
         
@@ -285,19 +539,23 @@ class VinSightScorer:
         # 6. Debt Threshold (15 pts) - Dynamic Target
         target_debt = benchmarks.get('debt_safe', 1.0)
         s_debt = self._linear_score(
-            f.debt_to_ebitda, ideal=target_debt, zero=target_debt * 2.0, max_pts=15, # Lower is better
+            f.debt_to_ebitda, ideal=target_debt, zero=target_debt * 2.0, max_pts=15,
             label="Debt/EBITDA", category="Quality (Health)"
         )
-        score += s_debt
-        breakdown['Debt/EBITDA'] = s_debt
+        if s_debt is not None:
+            score += s_debt
+            available_pts += 15
+        breakdown['Debt/EBITDA'] = s_debt if s_debt is not None else 0.0
         
         # 7. Altman Z-Score (5 pts) - Standard Target
         s_z = self._linear_score(
             f.altman_z_score, ideal=3.0, zero=1.8, max_pts=5,
             label="Altman Z-Score", category="Quality (Health)"
         )
-        score += s_z
-        breakdown['Altman Z'] = s_z
+        if s_z is not None:
+            score += s_z
+            available_pts += 5
+        breakdown['Altman Z'] = s_z if s_z is not None else 0.0
 
         # --- D. Growth (10 Pts) ---
         # 8. Rev Growth (10 pts) - Dynamic Target
@@ -306,69 +564,81 @@ class VinSightScorer:
             f.revenue_growth_3y, ideal=target_growth, zero=0.0, max_pts=10,
             label="Rev Growth (3yr)", category="Quality (Growth)", unit="%"
         )
-        score += s_growth
-        breakdown['Growth'] = s_growth
+        if s_growth is not None:
+            score += s_growth
+            available_pts += 10
+        breakdown['Growth'] = s_growth if s_growth is not None else 0.0
         
-        return score, breakdown
+        # Normalize: scale score to 100-pt basis over available points
+        if available_pts > 0:
+            normalized_score = (score / available_pts) * 100
+        else:
+            normalized_score = 50.0  # Total data blackout → neutral
+        
+        breakdown['_available_pts'] = available_pts
+        return normalized_score, breakdown
         
     def _score_timing(self, t: Technicals, beta: float, sector_name: str) -> tuple[float, Dict]:
         """
         Calculates the Timing Score (Max 100).
+        None-safe: missing metrics excluded, score normalizes over available points.
         """
         score = 0.0
+        available_pts = 0.0
         breakdown = {}
         
         benchmarks = self._get_benchmarks(sector_name)
         
         # --- A. Trend (50 Pts) ---
-        # 1. Price vs SMA200 (30 pts)
-        # Logic: Binary/Step? Or continuous? "Price > 200 SMA"
-        # Let's use continuous ratio to reward strength, but cap at max.
-        # User said: Benchmark Price > 200 SMA.
+        # 1. Price vs SMA200 (30 pts) — Ideal raised to 1.05 for discrimination
         if t.sma200 and t.sma200 > 0:
             ratio = t.price / t.sma200
-            # Ideal: 1.05 (Clear uptrend), Zero: 0.95 (Breakdown warning)
             s_sma200 = self._linear_score(
-                ratio, ideal=1.01, zero=0.95, max_pts=30,
+                ratio, ideal=1.05, zero=0.95, max_pts=30,
                 label="Price vs SMA200", category="Timing (Trend)"
             )
-            score += s_sma200
-            breakdown['vs SMA200'] = s_sma200
+            if s_sma200 is not None:
+                score += s_sma200
+                available_pts += 30
+            breakdown['vs SMA200'] = s_sma200 if s_sma200 is not None else 0.0
         else:
-             self._add_detail("Timing (Trend)", "Price vs SMA200", "N/A", "> 1.0", 0, 30, "N/A")
+            self._add_detail("Timing (Trend)", "Price vs SMA200", "N/A", "> 1.05", 0, 30, "N/A")
         
-        # 2. Price vs SMA50 (20 pts)
+        # 2. Price vs SMA50 (20 pts) — Ideal raised to 1.03
         if t.sma50 and t.sma50 > 0:
             ratio = t.price / t.sma50
             s_sma50 = self._linear_score(
-                ratio, ideal=1.01, zero=0.95, max_pts=20,
+                ratio, ideal=1.03, zero=0.95, max_pts=20,
                 label="Price vs SMA50", category="Timing (Trend)"
             )
-            score += s_sma50
-            breakdown['vs SMA50'] = s_sma50
+            if s_sma50 is not None:
+                score += s_sma50
+                available_pts += 20
+            breakdown['vs SMA50'] = s_sma50 if s_sma50 is not None else 0.0
         else:
-             self._add_detail("Timing (Trend)", "Price vs SMA50", "N/A", "> 1.0", 0, 20, "N/A")
+            self._add_detail("Timing (Trend)", "Price vs SMA50", "N/A", "> 1.03", 0, 20, "N/A")
 
         # --- B. Momentum (15 Pts) ---
-        # 3. RSI (15 pts) - Target: 40-65 (Bullish Zone)
-        # We need a bell curve or specific band scoring.
-        # If 40 <= RSI <= 65 -> Max Pts.
-        # If RSI < 30 or RSI > 80 -> 0 Pts.
+        # 3. RSI (15 pts) - Continuous linear ramps (replaces step function)
         rsi_score = 0.0
         status = "Neutral"
-        if t.rsi:
-            if 40 <= t.rsi <= 65:
+        if t.rsi is not None and t.rsi > 0:
+            if 45 <= t.rsi <= 60:
                 rsi_score = 15.0
                 status = "Excellent"
-            elif 30 <= t.rsi < 40 or 65 < t.rsi <= 75:
-                rsi_score = 10.0 # Ok zone
-                status = "Good"
-            else:
+            elif t.rsi < 25 or t.rsi > 85:
                 rsi_score = 0.0
                 status = "Poor"
+            elif t.rsi < 45:
+                rsi_score = 15.0 * ((t.rsi - 25) / 20)  # Linear ramp 25→45
+                status = "Good" if rsi_score >= 10 else "Fair"
+            else:  # 60 < rsi <= 85
+                rsi_score = 15.0 * ((85 - t.rsi) / 25)  # Linear ramp 60→85
+                status = "Good" if rsi_score >= 10 else "Fair"
+            available_pts += 15
         score += rsi_score
         breakdown['RSI'] = rsi_score
-        self._add_detail("Timing (Momentum)", "RSI (14)", f"{t.rsi:.1f}" if t.rsi else "N/A", "40 - 65", rsi_score, 15, status)
+        self._add_detail("Timing (Momentum)", "RSI (14)", f"{t.rsi:.1f}" if t.rsi else "N/A", "45 - 60", rsi_score, 15, status)
 
         # --- C. Volume (15 Pts) ---
         # 4. Relative Volume (15 pts) - Target: > 1.5x
@@ -376,29 +646,41 @@ class VinSightScorer:
             t.relative_volume, ideal=1.5, zero=0.5, max_pts=15,
             label="Rel. Vol (RVOL)", category="Timing (Volume)"
         )
-        score += s_rvol
-        breakdown['RVOL'] = s_rvol
+        if s_rvol is not None:
+            score += s_rvol
+            available_pts += 15
+        breakdown['RVOL'] = s_rvol if s_rvol is not None else 0.0
 
         # --- D. Risk (20 Pts) ---
         # 5. Beta (10 pts) - Dynamic Target
         target_beta = benchmarks.get('beta_safe', 1.2)
         s_beta = self._linear_score(
-            beta, ideal=target_beta, zero=target_beta + 0.8, max_pts=10, # Lower is better (Stability)
+            beta, ideal=target_beta, zero=target_beta + 0.8, max_pts=10,
             label="Beta", category="Timing (Risk)"
         )
-        score += s_beta
-        breakdown['Beta'] = s_beta
+        if s_beta is not None:
+            score += s_beta
+            available_pts += 10
+        breakdown['Beta'] = s_beta if s_beta is not None else 0.0
         
-        # 6. Distance to High (10 pts) - Target: Within 15% (< 0.15 distance)
-        # distance logic: (High - Current)/High. So 0.0 is best. 0.15 is limit.
+        # 6. Distance to High (10 pts) - Target: Within 15%
         s_dist = self._linear_score(
-            t.distance_to_high, ideal=0.15, zero=0.30, max_pts=10, # Lower is better
+            t.distance_to_high, ideal=0.15, zero=0.30, max_pts=10,
             label="Dist. to High", category="Timing (Risk)", unit="%"
         )
-        score += s_dist
-        breakdown['Dist to High'] = s_dist
+        if s_dist is not None:
+            score += s_dist
+            available_pts += 10
+        breakdown['Dist to High'] = s_dist if s_dist is not None else 0.0
         
-        return score, breakdown
+        # Normalize: scale score to 100-pt basis over available points
+        if available_pts > 0:
+            normalized_score = (score / available_pts) * 100
+        else:
+            normalized_score = 50.0  # Total data blackout → neutral
+        
+        breakdown['_available_pts'] = available_pts
+        return normalized_score, breakdown
 
     def _linear_score(self, value: float, ideal: float, zero: float, max_pts: float, label: str, category: str, unit: str = "") -> float:
         """
@@ -406,7 +688,7 @@ class VinSightScorer:
         """
         if value is None:
             self._add_detail(category, label, "N/A", f"{ideal}{unit}", 0, max_pts, "N/A")
-            return 0.0
+            return None  # Missing data = no contribution, not worst-case
 
         # Determine direction
         is_higher_better = ideal > zero

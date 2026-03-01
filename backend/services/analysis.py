@@ -2,7 +2,6 @@ import pandas as pd
 import ta
 import numpy as np
 from typing import Dict, List, Optional
-from textblob import TextBlob
 from datetime import datetime
 from services import finnhub_news, cache
 from services.groq_sentiment import get_groq_analyzer
@@ -166,34 +165,13 @@ def calculate_news_sentiment(news_items: List[Dict], deep_analysis: bool = True,
         except Exception as e:
             print(f"Error in Groq sentiment analysis, falling back to TextBlob: {e}")
 
-    # 4. Fallback/Fast-Path to TextBlob (Used if deep_analysis=False OR Groq fails)
-    from textblob import TextBlob
-    
-    total_polarity = 0
-    count = 0
-    
-    for item in news_items:
-        title = item.get('title', '')
-        if title:
-            blob = TextBlob(title)
-            total_polarity += blob.sentiment.polarity
-            count += 1
-    
-    avg_polarity = total_polarity / count if count > 0 else 0
-    
-    if avg_polarity > 0.5:
-        label = "Positive"
-    elif avg_polarity < -0.3:
-        label = "Negative"
-    else:
-        label = "Neutral"
-    
+    # 4. Groq failed — return honest neutral instead of low-quality TextBlob fallback
     return {
-        "score": avg_polarity,
-        "label": label,
-        "confidence": 0.5,
-        "article_count": count,
-        "source": "TextBlob (Tier 3)",
+        "score": 0,
+        "label": "Neutral",
+        "confidence": 0.0,
+        "article_count": len(articles_to_analyze),
+        "source": "fallback (AI unavailable)",
         "insider_mspr": insider_mspr,
         "insider_mspr_label": insider_mspr_label
     }
@@ -259,16 +237,8 @@ def analyze_sentiment_ondemand(ticker: str) -> Dict:
     end_time = datetime.now()
     duration_ms = (end_time - start_time).total_seconds() * 1000
 
-    # 4. Quant Check (TextBlob - Standard "Bag of Words" model)
-    # This acts as a "second opinion" or the "Finnhub Weighted Score" proxy.
-    def calc_quant_score(items):
-        if not items: return 0.0
-        details = [TextBlob(i['title'] + " " + i.get('summary','')).sentiment.polarity for i in items]
-        return sum(details) / len(details) if details else 0.0
-
-    quant_today = calc_quant_score(latest)
-    quant_weekly = calc_quant_score(historical)
-    quant_total = (quant_today * 0.6) + (quant_weekly * 0.4) # Weighted
+    # Quant Check removed (v11.1: TextBlob removed as low-signal noise)
+    quant_total = 0.0
 
     # 5. Construct Result
     result = {

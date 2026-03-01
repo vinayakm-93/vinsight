@@ -61,7 +61,11 @@ graph TD
     3.  **Act**: Updates status and sends proactive email alerts.
 -   **Documentation**: See [Thesis Agent Docs](../.gemini/antigravity/brain/797d5707-6eeb-42e7-9505-2b09f8dbab87/THESIS_AGENT.md) for full details.
 
-## 6. Infrastructure & Security
+## 6. Model Context Protocol (MCP) Integration
+VinSight exposes its internal analysis tools via an MCP Server, allowing external AI agents (like Claude Desktop) to invoke them.
+-   **Documentation**: See the [MCP Architecture & Setup Guide](./mcp/MCP_README.md) for full details, token economics, and security rationales.
+
+## 7. Infrastructure & Security
 -   **Computing**: Scaling-to-zero Cloud Run containers for cost efficiency.
 -   **Secrets**: Zero-knowledge credential storage via Google Secret Manager.
 -   **Alerts**: Background cron job (Worker) triggered every 5 minutes during US market hours.

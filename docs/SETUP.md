@@ -12,10 +12,10 @@
 VinSight uses SQLite for local development. No installation required; the file `backend/finance.db` will be created automatically.
 
 ### 2. API Keys
-You strictly need these keys for the app to function correctly:
-1.  **JWT Secret**: Generate any random string.
+You strictly need these keys for the app to function correctly. Add them to your `backend/.env` file:
+1.  **JWT Secret**: Generate any random string (e.g., `openssl rand -hex 32`).
 2.  **API Ninjas**: For stock price data.
-3.  **Groq API**: For fast AI sentiment analysis.
+3.  **Groq API**: For ultra-fast AI sentiment analysis (Llama 3.3). Get a free key at [console.groq.com](https://console.groq.com) (`GROQ_API_KEY=gsk_...`).
 4.  **Google Gemini**: For deep reasoning analysis.
 5.  **Finnhub API**: For institutional data and real-time news.
 6.  **Serper API**: For DIY earnings transcript scraping.

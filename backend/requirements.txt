@@ -22,7 +22,6 @@ scipy
 scikit-learn
 yfinance
 ta
-textblob
 
 # AI / Google
 google-generativeai>=0.4.0

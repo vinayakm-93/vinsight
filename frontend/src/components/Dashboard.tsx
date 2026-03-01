@@ -1609,438 +1609,333 @@ export default function Dashboard({
                                                     <div className="flex-1">
                                                         <div className="flex items-center justify-between mb-1">
                                                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
-                                                            {analysis.ai_analysis.meta?.confidence && (
-                                                                <div className="flex items-center gap-3">
-                                                                    {/* Methodology Tooltip */}
-                                                                    <div className="group relative">
-                                                                        <Info size={14} className="text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
-                                                                        <div className="absolute right-0 top-6 w-64 p-3 bg-gray-900/95 backdrop-blur text-white text-[10px] leading-relaxed rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-gray-700">
-                                                                            <strong className="block text-blue-400 mb-1">VinSight Scoring v10.0</strong>
-                                                                            Score (0-100) is a weighted conviction rating based on your active <strong>{selectedPersona}</strong> persona.
-                                                                            <ul className="list-disc pl-3 mt-1 space-y-0.5 text-gray-300">
-                                                                                <li><strong>90-100:</strong> Generational Opportunity</li>
-                                                                                <li><strong>80-89:</strong> High Conviction Buy</li>
-                                                                                <li><strong>0-39:</strong> Sell / Bankruptcy Risk</li>
-                                                                            </ul>
-                                                                            <div className="mt-2 pt-2 border-t border-gray-700 text-gray-400 italic">
-                                                                                Includes active penalties for solvency, valuation traps, and momentum breakdowns.
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Confidence Meter */}
-                                                                    <div className="flex items-center gap-2 group relative">
-                                                                        <div className="flex flex-col items-end">
-                                                                            <span className="text-[10px] uppercase font-bold text-gray-400">Confidence</span>
-                                                                            <span className={`text-xs font-bold ${analysis.ai_analysis.meta.confidence > 80 ? 'text-emerald-500' : analysis.ai_analysis.meta.confidence > 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                                                                                {analysis.ai_analysis.meta.confidence}%
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                                            <div
-                                                                                className={`h-full rounded-full ${analysis.ai_analysis.meta.confidence > 80 ? 'bg-emerald-500' : analysis.ai_analysis.meta.confidence > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                                                                style={{ width: `${analysis.ai_analysis.meta.confidence}%` }}
-                                                                            />
-                                                                        </div>
-                                                                        {/* Tooltip */}
-                                                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                                                            AI Confidence based on data completeness and signal clarity. <br />
-                                                                            &lt; 50% triggers a score penalty.
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="flex flex-col gap-2 mt-2">
-                                                            {/* Rating Badge + Verdict Text */}
-                                                            <div className="flex flex-col gap-2">
-                                                                {(() => {
-                                                                    const rating = (analysis.ai_analysis as any).rating || "Hold";
-                                                                    let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
-
-                                                                    // 10-Tier Color Mapping
-                                                                    if (rating.includes("Generational") || rating.includes("High Conviction")) badgeColor = "bg-purple-100/50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800";
-                                                                    else if (rating.includes("Strong Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
-                                                                    else if (rating.includes("Buy")) badgeColor = "bg-green-100/50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
-                                                                    else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
-                                                                    else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
-                                                                    else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
-                                                                    else if (rating.includes("Bankruptcy") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
-
-                                                                    return (
-                                                                        <div className="flex items-start gap-3">
-                                                                            <span className={`px-3 py-1 rounded-md border ${badgeColor} text-xs font-black uppercase tracking-wider shadow-sm whitespace-nowrap`}>
-                                                                                {rating}
-                                                                            </span>
-                                                                            {(analysis.ai_analysis as any).structured_summary?.verdict && (
-                                                                                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 italic leading-snug pt-0.5 border-l-2 border-blue-500 pl-3">
-                                                                                    "{(analysis.ai_analysis as any).structured_summary.verdict}"
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                            </div>
-
-                                                            {/* Penalty Badges (Risk Factors) */}
-                                                            {((analysis.ai_analysis.score_explanation?.factors?.length > 0) || (analysis.ai_analysis.modifications?.length > 0)) && (
-                                                                <div className="flex flex-wrap gap-2 pt-1">
-                                                                    {/* Display explicit Risk Factors from AI */}
-                                                                    {/* Display explicit Risk Factors from AI */}
-                                                                    {analysis.ai_analysis.score_explanation?.factors?.filter((f: string) => f.includes("Risk") || f.includes("Trap") || f.includes("pts") || f.includes("Collapse")).map((factor: string, i: number) => (
-                                                                        <span key={`risk-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
-                                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                                                            {factor}
-                                                                        </span>
-                                                                    ))}
-
-                                                                    {/* Fallback to legacy modifications if no structured factors */}
-                                                                    {(!analysis.ai_analysis.score_explanation?.factors?.length) && analysis.ai_analysis.modifications?.map((mod: string, i: number) => (
-                                                                        <span key={`mod-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                                                                            {mod.replace(/.*VETO:\s*/i, '').trim()}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
                                                         </div>
                                                     </div>
-                                                </div>
 
-                                                {/* Conviction Index removed */}
+                                                    <div className="flex flex-col gap-2 mt-2">
+                                                        {/* Rating Badge + Verdict Text */}
+                                                        <div className="flex flex-col gap-2">
+                                                            {(() => {
+                                                                const rating = (analysis.ai_analysis as any).rating || "Hold";
+                                                                let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
+
+                                                                // 10-Tier Color Mapping
+                                                                if (rating.includes("Generational") || rating.includes("High Conviction")) badgeColor = "bg-purple-100/50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800";
+                                                                else if (rating.includes("Strong Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+                                                                else if (rating.includes("Buy")) badgeColor = "bg-green-100/50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+                                                                else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+                                                                else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+                                                                else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
+                                                                else if (rating.includes("Bankruptcy") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+
+                                                                return (
+                                                                    <div className="flex items-start gap-3">
+                                                                        <span className={`px-3 py-1 rounded-md border ${badgeColor} text-xs font-black uppercase tracking-wider shadow-sm whitespace-nowrap`}>
+                                                                            {rating}
+                                                                        </span>
+                                                                        {(analysis.ai_analysis as any).structured_summary?.verdict && (
+                                                                            <p className="text-sm font-medium text-gray-600 dark:text-gray-300 italic leading-snug pt-0.5 border-l-2 border-blue-500 pl-3">
+                                                                                "{(analysis.ai_analysis as any).structured_summary.verdict}"
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+
+                                                        {/* Penalty Badges (Risk Factors) */}
+                                                        {((analysis.ai_analysis.score_explanation?.factors?.length > 0) || (analysis.ai_analysis.modifications?.length > 0)) && (
+                                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                                {/* Display explicit Risk Factors from AI */}
+                                                                {/* Display explicit Risk Factors from AI */}
+                                                                {analysis.ai_analysis.score_explanation?.factors?.filter((f: string) => f.includes("Risk") || f.includes("Trap") || f.includes("pts") || f.includes("Collapse")).map((factor: string, i: number) => (
+                                                                    <span key={`risk-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                                        {factor}
+                                                                    </span>
+                                                                ))}
+
+                                                                {/* Fallback to legacy modifications if no structured factors */}
+                                                                {(!analysis.ai_analysis.score_explanation?.factors?.length) && analysis.ai_analysis.modifications?.map((mod: string, i: number) => (
+                                                                    <span key={`mod-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                                                                        {mod.replace(/.*VETO:\s*/i, '').trim()}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
-                                            {!useReasoning && (
-                                                <div className="w-full">
-                                                    <div className="w-full h-px bg-gray-200 dark:bg-gray-800/50 my-3"></div>
-
-                                                    {/* Unified All-in-One Header */}
-                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 px-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="p-1 bg-blue-500/10 rounded-lg">
-                                                                <Sliders size={14} className="text-blue-600 dark:text-blue-400" />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider">Strategy Mixer</h4>
-                                                                <p className="text-[8px] text-gray-500 uppercase font-bold tracking-tight">Active Weighting Profile</p>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-700/50">
-                                                            <div className="flex flex-col items-center px-2">
-                                                                <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Technical</span>
-                                                                <span className="text-xs font-black text-blue-500">{100 - fundWeight}%</span>
-                                                            </div>
-                                                            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700"></div>
-                                                            <div className="flex flex-col items-center px-2">
-                                                                <span className="text-[7px] font-bold text-gray-400 uppercase tracking-tighter">Fundamental</span>
-                                                                <span className="text-xs font-black text-emerald-500">{fundWeight}%</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Slider Container */}
-                                                    <div className="relative pt-3 pb-1 px-1">
-                                                        {/* Labels for ends */}
-                                                        <div className="absolute top-0 left-0 text-[7px] font-black text-blue-500/60 uppercase tracking-widest flex items-center gap-1">
-                                                            <TrendingUp size={8} /> Trader Focus
-                                                        </div>
-                                                        <div className="absolute top-0 right-0 text-[7px] font-black text-emerald-500/80 uppercase tracking-widest flex items-center gap-1">
-                                                            Investor Focus <Shield size={9} className="text-emerald-500" />
-                                                        </div>
-
-                                                        <input
-                                                            type="range"
-                                                            min="0"
-                                                            max="100"
-                                                            value={fundWeight}
-                                                            onChange={(e) => setFundWeight(parseInt(e.target.value))}
-                                                            className="w-full premium-slider mt-2"
-                                                        />
-                                                    </div>
-
-                                                    <div className="flex justify-between items-center mt-1 px-1">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-                                                                {fundWeight < 40 ? "Momentum Optimized" : fundWeight > 60 ? "Quality Centric" : "Balanced Alpha"}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-                                                                CFA v5.0 Engine
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            {/* Conviction Index removed */}
                                         </div>
+
+                                        {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
+                                        {/* Strategy Mixer removed in v11.1 — persona selector replaces fixed Quality/Timing split */}
+                                    </div>
+                                </div>
+
+                                {/* Right: Score Anchor Text & Badges */}
+                                {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
+                                <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1 rounded bg-blue-500/10 text-blue-500">
+                                                <Zap size={14} className="animate-pulse" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Strategic Briefing</span>
+                                        </div>
+
+                                        {/* Verdict Removed Here - Moved to Top */}
                                     </div>
 
-                                    {/* Right: Score Anchor Text & Badges */}
-                                    {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
-                                    <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1 rounded bg-blue-500/10 text-blue-500">
-                                                    <Zap size={14} className="animate-pulse" />
+                                    <div className="space-y-8">
+                                        {/* 1. BULL vs BEAR CASE (2-Column Grid) */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Bull Case + Opportunities */}
+                                            <div className="relative p-5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 flex flex-col h-full">
+                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center gap-1.5">
+                                                    <TrendingUp size={12} className="text-emerald-500" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">The Bull Case</span>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Strategic Briefing</span>
+                                                <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                    {(analysis.ai_analysis as any).structured_summary?.bull_case || "Analyzing upside potential..."}
+                                                </p>
+                                                {/* Restored Opportunities */}
+                                                {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
+                                                    <div className="mt-auto pt-3 border-t border-emerald-100 dark:border-emerald-800/30">
+                                                        <h5 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                            <Zap size={10} /> Key Opportunities
+                                                        </h5>
+                                                        <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                            {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
+                                                                <li key={idx}>{opp}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Verdict Removed Here - Moved to Top */}
+                                            {/* Bear Case + Risks */}
+                                            <div className="relative p-5 rounded-2xl bg-red-50/40 dark:bg-red-900/10 border border-red-100 dark:border-red-800/50 flex flex-col h-full">
+                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-red-100 dark:border-red-800/50 shadow-sm flex items-center gap-1.5">
+                                                    <TrendingDown size={12} className="text-red-500" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">The Bear Case</span>
+                                                </div>
+                                                <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                    {(analysis.ai_analysis as any).structured_summary?.bear_case || "Analyzing downside risks..."}
+                                                </p>
+                                                {/* Restored Risks */}
+                                                {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
+                                                    <div className="mt-auto pt-3 border-t border-red-100 dark:border-red-800/30">
+                                                        <h5 className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                            <AlertTriangle size={10} /> Key Risks
+                                                        </h5>
+                                                        <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                            {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
+                                                                <li key={idx}>{risk}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div className="space-y-8">
-                                            {/* 1. BULL vs BEAR CASE (2-Column Grid) */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {/* Bull Case + Opportunities */}
-                                                <div className="relative p-5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 flex flex-col h-full">
-                                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center gap-1.5">
-                                                        <TrendingUp size={12} className="text-emerald-500" />
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">The Bull Case</span>
-                                                    </div>
-                                                    <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
-                                                        {(analysis.ai_analysis as any).structured_summary?.bull_case || "Analyzing upside potential..."}
-                                                    </p>
-                                                    {/* Restored Opportunities */}
-                                                    {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
-                                                        <div className="mt-auto pt-3 border-t border-emerald-100 dark:border-emerald-800/30">
-                                                            <h5 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                                                <Zap size={10} /> Key Opportunities
-                                                            </h5>
-                                                            <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                                                {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
-                                                                    <li key={idx}>{opp}</li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
+                                        {/* 2. Split Cards: Quality vs Timing WITH EXPLANATIONS */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Quality Card */}
+                                            <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Shield size={14} className="text-emerald-500" /> Fundamental Quality
+                                                    </h4>
+                                                    <span className="text-2xl font-black text-gray-900 dark:text-white">
+                                                        {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
+                                                    </span>
                                                 </div>
-
-                                                {/* Bear Case + Risks */}
-                                                <div className="relative p-5 rounded-2xl bg-red-50/40 dark:bg-red-900/10 border border-red-100 dark:border-red-800/50 flex flex-col h-full">
-                                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-red-100 dark:border-red-800/50 shadow-sm flex items-center gap-1.5">
-                                                        <TrendingDown size={12} className="text-red-500" />
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">The Bear Case</span>
-                                                    </div>
-                                                    <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
-                                                        {(analysis.ai_analysis as any).structured_summary?.bear_case || "Analyzing downside risks..."}
-                                                    </p>
-                                                    {/* Restored Risks */}
-                                                    {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
-                                                        <div className="mt-auto pt-3 border-t border-red-100 dark:border-red-800/30">
-                                                            <h5 className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                                                <AlertTriangle size={10} /> Key Risks
-                                                            </h5>
-                                                            <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                                                {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
-                                                                    <li key={idx}>{risk}</li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
+                                                {/* Mini bar chart visual */}
+                                                <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                                                    <div
+                                                        className="h-full bg-emerald-500 rounded-full"
+                                                        style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
+                                                    ></div>
                                                 </div>
+                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-emerald-500 pl-3">
+                                                    "{(analysis.ai_analysis as any).structured_summary?.fundamental_analysis || "calculating metrics..."}"
+                                                </p>
                                             </div>
 
-                                            {/* 2. Split Cards: Quality vs Timing WITH EXPLANATIONS */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {/* Quality Card */}
-                                                <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                            <Shield size={14} className="text-emerald-500" /> Fundamental Quality
-                                                        </h4>
-                                                        <span className="text-2xl font-black text-gray-900 dark:text-white">
-                                                            {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
-                                                        </span>
-                                                    </div>
-                                                    {/* Mini bar chart visual */}
-                                                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
-                                                        <div
-                                                            className="h-full bg-emerald-500 rounded-full"
-                                                            style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
-                                                        ></div>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-emerald-500 pl-3">
-                                                        "{(analysis.ai_analysis as any).structured_summary?.fundamental_analysis || "calculating metrics..."}"
-                                                    </p>
+                                            {/* Timing Card */}
+                                            <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <TrendingUp size={14} className="text-blue-500" /> Technical Timing
+                                                    </h4>
+                                                    <span className="text-2xl font-black text-gray-900 dark:text-white">
+                                                        {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
+                                                    </span>
                                                 </div>
-
-                                                {/* Timing Card */}
-                                                <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                            <TrendingUp size={14} className="text-blue-500" /> Technical Timing
-                                                        </h4>
-                                                        <span className="text-2xl font-black text-gray-900 dark:text-white">
-                                                            {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
-                                                        </span>
-                                                    </div>
-                                                    {/* Mini bar chart visual */}
-                                                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
-                                                        <div
-                                                            style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
-                                                        ></div>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-blue-500 pl-3">
-                                                        "{(analysis.ai_analysis as any).structured_summary?.technical_analysis || "analyzing trends..."}"
-                                                    </p>
+                                                {/* Mini bar chart visual */}
+                                                <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                                                    <div
+                                                        style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
+                                                    ></div>
                                                 </div>
+                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-blue-500 pl-3">
+                                                    "{(analysis.ai_analysis as any).structured_summary?.technical_analysis || "analyzing trends..."}"
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        ) : (
-                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                ) : (
+                <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
                         )}
-                        {/* 2.5 Detailed Breakdown Table (Sectioned) */}
-                        {
-                            analysis?.ai_analysis?.details && (
-                                <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                    <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-purple-500/10 rounded-lg">
-                                                <Grid size={16} className="text-purple-500" />
+                {/* 2.5 Detailed Breakdown Table (Sectioned) */}
+                {
+                    analysis?.ai_analysis?.details && (
+                        <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-purple-500/10 rounded-lg">
+                                        <Grid size={16} className="text-purple-500" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                            Algorithmic Score Breakdown
+                                            <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v11.1 Engine</span>
+                                        </h4>
+                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Python Multi-Factor Baseline (Persona-Weighted)</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Python Engine Score</span>
+                                    <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
+                                        {Math.round(
+                                            analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="p-4 space-y-4">
+
+                                {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
+                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
+                                                <ShieldCheck size={16} />
                                             </div>
-                                            <div className="flex flex-col">
-                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                                                    Algorithmic Score Breakdown
-                                                    <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v9.0 Foundation</span>
-                                                </h4>
-                                                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Mathematical Multi-Factor Baseline</p>
-                                            </div>
+                                            <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
                                         </div>
-                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Algo Baseline (Reference)</span>
-                                            <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
-                                                {Math.round(
-                                                    /* ALGO BASELINE: Always uses the slider weights (fundWeight) to show the mathematical ground truth */
-                                                    ((analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0) * (fundWeight / 100)) +
-                                                    ((analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0) * ((100 - fundWeight) / 100))
-                                                )}
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
                                             </span>
+                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                        </div>
+                                    </summary>
+                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                    <tr>
+                                                        <th className="px-4 py-2 font-bold">Metric</th>
+                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                        <th className="px-4 py-2 font-bold">Status</th>
+                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
+                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                        const s = row.status.toLowerCase();
+                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                    <span>{row.metric}</span>
+                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                </td>
+                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
-                                    <div className="p-4 space-y-4">
+                                </details>
 
-                                        {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
-                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
-                                                        <ShieldCheck size={16} />
-                                                    </div>
-                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
-                                                    </span>
-                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                                </div>
-                                            </summary>
-                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                            <tr>
-                                                                <th className="px-4 py-2 font-bold">Metric</th>
-                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                                <th className="px-4 py-2 font-bold">Status</th>
-                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
-                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                                const s = row.status.toLowerCase();
-                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                                return (
-                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                            <span>{row.metric}</span>
-                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                        <td className="px-4 py-3">
-                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                {/* SECTION 2: TIMING (TECHNICAL) */}
+                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
+                                                <TrendingUp size={16} />
                                             </div>
-                                        </details>
-
-                                        {/* SECTION 2: TIMING (TECHNICAL) */}
-                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
-                                                        <TrendingUp size={16} />
-                                                    </div>
-                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
-                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
-                                                    </span>
-                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                                </div>
-                                            </summary>
-                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                            <tr>
-                                                                <th className="px-4 py-2 font-bold">Metric</th>
-                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                                <th className="px-4 py-2 font-bold">Status</th>
-                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
+                                            <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                            </span>
+                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                        </div>
+                                    </summary>
+                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                    <tr>
+                                                        <th className="px-4 py-2 font-bold">Metric</th>
+                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                        <th className="px-4 py-2 font-bold">Status</th>
+                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
+                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                        const s = row.status.toLowerCase();
+                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                    <span>{row.metric}</span>
+                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                </td>
+                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
                                                             </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
-                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                                const s = row.status.toLowerCase();
-                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                                return (
-                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                            <span>{row.metric}</span>
-                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                        <td className="px-4 py-3">
-                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </details>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </details>
                                     </div>
                                 </div>
                             )
                         }
-                    </div >
+                    </div>
                 )
                 }
 

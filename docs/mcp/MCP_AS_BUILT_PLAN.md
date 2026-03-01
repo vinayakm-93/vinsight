@@ -45,7 +45,7 @@ Strategy for maintaining and distributing knowledge.
 
 | Document | Audience | Purpose | Update Frequency |
 | :--- | :--- | :--- | :--- |
-| **`docs/MCP_README.md`** | **End Users** | Quick Start & Troubleshooting. | On new feature release. |
+| **`docs/mcp/MCP_README.md`** | **End Users** | Quick Start & Troubleshooting. | On new feature release. |
 | **`docs/MCP_TECHNICAL_REF.md`** | **Engineers/CTO** | Architecture, Security, Protocol Specs. | On arch change. |
 | **`docs/MCP_ROADMAP.md`** | **Product Managers** | Status tracking & Future Phases. | Weekly / Sprint start. |
 | **`walkthrough.md`** | **Team** | Proof of Work & Demo. | After major milestones. |
