@@ -28,12 +28,15 @@ def get_sector_benchmarks():
     """Return sector benchmarks for peer comparison display in UI."""
     config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'sector_benchmarks.json')
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Sector benchmarks config not found")
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Invalid sector benchmarks config")
+    except Exception as e:
+        logger.error(f"Error reading sector benchmarks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/quote/{ticker}")

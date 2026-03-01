@@ -162,7 +162,7 @@ def login(request: Request, login_req: LoginRequest, response: Response, db: Ses
     is_production = os.getenv("ENV", "development") == "production"
     response.set_cookie(
         key="access_token",
-        value=f"Bearer {access_token}",
+        value=access_token,
         httponly=True,
         secure=is_production, # Still keep Secure=True in prod (HTTPS)
         samesite="lax",      # Changed from 'none' to 'lax' for proxy compatibility
