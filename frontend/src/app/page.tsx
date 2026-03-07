@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import WatchlistComponent from "../components/Watchlist";
 import Dashboard from "../components/Dashboard";
+import ThesisLayout from "../components/ThesisRepository/Layout";
 import { AuthModal } from '../components/AuthModal';
 import { Watchlist, Portfolio } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -16,7 +17,7 @@ export default function Home() {
   const [watchlistStocks, setWatchlistStocks] = useState<string[]>([]);
   const [activeWatchlist, setActiveWatchlist] = useState<Watchlist | null>(null);
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
-  const [sidebarMode, setSidebarMode] = useState<'watchlist' | 'portfolio'>('watchlist');
+  const [currentView, setCurrentView] = useState<'watchlist' | 'portfolio' | 'thesis'>('watchlist');
   const { user, logout } = useAuth();
   const { theme, setTheme, effectiveTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -84,6 +85,28 @@ export default function Home() {
             Vinsight
           </h1>
 
+          {/* Main Navigation Tabs */}
+          <div className="hidden sm:flex ml-8 bg-gray-100 dark:bg-gray-800/80 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setCurrentView('watchlist')}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${currentView === 'watchlist' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            >
+              Watchlists
+            </button>
+            <button
+              onClick={() => setCurrentView('portfolio')}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${currentView === 'portfolio' ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            >
+              Portfolios
+            </button>
+            <button
+              onClick={() => setCurrentView('thesis')}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'thesis' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            >
+              Thesis Library <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 uppercase tracking-wider">Beta</span>
+            </button>
+          </div>
+
           {/* Feedback Button - Nav Item */}
           {/* <button
             onClick={() => setShowFeedbackModal(true)}
@@ -134,36 +157,40 @@ export default function Home() {
       </header>
 
       {/* Content */}
-      <div className="max-w-7xl 2xl:max-w-[95%] 3xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300">
-        <div className={`grid grid-cols-1 ${isWatchlistVisible ? 'lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr]' : ''} gap-8`}>
+      <div className={`max-w-7xl 2xl:max-w-[95%] 3xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300 ${currentView === 'thesis' ? '' : ''}`}>
+        {currentView === 'watchlist' || currentView === 'portfolio' ? (
+          <div className={`grid grid-cols-1 ${isWatchlistVisible ? 'lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr]' : ''} gap-8`}>
 
-          {/* Sidebar / Watchlist */}
-          {isWatchlistVisible && (
-            <div className="min-h-[500px] h-full overflow-hidden rounded-xl animate-in slide-in-from-left-4 duration-300">
-              <WatchlistComponent
+            {/* Sidebar / Watchlist */}
+            {isWatchlistVisible && (
+              <div className="min-h-[500px] h-full overflow-hidden rounded-xl animate-in slide-in-from-left-4 duration-300">
+                <WatchlistComponent
+                  mode={currentView}
+                  onSelectStock={setSelectedTicker}
+                  onWatchlistChange={setWatchlistStocks}
+                  onActiveWatchlistChange={setActiveWatchlist}
+                  onActivePortfolioChange={setActivePortfolio}
+                />
+              </div>
+            )}
+
+            {/* Main Dashboard Area */}
+            <div className="min-w-0">
+              <Dashboard
+                ticker={selectedTicker}
+                watchlistStocks={watchlistStocks}
+                activeWatchlist={activeWatchlist}
+                activePortfolio={activePortfolio}
+                viewMode={currentView}
+                onClearSelection={() => setSelectedTicker(null)}
+                onRequireAuth={() => setShowAuthModal(true)}
                 onSelectStock={setSelectedTicker}
-                onWatchlistChange={setWatchlistStocks}
-                onActiveWatchlistChange={setActiveWatchlist}
-                onActivePortfolioChange={setActivePortfolio}
-                onModeChange={setSidebarMode}
               />
             </div>
-          )}
-
-          {/* Main Dashboard Area */}
-          <div className="min-w-0">
-            <Dashboard
-              ticker={selectedTicker}
-              watchlistStocks={watchlistStocks}
-              activeWatchlist={activeWatchlist}
-              activePortfolio={activePortfolio}
-              viewMode={sidebarMode}
-              onClearSelection={() => setSelectedTicker(null)}
-              onRequireAuth={() => setShowAuthModal(true)}
-              onSelectStock={setSelectedTicker}
-            />
           </div>
-        </div>
+        ) : (
+          <ThesisLayout />
+        )}
       </div>
     </main>
   );

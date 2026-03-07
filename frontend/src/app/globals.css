@@ -65,13 +65,14 @@ input[type="range"].premium-slider::-webkit-slider-runnable-track {
 input[type="range"].premium-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  margin-top: -6px; /* Center thumb on track */
+  margin-top: -6px;
+  /* Center thumb on track */
   background-color: white;
   height: 18px;
   width: 18px;
   border-radius: 50%;
   border: 3px solid #3b82f6;
-  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
 }
 
@@ -83,4 +84,46 @@ input[type="range"].premium-slider:hover::-webkit-slider-thumb {
 .dark input[type="range"].premium-slider::-webkit-slider-thumb {
   background-color: #f8fafc;
   border: 3px solid #60a5fa;
+}
+
+/* Agent scan log entry animation */
+@keyframes logEntryIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Custom Markdown Content Styles */
+.prose-custom {
+  @apply font-sans;
+  line-height: 1.75;
+}
+
+.prose-custom h2 {
+  @apply text-xl font-bold mt-8 mb-4 border-b border-gray-100 dark:border-white/5 pb-2 text-gray-900 dark:text-white;
+}
+
+.prose-custom h3 {
+  @apply text-[14px] font-bold text-sky-600 dark:text-sky-400 mt-6 mb-3 uppercase tracking-widest flex items-center gap-2;
+}
+
+.prose-custom p {
+  @apply mb-4 text-gray-600 dark:text-gray-400 text-[14px];
+}
+
+.prose-custom strong {
+  @apply font-bold text-gray-900 dark:text-white;
+}
+
+.prose-custom ul {
+  @apply space-y-3 my-4 ml-1;
+}
+
+.prose-custom li {
+  @apply flex gap-3 text-[13px] text-gray-600 dark:text-gray-400;
 }

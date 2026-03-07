@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from models import EarningsAnalysis
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
-from google.genai import Client
+import google.generativeai as genai
 
 # Env vars
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -23,13 +23,15 @@ else:
     groq_client = None
 
 # Configure Gemini
+gemini_model = None
 if GEMINI_API_KEY:
     try:
-        gemini_client = Client()
-    except:
-        gemini_client = None
-else:
-    gemini_client = None
+        genai.configure(api_key=GEMINI_API_KEY)
+        # Use a stable model name
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"DEBUG: Failed to initialize Gemini: {e}")
+        gemini_model = None
 
 
 def search_transcript_url(ticker: str, quarter: int = None, year: int = None):

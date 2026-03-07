@@ -21,14 +21,16 @@
     - **Verdict Engine**: Explicit Buy/Hold/Sell rating based on transcript tone and unscripted revelations.
 
 ## 3. Thesis Agent (Portfolio Guardian)
-Autonomous 24/7 watchdog for your portfolio.
--   **Active Monitoring**: Continuously scans for price drops (-5%), earnings misses (-10%), and sentiment crashes.
--   **Hybrid AI Logic**:
-    -   **DeepSeek R1**: Reasons whether an event "breaks" your investment thesis.
-    -   **Llama 3.3 (Groq)**: Instantly scores news sentiment.
-    -   **Gemini 2.0 Fallback**: Ensures 99.9% uptime.
--   **Proactive Alerts**: Sends detailed email breakdowns with "Intact", "At Risk", or "Broken" verdicts.
--   **Limit Logic**: Supports up to 10 active thesis agents per user.
+Autonomous watchdog and deep-reasoning research engine.
+-   **Monitoring Logic**: Continuous background scans for price drops, earnings, and sentiment shifts.
+-   **On-Demand**: "Regenerate" option available directly from the Dashboard Watchlist for instant thesis updates. (Note: Deep Agent Execution Trace is accessible exclusively within the Thesis Library).
+-   **Phase 4 Guardrails**:
+    - **Confidence Scores**: AI verdicts are weighted and badge-displayed in alerts.
+    - **Reasoning Caps**: Detailed email deep-dives with space-efficient DB storage.
+    - **Evidence Grounding**: Claims are verified against retrieved text; uncorroborated items are tagged `[UNVERIFIED]`.
+-   **Enterprise Retrieval (v5.0)**:
+    - **Agentic Loop**: Plan -> Scrape (DDG/Motley) -> Retrieve SEC (edgartools) -> Reflect.
+    - **Pure Text Caching**: Highly efficient, zero-cost SEC data ingestion pipeline storing pre-summarized 10-K/10-Q text blocks in SQLite.
 
 ## 4. VinSight Engine v10.0
 Professional-grade scoring with **Ruthless Objectivity** and Universal Kill Switches.

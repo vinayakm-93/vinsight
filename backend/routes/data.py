@@ -175,10 +175,16 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         # Parallel fetch for Earnings (Requires DB, so stays separate but lightweight)
         # We use a quick check for cached earnings status to avoid blocking
         earnings_analysis = None
+        db_gen = get_db()
+        db_session = next(db_gen)
         try:
-            earnings_analysis = earnings.analyze_earnings(ticker, next(get_db()))
-        except Exception:
+            logger.info(f"Triggering earnings analysis for {ticker}")
+            earnings_analysis = earnings.analyze_earnings(ticker, db_session)
+        except Exception as e:
+            logger.error(f"Earnings Analysis Failed: {e}")
             pass # Non-critical if fails
+        finally:
+            db_session.close()
 
         if not history:
              raise HTTPException(status_code=404, detail="No history data found")

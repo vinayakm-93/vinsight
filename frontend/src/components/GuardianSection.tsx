@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import api from '../lib/api';
-import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle, Clock, Edit2, Save, X, History, TrendingUp, Zap, Target, Bot } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import api, { generateThesis } from '../lib/api';
+import { Shield, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle, Clock, Edit2, Save, X, History, Bot, Target, RefreshCw, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface GuardianSectionProps {
@@ -32,6 +32,7 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
     const [thesis, setThesis] = useState<Thesis | null>(null);
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isRegenerating, setIsRegenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState("");
     const [enabling, setEnabling] = useState(false);
@@ -39,7 +40,9 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
 
     // Usage Stats
     const [usageCount, setUsageCount] = useState<number>(0);
-    const [usageLimit, setUsageLimit] = useState<number>(10); // Default, update from API/User
+    const [usageLimit, setUsageLimit] = useState<number>(10);
+
+    // --- Logic persists for Guardian Status and Alerts ---
 
     useEffect(() => {
         if (ticker) {
@@ -82,6 +85,8 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
         }
     };
 
+    // --- Activation Logic ---
+
     const handleEnable = async () => {
         console.log("handleEnable clicked", { usageCount, usageLimit, enabling });
         if (usageCount >= usageLimit) {
@@ -116,6 +121,21 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
         }
     };
 
+    const handleRegenerate = async () => {
+        if (!window.confirm(`Regenerate investment thesis for ${ticker}? This will cost 1 quota.`)) return;
+        setIsRegenerating(true);
+        setError(null);
+        try {
+            await generateThesis(ticker);
+            await fetchData();
+        } catch (err: any) {
+            console.error("Regenerate failed", err);
+            setError(err.response?.data?.detail || "Failed to regenerate thesis.");
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
+
     const handleSaveThesis = async () => {
         try {
             await api.put(`/api/guardian/theses/${ticker}`, { thesis: editText });
@@ -145,46 +165,32 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
         </div>
     );
 
-    return (
+    return (<>
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* 1. Agent Header & Usage Stats */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5 dark:bg-gray-900/40 backdrop-blur-md border border-white/10 dark:border-gray-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
-                {/* Background Glow */}
-                <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-                <div className="flex items-start gap-4 z-10">
-                    <div className="p-3 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl border border-blue-500/20 shadow-inner">
-                        <Bot size={28} className="text-blue-400" />
+            <div className="flex items-center justify-between bg-white/5 dark:bg-gray-900/40 backdrop-blur-md border border-white/10 dark:border-gray-800 rounded-2xl p-4 shadow-md relative overflow-hidden">
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="p-2.5 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl border border-blue-500/20 shadow-inner">
+                        <Bot size={24} className="text-blue-400" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             Thesis Agent
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">Beta</span>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">Beta</span>
                         </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md leading-relaxed">
-                            Autonomous agent that monitors news, earnings, and price action 24/7 to protect your investment thesis.
-                        </p>
-                        <div className="flex items-center gap-3 mt-2">
-                            <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded flex items-center gap-1.5">
-                                <Zap size={10} className="text-yellow-400" /> Powered by DeepSeek R1
-                            </span>
-                            <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded flex items-center gap-1.5">
-                                <Bot size={10} className="text-blue-400" /> & Gemini 2.0 Flash
-                            </span>
-                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Autonomous 24/7 monitoring</p>
                     </div>
                 </div>
 
                 {/* Usage Stats (Right Side) */}
-                <div className="flex flex-col items-end z-10">
-                    <div className="text-right mb-1">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Agent Capacity</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 pr-3 border border-gray-200 dark:border-gray-700">
-                        <div className={`px-2 py-1 rounded-md text-xs font-black ${usageCount >= usageLimit ? 'bg-red-500/80 text-white' : 'bg-blue-500/80 text-white'}`}>
-                            {usageCount} / {usageLimit}
+                <div className="flex items-center gap-3 relative z-10">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Capacity</span>
+                        <div className="flex items-center gap-2">
+                            <div className={`px-2.5 py-1 rounded-md text-xs font-black ${usageCount >= usageLimit ? 'bg-red-500/80 text-white' : 'bg-blue-500/80 text-white shadow-sm'}`}>
+                                {usageCount} / {usageLimit}
+                            </div>
                         </div>
-                        <span className="text-xs text-gray-500 font-medium">Active Theses</span>
                     </div>
                 </div>
             </div>
@@ -246,9 +252,19 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={handleDisable} className="text-xs font-medium text-gray-400 hover:text-red-400 transition-colors px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg">
-                                Disable Monitoring
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleRegenerate}
+                                    disabled={isRegenerating}
+                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                                >
+                                    {isRegenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                    {isRegenerating ? 'REGENERATING...' : 'REGENERATE'}
+                                </button>
+                                <button onClick={handleDisable} className="text-xs font-medium text-gray-400 hover:text-red-400 transition-colors px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg">
+                                    Disable
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-6 space-y-6">
@@ -344,7 +360,7 @@ const GuardianSection: React.FC<GuardianSectionProps> = ({ ticker, onStatusChang
                 </>
             )}
         </div>
-    );
+    </>);
 };
 
 export default GuardianSection;
