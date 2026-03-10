@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Briefcase, RefreshCw, Clock, Activity, AlertTriangle, ChevronDown, LayoutGrid } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getPortfolioSummary } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import SignupNudge from './SignupNudge';
+import { AuthModal } from './AuthModal';
 
 interface PortfolioSummaryCardProps {
     portfolioId: number;
@@ -15,9 +18,11 @@ export default function PortfolioSummaryCard({ portfolioId, portfolioName, holdi
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
+    const { user } = useAuth();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     const fetchSummary = async () => {
-        if (!portfolioId) return;
+        if (!portfolioId || !user) return;
         setIsLoading(true);
         setError(null);
         try {
@@ -32,10 +37,10 @@ export default function PortfolioSummaryCard({ portfolioId, portfolioName, holdi
     };
 
     useEffect(() => {
-        if (portfolioId) {
+        if (portfolioId && user) {
             fetchSummary();
         }
-    }, [portfolioId]);
+    }, [portfolioId, user]);
 
     // Custom Markdown Components - Portfolio/Wealth Theme
     const MarkdownComponents = {
@@ -172,7 +177,15 @@ export default function PortfolioSummaryCard({ portfolioId, portfolioName, holdi
 
                 <div className={`transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${isExpanded ? 'max-h-[3000px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'}`}>
                     <div className="relative z-10">
-                        {isLoading && !summary ? (
+                        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+                        {!user ? (
+                            <SignupNudge
+                                featureName="AI Portfolio Manager"
+                                description="Get institutional-grade portfolio optimization, tax-loss harvesting alerts, and deep-dive risk analysis of your entire holdings."
+                                onSignup={() => setShowAuthModal(true)}
+                            />
+                        ) : isLoading && !summary ? (
                             <div className="space-y-4 py-4">
                                 <div className="h-4 bg-gray-200 dark:bg-white/5 rounded-lg w-3/4 animate-pulse"></div>
                                 <div className="space-y-2">

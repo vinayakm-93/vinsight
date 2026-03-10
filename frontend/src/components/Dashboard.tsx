@@ -17,6 +17,8 @@ import WatchlistSummaryCard from './WatchlistSummaryCard';
 import PortfolioSummaryCard from './PortfolioSummaryCard';
 import GuardianSection from './GuardianSection';
 import ProfileNudgeBanner from './ProfileNudgeBanner';
+import SignupNudge from './SignupNudge';
+import { AuthModal } from './AuthModal';
 
 const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
@@ -132,6 +134,7 @@ export default function Dashboard({
     const [showVolume, setShowVolume] = useState(false);
     const [showAlertModal, setShowAlertModal] = useState(false);
     const { user } = useAuth();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
 
 
@@ -1454,519 +1457,523 @@ export default function Dashboard({
                     user ? (
                         <GuardianSection ticker={ticker!} />
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-20 bg-white/60 dark:bg-gray-900/40 glass-panel rounded-2xl border border-gray-200 dark:border-gray-800 text-center shadow-lg mt-6">
-                            <Shield className="w-16 h-16 text-blue-500 mb-4" />
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Thesis Agent <span className="text-sm font-normal text-gray-500">(AI Strategist)</span></h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                                Autonomous 24/7 monitoring and deep-dive investment thesis generation require a free account.
-                            </p>
-                            <button
-                                onClick={onRequireAuth}
-                                className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 mx-auto"
-                            >
-                                Login / Sign Up to Access
-                            </button>
-                        </div>
+                        <SignupNudge
+                            title="Guardian Risk Monitoring"
+                            description="Deploy autonomous agents that monitor your stocks 24/7. Get alerted on breaking news, SEC filings, and structural shifts before the market reacts."
+                            featureName="The Guardian"
+                            onSignup={() => setShowAuthModal(true)}
+                        />
                     )
                 )}
 
                 {activeTab === 'ai' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        {/* 1. Hero Section: Recommendation Score */}
-                        {loadingAnalysis ? (
-                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
-                        ) : analysis?.ai_analysis ? (
-                            <div className="bg-white/80 dark:bg-gray-900/60 glass-panel rounded-2xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500">
-                                {/* Background Decorations */}
-                                <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
+                        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
-                                {/* Section Header with Sector Dropdown */}
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
-                                        {user && (
-                                            <div className="flex items-center gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded flex-shrink-0 text-[10px] font-medium border border-purple-500/20">
-                                                <Sparkles size={10} />
-                                                Personalized for You
-                                            </div>
-                                        )}
-                                    </div>
+                        {!user ? (
+                            <SignupNudge
+                                title="AI Strategy Engine"
+                                description="Access deep reasoning chains, institutional price targets, and cross-asset correlation analysis powered by advanced LLMs."
+                                featureName="AI Strategist"
+                                onSignup={() => setShowAuthModal(true)}
+                            />
+                        ) : (
+                            <React.Fragment>
+                                {/* 1. Hero Section: Recommendation Score */}
+                                {loadingAnalysis ? (
+                                    <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                                ) : analysis?.ai_analysis ? (
+                                    <div className="bg-white/80 dark:bg-gray-900/60 glass-panel rounded-2xl p-4 shadow-2xl relative overflow-hidden transition-all duration-500">
+                                        {/* Background Decorations */}
+                                        <div className={`absolute top-0 right-0 w-64 h-64 bg-${analysis.ai_analysis.color}-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none`}></div>
 
-                                    {/* Persona Selector */}
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Analyst Persona:</label>
-                                        <div className="relative group">
-                                            <select
-                                                value={selectedPersona}
-                                                onChange={(e) => setSelectedPersona(e.target.value)}
-                                                className="text-xs font-bold bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg pl-2 pr-7 py-1.5 text-gray-700 dark:text-gray-200 cursor-pointer hover:border-blue-500/50 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all appearance-none outline-none focus:ring-2 focus:ring-blue-500/20 backdrop-blur-sm"
-                                            >
-                                                {PERSONA_OPTIONS.map((opt) => (
-                                                    <option key={opt.id} value={opt.id}>
-                                                        {opt.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400">
-                                                <ChevronDown size={10} />
+                                        {/* Section Header with Sector Dropdown */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
+                                                {user && (
+                                                    <div className="flex items-center gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded flex-shrink-0 text-[10px] font-medium border border-purple-500/20">
+                                                        <Sparkles size={10} />
+                                                        Personalized for You
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Tooltip for Persona Description */}
-                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900/95 backdrop-blur text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                                {PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.desc}
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                            {/* Persona Selector */}
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Analyst Persona:</label>
+                                                <div className="relative group">
+                                                    <select
+                                                        value={selectedPersona}
+                                                        onChange={(e) => setSelectedPersona(e.target.value)}
+                                                        className="text-xs font-bold bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg pl-2 pr-7 py-1.5 text-gray-700 dark:text-gray-200 cursor-pointer hover:border-blue-500/50 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all appearance-none outline-none focus:ring-2 focus:ring-blue-500/20 backdrop-blur-sm"
+                                                    >
+                                                        {PERSONA_OPTIONS.map((opt) => (
+                                                            <option key={opt.id} value={opt.id}>
+                                                                {opt.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400">
+                                                        <ChevronDown size={10} />
+                                                    </div>
 
-                                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
-
-                                    {/* Sector Override Dropdown - Moved here from Fundamentals */}
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Benchmark:</label>
-                                        <div className="relative">
-                                            <select
-                                                value={selectedSector}
-                                                onChange={async (e) => {
-                                                    const newSector = e.target.value;
-                                                    setSelectedSector(newSector);
-                                                    setIsRecalculating(true);
-                                                    try {
-                                                        const newAnalysis = await getAnalysis(ticker!, newSector, timeRange.value, timeRange.interval, selectedPersona);
-                                                        setAnalysis(newAnalysis);
-                                                    } catch (err) {
-                                                        console.error('Failed to recalculate:', err);
-                                                    } finally {
-                                                        setIsRecalculating(false);
-                                                    }
-                                                }}
-                                                className="text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 pr-6 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-500 transition-colors appearance-none"
-                                            >
-                                                {SECTOR_OPTIONS.map((sector) => (
-                                                    <option key={sector} value={sector}>
-                                                        {sector === 'Auto' ? `Auto (${analysis?.sector_info?.detected || fundamentals?.sector || 'Detect'})` : sector}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                                <ChevronDown size={10} />
-                                            </div>
-                                            {isRecalculating && (
-                                                <div className="absolute -right-5 top-1/2 -translate-y-1/2">
-                                                    <Loader className="animate-spin text-blue-500" size={12} />
+                                                    {/* Tooltip for Persona Description */}
+                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900/95 backdrop-blur text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                                        {PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.desc}
+                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900/95"></div>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                        {selectedSector !== 'Auto' && (
-                                            <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                                <AlertTriangle size={10} />
-                                                Override
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="relative z-10 space-y-6 mt-4">
-                                    {/* 1. Header Row: Score Ring + Context */}
-                                    <div className="space-y-4">
-                                        {/* Top Row: Score + Veto Matrix */}
-                                        {/* Top Row: Score + Veto Matrix (Unified Card) */}
-                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 pt-12 shadow-sm w-full relative">
-
-                                            {/* AI Model Source Label (Absolute Top Right) */}
-                                            <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-gray-100/80 dark:bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 backdrop-blur-md shadow-sm">
-                                                {(() => {
-                                                    const source = analysis?.ai_analysis?.meta?.source || "Llama 3.1 70B";
-                                                    const isOffline = source.includes("Formula");
-                                                    return (
-                                                        <>
-                                                            <span className={`h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-gray-400' : source.includes('Gemini') ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
-                                                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
-                                                                {isOffline ? "Algorithmic (AI Offline)" : source}
-                                                            </span>
-                                                        </>
-                                                    );
-                                                })()}
                                             </div>
 
-                                            {/* Top Section: Score Ring + Veto Matrix */}
-                                            <div className="flex flex-col md:flex-row items-stretch gap-6">
-                                                {/* Left: Score Ring & Summary (70%) */}
-                                                <div className="flex-1 flex flex-col md:flex-row items-center gap-6">
-                                                    <div className="relative w-24 h-24 flex-shrink-0">
+                                            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
+
+                                            {/* Sector Override Dropdown - Moved here from Fundamentals */}
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[10px] text-gray-500 font-medium hidden sm:block">Benchmark:</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={selectedSector}
+                                                        onChange={async (e) => {
+                                                            const newSector = e.target.value;
+                                                            setSelectedSector(newSector);
+                                                            setIsRecalculating(true);
+                                                            try {
+                                                                const newAnalysis = await getAnalysis(ticker!, newSector, timeRange.value, timeRange.interval, selectedPersona);
+                                                                setAnalysis(newAnalysis);
+                                                            } catch (err) {
+                                                                console.error('Failed to recalculate:', err);
+                                                            } finally {
+                                                                setIsRecalculating(false);
+                                                            }
+                                                        }}
+                                                        className="text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 pr-6 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-500 transition-colors appearance-none"
+                                                    >
+                                                        {SECTOR_OPTIONS.map((sector) => (
+                                                            <option key={sector} value={sector}>
+                                                                {sector === 'Auto' ? `Auto (${analysis?.sector_info?.detected || fundamentals?.sector || 'Detect'})` : sector}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                                        <ChevronDown size={10} />
+                                                    </div>
+                                                    {isRecalculating && (
+                                                        <div className="absolute -right-5 top-1/2 -translate-y-1/2">
+                                                            <Loader className="animate-spin text-blue-500" size={12} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {selectedSector !== 'Auto' && (
+                                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                                        <AlertTriangle size={10} />
+                                                        Override
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="relative z-10 space-y-6 mt-4">
+                                            {/* 1. Header Row: Score Ring + Context */}
+                                            <div className="space-y-4">
+                                                {/* Top Row: Score + Veto Matrix */}
+                                                {/* Top Row: Score + Veto Matrix (Unified Card) */}
+                                                <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 pt-12 shadow-sm w-full relative">
+
+                                                    {/* AI Model Source Label (Absolute Top Right) */}
+                                                    <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-gray-100/80 dark:bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 backdrop-blur-md shadow-sm">
                                                         {(() => {
-                                                            const rawQuality = (analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? analysis.ai_analysis.score;
-                                                            const rawTiming = (analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? analysis.ai_analysis.score;
-
-                                                            // FIX: If using AI Reasoning, use the AI's weighted score directly.
-                                                            // Otherwise (Algo Mode), use the slider to dynamically weight Quality vs Timing.
-                                                            const dynamicScore = useReasoning
-                                                                ? (analysis.ai_analysis.score)
-                                                                : ((rawQuality * fundWeight) + (rawTiming * (100 - fundWeight))) / 100;
-
-                                                            let ringColor = 'emerald';
-                                                            if (dynamicScore < 40) ringColor = 'red';
-                                                            else if (dynamicScore < 60) ringColor = 'amber';
-                                                            else if (dynamicScore < 75) ringColor = 'blue';
-
+                                                            const source = analysis?.ai_analysis?.meta?.source || "Llama 3.1 70B";
+                                                            const isOffline = source.includes("Formula");
                                                             return (
-                                                                <div className={`w-20 h-20 rounded-full border-[5px] border-gray-100 dark:border-gray-800 flex items-center justify-center relative glow-${ringColor}`}>
-                                                                    <svg className="absolute inset-0 w-full h-full -rotate-90 filter drop-shadow-[0_0_10px_rgba(var(--ring-glow-rgb),0.5)]" viewBox="0 0 100 100">
-                                                                        <circle
-                                                                            cx="50" cy="50" r="46" fill="none"
-                                                                            stroke="currentColor" strokeWidth="9"
-                                                                            className={`text-${ringColor}-500 transition-all duration-700 ease-out`}
-                                                                            strokeDasharray={`${(dynamicScore / 100) * 289} 289`}
-                                                                            strokeLinecap="round"
-                                                                        />
-                                                                    </svg>
-                                                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                                                        <span className={`text-xl font-black text-${ringColor}-500 transition-all duration-300 drop-shadow-sm`}>
-                                                                            {dynamicScore.toFixed(1)}
-                                                                        </span>
-                                                                        <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter text-center px-1">
-                                                                            {(() => {
-                                                                                const strategy = fundWeight >= 90 ? "VALUE" : fundWeight >= 70 ? "FUND." : fundWeight <= 30 ? "TRADER" : "BALANCED";
-                                                                                return useReasoning ? selectedPersona : (fundWeight === 70 ? 'CFA' : strategy);
-                                                                            })()}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
+                                                                <>
+                                                                    <span className={`h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-gray-400' : source.includes('Gemini') ? 'bg-blue-500' : 'bg-orange-500'}`}></span>
+                                                                    <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
+                                                                        {isOffline ? "Algorithmic (AI Offline)" : source}
+                                                                    </span>
+                                                                </>
                                                             );
                                                         })()}
                                                     </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
+
+                                                    {/* Top Section: Score Ring + Veto Matrix */}
+                                                    <div className="flex flex-col md:flex-row items-stretch gap-6">
+                                                        {/* Left: Score Ring & Summary (70%) */}
+                                                        <div className="flex-1 flex flex-col md:flex-row items-center gap-6">
+                                                            <div className="relative w-24 h-24 flex-shrink-0">
+                                                                {(() => {
+                                                                    const rawQuality = (analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? analysis.ai_analysis.score;
+                                                                    const rawTiming = (analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? analysis.ai_analysis.score;
+
+                                                                    // FIX: If using AI Reasoning, use the AI's weighted score directly.
+                                                                    // Otherwise (Algo Mode), use the slider to dynamically weight Quality vs Timing.
+                                                                    const dynamicScore = useReasoning
+                                                                        ? (analysis.ai_analysis.score)
+                                                                        : ((rawQuality * fundWeight) + (rawTiming * (100 - fundWeight))) / 100;
+
+                                                                    let ringColor = 'emerald';
+                                                                    if (dynamicScore < 40) ringColor = 'red';
+                                                                    else if (dynamicScore < 60) ringColor = 'amber';
+                                                                    else if (dynamicScore < 75) ringColor = 'blue';
+
+                                                                    return (
+                                                                        <div className={`w-20 h-20 rounded-full border-[5px] border-gray-100 dark:border-gray-800 flex items-center justify-center relative glow-${ringColor}`}>
+                                                                            <svg className="absolute inset-0 w-full h-full -rotate-90 filter drop-shadow-[0_0_10px_rgba(var(--ring-glow-rgb),0.5)]" viewBox="0 0 100 100">
+                                                                                <circle
+                                                                                    cx="50" cy="50" r="46" fill="none"
+                                                                                    stroke="currentColor" strokeWidth="9"
+                                                                                    className={`text-${ringColor}-500 transition-all duration-700 ease-out`}
+                                                                                    strokeDasharray={`${(dynamicScore / 100) * 289} 289`}
+                                                                                    strokeLinecap="round"
+                                                                                />
+                                                                            </svg>
+                                                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                                                <span className={`text-xl font-black text-${ringColor}-500 transition-all duration-300 drop-shadow-sm`}>
+                                                                                    {dynamicScore.toFixed(1)}
+                                                                                </span>
+                                                                                <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter text-center px-1">
+                                                                                    {(() => {
+                                                                                        const strategy = fundWeight >= 90 ? "VALUE" : fundWeight >= 70 ? "FUND." : fundWeight <= 30 ? "TRADER" : "BALANCED";
+                                                                                        return useReasoning ? selectedPersona : (fundWeight === 70 ? 'CFA' : strategy);
+                                                                                    })()}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-0">{analysis.ticker}</h3>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-2 mt-2">
+                                                                {/* Rating Badge + Verdict Text */}
+                                                                <div className="flex flex-col gap-2">
+                                                                    {(() => {
+                                                                        const rating = (analysis.ai_analysis as any).rating || "Hold";
+                                                                        let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
+
+                                                                        // 10-Tier Color Mapping
+                                                                        if (rating.includes("Generational") || rating.includes("High Conviction")) badgeColor = "bg-purple-100/50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800";
+                                                                        else if (rating.includes("Strong Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+                                                                        else if (rating.includes("Buy")) badgeColor = "bg-green-100/50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+                                                                        else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
+                                                                        else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+                                                                        else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
+                                                                        else if (rating.includes("Critical Risk") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+
+                                                                        return (
+                                                                            <div className="flex items-start gap-3">
+                                                                                <span className={`px-3 py-1 rounded-md border ${badgeColor} text-xs font-black uppercase tracking-wider shadow-sm whitespace-nowrap`}>
+                                                                                    {rating}
+                                                                                </span>
+                                                                                {(analysis.ai_analysis as any).structured_summary?.verdict && (
+                                                                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300 italic leading-snug pt-0.5 border-l-2 border-blue-500 pl-3">
+                                                                                        "{(analysis.ai_analysis as any).structured_summary.verdict}"
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+
+                                                                {/* Penalty Badges (Risk Factors) */}
+                                                                {((analysis.ai_analysis.score_explanation?.factors?.length > 0) || (analysis.ai_analysis.modifications?.length > 0)) && (
+                                                                    <div className="flex flex-wrap gap-2 pt-1">
+                                                                        {/* Display explicit Risk Factors from AI */}
+                                                                        {/* Display explicit Risk Factors from AI */}
+                                                                        {analysis.ai_analysis.score_explanation?.factors?.filter((f: string) => f.includes("Risk") || f.includes("Trap") || f.includes("pts") || f.includes("Collapse")).map((factor: string, i: number) => (
+                                                                            <span key={`risk-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                                                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                                                {factor}
+                                                                            </span>
+                                                                        ))}
+
+                                                                        {/* Fallback to legacy modifications if no structured factors */}
+                                                                        {(!analysis.ai_analysis.score_explanation?.factors?.length) && analysis.ai_analysis.modifications?.map((mod: string, i: number) => (
+                                                                            <span key={`mod-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                                                                                {mod.replace(/.*VETO:\s*/i, '').trim()}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex flex-col gap-2 mt-2">
-                                                        {/* Rating Badge + Verdict Text */}
-                                                        <div className="flex flex-col gap-2">
-                                                            {(() => {
-                                                                const rating = (analysis.ai_analysis as any).rating || "Hold";
-                                                                let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
+                                                    {/* Conviction Index removed */}
+                                                </div>
 
-                                                                // 10-Tier Color Mapping
-                                                                if (rating.includes("Generational") || rating.includes("High Conviction")) badgeColor = "bg-purple-100/50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800";
-                                                                else if (rating.includes("Strong Buy")) badgeColor = "bg-emerald-100/50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
-                                                                else if (rating.includes("Buy")) badgeColor = "bg-green-100/50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
-                                                                else if (rating.includes("Speculative")) badgeColor = "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800";
-                                                                else if (rating.includes("Hold") || rating.includes("Watchlist")) badgeColor = "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
-                                                                else if (rating.includes("Underperform") || rating.includes("Sell")) badgeColor = "bg-orange-100/50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800";
-                                                                else if (rating.includes("Critical Risk") || rating.includes("Hard Sell")) badgeColor = "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+                                                {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
+                                                {/* Strategy Mixer removed in v11.1 — persona selector replaces fixed Quality/Timing split */}
+                                            </div>
+                                        </div>
 
-                                                                return (
-                                                                    <div className="flex items-start gap-3">
-                                                                        <span className={`px-3 py-1 rounded-md border ${badgeColor} text-xs font-black uppercase tracking-wider shadow-sm whitespace-nowrap`}>
-                                                                            {rating}
-                                                                        </span>
-                                                                        {(analysis.ai_analysis as any).structured_summary?.verdict && (
-                                                                            <p className="text-sm font-medium text-gray-600 dark:text-gray-300 italic leading-snug pt-0.5 border-l-2 border-blue-500 pl-3">
-                                                                                "{(analysis.ai_analysis as any).structured_summary.verdict}"
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })()}
+                                        {/* Right: Score Anchor Text & Badges */}
+                                        {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
+                                        <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1 rounded bg-blue-500/10 text-blue-500">
+                                                        <Zap size={14} className="animate-pulse" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Strategic Briefing</span>
+                                                </div>
+
+                                                {/* Verdict Removed Here - Moved to Top */}
+                                            </div>
+
+                                            <div className="space-y-8">
+                                                {/* 1. BULL vs BEAR CASE (2-Column Grid) */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    {/* Bull Case + Opportunities */}
+                                                    <div className="relative p-5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 flex flex-col h-full">
+                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center gap-1.5">
+                                                            <TrendingUp size={12} className="text-emerald-500" />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">The Bull Case</span>
                                                         </div>
+                                                        <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                            {(analysis.ai_analysis as any).structured_summary?.bull_case || "Analyzing upside potential..."}
+                                                        </p>
+                                                        {/* Restored Opportunities */}
+                                                        {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
+                                                            <div className="mt-auto pt-3 border-t border-emerald-100 dark:border-emerald-800/30">
+                                                                <h5 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                                    <Zap size={10} /> Key Opportunities
+                                                                </h5>
+                                                                <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                                    {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
+                                                                        <li key={idx}>{opp}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
 
-                                                        {/* Penalty Badges (Risk Factors) */}
-                                                        {((analysis.ai_analysis.score_explanation?.factors?.length > 0) || (analysis.ai_analysis.modifications?.length > 0)) && (
-                                                            <div className="flex flex-wrap gap-2 pt-1">
-                                                                {/* Display explicit Risk Factors from AI */}
-                                                                {/* Display explicit Risk Factors from AI */}
-                                                                {analysis.ai_analysis.score_explanation?.factors?.filter((f: string) => f.includes("Risk") || f.includes("Trap") || f.includes("pts") || f.includes("Collapse")).map((factor: string, i: number) => (
-                                                                    <span key={`risk-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
-                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                                                        {factor}
-                                                                    </span>
-                                                                ))}
-
-                                                                {/* Fallback to legacy modifications if no structured factors */}
-                                                                {(!analysis.ai_analysis.score_explanation?.factors?.length) && analysis.ai_analysis.modifications?.map((mod: string, i: number) => (
-                                                                    <span key={`mod-${i}`} className="px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 border backdrop-blur-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                                                                        {mod.replace(/.*VETO:\s*/i, '').trim()}
-                                                                    </span>
-                                                                ))}
+                                                    {/* Bear Case + Risks */}
+                                                    <div className="relative p-5 rounded-2xl bg-red-50/40 dark:bg-red-900/10 border border-red-100 dark:border-red-800/50 flex flex-col h-full">
+                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-red-100 dark:border-red-800/50 shadow-sm flex items-center gap-1.5">
+                                                            <TrendingDown size={12} className="text-red-500" />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">The Bear Case</span>
+                                                        </div>
+                                                        <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
+                                                            {(analysis.ai_analysis as any).structured_summary?.bear_case || "Analyzing downside risks..."}
+                                                        </p>
+                                                        {/* Restored Risks */}
+                                                        {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
+                                                            <div className="mt-auto pt-3 border-t border-red-100 dark:border-red-800/30">
+                                                                <h5 className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                                                    <AlertTriangle size={10} /> Key Risks
+                                                                </h5>
+                                                                <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                                    {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
+                                                                        <li key={idx}>{risk}</li>
+                                                                    ))}
+                                                                </ul>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Conviction Index removed */}
-                                        </div>
-
-                                        {/* Merged Strategy Mixer Section - ONLY VISIBLE IN ALGO MODE */}
-                                        {/* Strategy Mixer removed in v11.1 — persona selector replaces fixed Quality/Timing split */}
-                                    </div>
-                                </div>
-
-                                {/* Right: Score Anchor Text & Badges */}
-                                {/* 2. Full-Width AI Specialist Briefing (Magazine Grid) */}
-                                <div className="bg-white/60 dark:bg-gray-900/40 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div className="flex items-center gap-2">
-                                            <div className="p-1 rounded bg-blue-500/10 text-blue-500">
-                                                <Zap size={14} className="animate-pulse" />
-                                            </div>
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">AI Strategic Briefing</span>
-                                        </div>
-
-                                        {/* Verdict Removed Here - Moved to Top */}
-                                    </div>
-
-                                    <div className="space-y-8">
-                                        {/* 1. BULL vs BEAR CASE (2-Column Grid) */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Bull Case + Opportunities */}
-                                            <div className="relative p-5 rounded-2xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 flex flex-col h-full">
-                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800/50 shadow-sm flex items-center gap-1.5">
-                                                    <TrendingUp size={12} className="text-emerald-500" />
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">The Bull Case</span>
-                                                </div>
-                                                <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
-                                                    {(analysis.ai_analysis as any).structured_summary?.bull_case || "Analyzing upside potential..."}
-                                                </p>
-                                                {/* Restored Opportunities */}
-                                                {(analysis.ai_analysis?.score_explanation?.opportunities?.length > 0) && (
-                                                    <div className="mt-auto pt-3 border-t border-emerald-100 dark:border-emerald-800/30">
-                                                        <h5 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                                            <Zap size={10} /> Key Opportunities
-                                                        </h5>
-                                                        <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                                            {(analysis.ai_analysis.score_explanation.opportunities).map((opp: string, idx: number) => (
-                                                                <li key={idx}>{opp}</li>
-                                                            ))}
-                                                        </ul>
+                                                {/* 2. Split Cards: Quality vs Timing WITH EXPLANATIONS */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    {/* Quality Card */}
+                                                    <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                                <Shield size={14} className="text-emerald-500" /> Fundamental Quality
+                                                            </h4>
+                                                            <span className="text-2xl font-black text-gray-900 dark:text-white">
+                                                                {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
+                                                            </span>
+                                                        </div>
+                                                        {/* Mini bar chart visual */}
+                                                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                                                            <div
+                                                                className="h-full bg-emerald-500 rounded-full"
+                                                                style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-emerald-500 pl-3">
+                                                            "{(analysis.ai_analysis as any).structured_summary?.fundamental_analysis || "calculating metrics..."}"
+                                                        </p>
                                                     </div>
-                                                )}
-                                            </div>
 
-                                            {/* Bear Case + Risks */}
-                                            <div className="relative p-5 rounded-2xl bg-red-50/40 dark:bg-red-900/10 border border-red-100 dark:border-red-800/50 flex flex-col h-full">
-                                                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-900 px-3 py-1 rounded-full border border-red-100 dark:border-red-800/50 shadow-sm flex items-center gap-1.5">
-                                                    <TrendingDown size={12} className="text-red-500" />
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">The Bear Case</span>
-                                                </div>
-                                                <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-medium mb-4">
-                                                    {(analysis.ai_analysis as any).structured_summary?.bear_case || "Analyzing downside risks..."}
-                                                </p>
-                                                {/* Restored Risks */}
-                                                {(analysis.ai_analysis?.score_explanation?.factors?.length > 0) && (
-                                                    <div className="mt-auto pt-3 border-t border-red-100 dark:border-red-800/30">
-                                                        <h5 className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                                            <AlertTriangle size={10} /> Key Risks
-                                                        </h5>
-                                                        <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                                            {(analysis.ai_analysis.score_explanation.factors).map((risk: string, idx: number) => (
-                                                                <li key={idx}>{risk}</li>
-                                                            ))}
-                                                        </ul>
+                                                    {/* Timing Card */}
+                                                    <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                                <TrendingUp size={14} className="text-blue-500" /> Technical Timing
+                                                            </h4>
+                                                            <span className="text-2xl font-black text-gray-900 dark:text-white">
+                                                                {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
+                                                            </span>
+                                                        </div>
+                                                        {/* Mini bar chart visual */}
+                                                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                                                            <div
+                                                                style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-blue-500 pl-3">
+                                                            "{(analysis.ai_analysis as any).structured_summary?.technical_analysis || "analyzing trends..."}"
+                                                        </p>
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
                                         </div>
-
-                                        {/* 2. Split Cards: Quality vs Timing WITH EXPLANATIONS */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Quality Card */}
-                                            <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-emerald-200 dark:hover:border-emerald-700/50 transition-colors">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Shield size={14} className="text-emerald-500" /> Fundamental Quality
-                                                    </h4>
-                                                    <span className="text-2xl font-black text-gray-900 dark:text-white">
-                                                        {((analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50).toFixed(0)}
+                                    </div>
+                                ) : (
+                                    <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                                )}
+                                {/* 2.5 Detailed Breakdown Table (Sectioned) */}
+                                {
+                                    analysis?.ai_analysis?.details && (
+                                        <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                            <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-purple-500/10 rounded-lg">
+                                                        <Grid size={16} className="text-purple-500" />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                                            Algorithmic Score Breakdown
+                                                            <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v11.1 Engine</span>
+                                                        </h4>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Python Multi-Factor Baseline (Persona-Weighted)</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Python Engine Score</span>
+                                                    <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
+                                                        {Math.round(
+                                                            analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0
+                                                        )}
                                                     </span>
                                                 </div>
-                                                {/* Mini bar chart visual */}
-                                                <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
-                                                    <div
-                                                        className="h-full bg-emerald-500 rounded-full"
-                                                        style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Quality Score'] ?? 50}%` }}
-                                                    ></div>
-                                                </div>
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-emerald-500 pl-3">
-                                                    "{(analysis.ai_analysis as any).structured_summary?.fundamental_analysis || "calculating metrics..."}"
-                                                </p>
                                             </div>
+                                            <div className="p-4 space-y-4">
 
-                                            {/* Timing Card */}
-                                            <div className="bg-white dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden group hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                        <TrendingUp size={14} className="text-blue-500" /> Technical Timing
-                                                    </h4>
-                                                    <span className="text-2xl font-black text-gray-900 dark:text-white">
-                                                        {((analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50).toFixed(0)}
-                                                    </span>
-                                                </div>
-                                                {/* Mini bar chart visual */}
-                                                <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
-                                                    <div
-                                                        style={{ width: `${(analysis.ai_analysis as any).raw_breakdown?.['Timing Score'] ?? 50}%` }}
-                                                    ></div>
-                                                </div>
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 italic leading-relaxed border-l-2 border-blue-500 pl-3">
-                                                    "{(analysis.ai_analysis as any).structured_summary?.technical_analysis || "analyzing trends..."}"
-                                                </p>
+                                                {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
+                                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
+                                                                <ShieldCheck size={16} />
+                                                            </div>
+                                                            <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
+                                                            </span>
+                                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                        </div>
+                                                    </summary>
+                                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                            <table className="w-full text-sm text-left">
+                                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                                    <tr>
+                                                                        <th className="px-4 py-2 font-bold">Metric</th>
+                                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                        <th className="px-4 py-2 font-bold">Status</th>
+                                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
+                                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                        const s = row.status.toLowerCase();
+                                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                        return (
+                                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                                    <span>{row.metric}</span>
+                                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                                <td className="px-4 py-3">
+                                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </details>
+
+                                                {/* SECTION 2: TIMING (TECHNICAL) */}
+                                                <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                                                    <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
+                                                                <TrendingUp size={16} />
+                                                            </div>
+                                                            <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                                                                {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
+                                                            </span>
+                                                            <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
+                                                        </div>
+                                                    </summary>
+                                                    <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
+                                                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                            <table className="w-full text-sm text-left">
+                                                                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
+                                                                    <tr>
+                                                                        <th className="px-4 py-2 font-bold">Metric</th>
+                                                                        <th className="px-4 py-2 font-bold text-center">Value</th>
+                                                                        <th className="px-4 py-2 font-bold">Benchmark</th>
+                                                                        <th className="px-4 py-2 font-bold">Status</th>
+                                                                        <th className="px-4 py-2 font-bold text-right">Score</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                                                    {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
+                                                                        let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+                                                                        const s = row.status.toLowerCase();
+                                                                        if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
+                                                                        else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+                                                                        else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+                                                                        return (
+                                                                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
+                                                                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                                                                    <span>{row.metric}</span>
+                                                                                    <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
+                                                                                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
+                                                                                <td className="px-4 py-3">
+                                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </details>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <SkeletonReasoning persona={PERSONA_OPTIONS.find(p => p.id === selectedPersona)?.label || selectedPersona} />
+                                    )}
+                            </React.Fragment>
                         )}
-                        {/* 2.5 Detailed Breakdown Table (Sectioned) */}
-                        {
-                            analysis?.ai_analysis?.details && (
-                                <div className="mt-6 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                    <div className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-purple-500/10 rounded-lg">
-                                                <Grid size={16} className="text-purple-500" />
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                                                    Algorithmic Score Breakdown
-                                                    <span className="text-[10px] text-gray-500 font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full uppercase tracking-wider">v11.1 Engine</span>
-                                                </h4>
-                                                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Python Multi-Factor Baseline (Persona-Weighted)</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/20 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Python Engine Score</span>
-                                            <span className="text-lg font-mono font-black text-gray-400 dark:text-gray-500">
-                                                {Math.round(
-                                                    analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 space-y-4">
-
-                                        {/* SECTION 1: QUALITY (FUNDAMENTAL) */}
-                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 transition-colors">
-                                                        <ShieldCheck size={16} />
-                                                    </div>
-                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Fundamental Quality</h5>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Quality Score'] || analysis.ai_analysis.raw_breakdown?.['Quality Score'] || 0)}/100
-                                                    </span>
-                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                                </div>
-                                            </summary>
-                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                            <tr>
-                                                                <th className="px-4 py-2 font-bold">Metric</th>
-                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                                <th className="px-4 py-2 font-bold">Status</th>
-                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Quality')).map((row: any, idx: number) => {
-                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                                const s = row.status.toLowerCase();
-                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                                return (
-                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                            <span>{row.metric}</span>
-                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                        <td className="px-4 py-3">
-                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </details>
-
-                                        {/* SECTION 2: TIMING (TECHNICAL) */}
-                                        <details className="group/item bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-gray-100 dark:border-gray-800/50 overflow-hidden">
-                                            <summary className="flex cursor-pointer items-center justify-between p-3.5 font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-700 transition-all select-none duration-200 ease-in-out">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="p-1 rounded-md bg-blue-500/10 text-blue-500 group-hover/item:bg-blue-500/20 transition-colors">
-                                                        <TrendingUp size={16} />
-                                                    </div>
-                                                    <h5 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Technical Timing</h5>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
-                                                        {Math.round(analysis.ai_analysis.algo_breakdown?.['Timing Score'] || analysis.ai_analysis.raw_breakdown?.['Timing Score'] || 0)}/100
-                                                    </span>
-                                                    <span className="transition-transform duration-200 group-open/item:rotate-180 text-gray-400 text-xs bg-white dark:bg-gray-800 p-1 rounded-full border border-gray-100 dark:border-gray-700">▼</span>
-                                                </div>
-                                            </summary>
-                                            <div className="p-3 border-t border-gray-100 dark:border-gray-800/50">
-                                                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 dark:bg-gray-800/50">
-                                                            <tr>
-                                                                <th className="px-4 py-2 font-bold">Metric</th>
-                                                                <th className="px-4 py-2 font-bold text-center">Value</th>
-                                                                <th className="px-4 py-2 font-bold">Benchmark</th>
-                                                                <th className="px-4 py-2 font-bold">Status</th>
-                                                                <th className="px-4 py-2 font-bold text-right">Score</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                                            {analysis.ai_analysis.details.filter((r: any) => r.category.includes('Timing')).map((row: any, idx: number) => {
-                                                                let statusColor = "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-                                                                const s = row.status.toLowerCase();
-                                                                if (s.includes('under') || s.includes('strong') || s.includes('beat') || s.includes('high') || s.includes('buy') || s.includes('positive') || s.includes('cow') || s.includes('golden') || s.includes('healthy') || s.includes('safe') || s.includes('low')) statusColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-                                                                else if (s.includes('over') || s.includes('weak') || s.includes('miss') || s.includes('debt') || s.includes('sell') || s.includes('negative')) statusColor = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-                                                                else if (s.includes('fair') || s.includes('neutral') || s.includes('line') || s.includes('moderate')) statusColor = "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-                                                                return (
-                                                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                                                            <span>{row.metric}</span>
-                                                                            <span className="text-[9px] text-gray-400 block font-normal uppercase">{row.category.split('(')[1]?.replace(')', '') || row.category}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 font-mono text-center text-gray-600 dark:text-gray-300">{row.value}</td>
-                                                                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{row.benchmark}</td>
-                                                                        <td className="px-4 py-3">
-                                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusColor}`}>{row.status}</span>
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-right font-bold font-mono text-gray-900 dark:text-white">{row.score}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </details>
-                                    </div>
-                                </div>
-                            )
-                        }
                     </div>
-                )
-                }
+                )}
 
                 {
                     activeTab === 'smart_money' && (

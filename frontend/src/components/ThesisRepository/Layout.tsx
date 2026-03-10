@@ -6,6 +6,8 @@ import { getTheses, InvestmentThesis, deleteThesis } from '../../lib/api';
 import ThesisList from './ThesisList';
 import ThesisDetail from './ThesisDetail';
 import GenerateModal from './GenerateModal';
+import SignupNudge from '../SignupNudge';
+import { AuthModal } from '../AuthModal';
 
 export default function ThesisLayout() {
     const { user } = useAuth();
@@ -13,6 +15,7 @@ export default function ThesisLayout() {
     const [selectedThesis, setSelectedThesis] = useState<InvestmentThesis | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -68,39 +71,52 @@ export default function ThesisLayout() {
                 onSuccess={handleThesisGenerated}
             />
 
-            <div className="flex flex-col lg:flex-row gap-8 min-h-screen">
-                {/* Sidebar: Thesis List */}
-                <div className="w-full lg:w-[320px] 2xl:w-[360px] flex-shrink-0 animate-in slide-in-from-left-4 duration-300">
-                    <div className="sticky top-24 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-                        <ThesisList
-                            theses={theses}
-                            loading={loading}
-                            selectedId={selectedThesis?.id}
-                            onSelect={setSelectedThesis}
-                            onNewClick={() => setIsGenerateOpen(true)}
-                            activeCount={activeCount}
-                            limit={guardianLimit}
-                        />
-                    </div>
-                </div>
+            <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
-                {/* Main Content: Thesis Detail */}
-                <div className="flex-1 min-w-0">
-                    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm min-h-[600px]">
-                        {selectedThesis ? (
-                            <ThesisDetail
-                                thesis={selectedThesis}
-                                onDelete={handleDelete}
-                                onUpdate={handleUpdate} // Changed from onSave to onUpdate to match existing prop
+            {!user ? (
+                <div className="flex items-center justify-center min-h-[600px]">
+                    <SignupNudge
+                        title="AI Research Repository"
+                        description="Access deep-thinking investment theses, continuous agent monitoring, and institutional-grade risk evaluations for any stock."
+                        featureName="Thesis Hub"
+                        onSignup={() => setShowAuthModal(true)}
+                    />
+                </div>
+            ) : (
+                <div className="flex flex-col lg:flex-row gap-8 min-h-screen">
+                    {/* Sidebar: Thesis List */}
+                    <div className="w-full lg:w-[320px] 2xl:w-[360px] flex-shrink-0 animate-in slide-in-from-left-4 duration-300">
+                        <div className="sticky top-24 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                            <ThesisList
+                                theses={theses}
+                                loading={loading}
+                                selectedId={selectedThesis?.id}
+                                onSelect={setSelectedThesis}
+                                onNewClick={() => setIsGenerateOpen(true)}
+                                activeCount={activeCount}
+                                limit={guardianLimit}
                             />
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-gray-400">
-                                {loading ? "Loading..." : "Select a thesis to view details"}
-                            </div>
-                        )}
+                        </div>
+                    </div>
+
+                    {/* Main Content: Thesis Detail */}
+                    <div className="flex-1 min-w-0">
+                        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm min-h-[600px]">
+                            {selectedThesis ? (
+                                <ThesisDetail
+                                    thesis={selectedThesis}
+                                    onDelete={handleDelete}
+                                    onUpdate={handleUpdate} // Changed from onSave to onUpdate to match existing prop
+                                />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-gray-400">
+                                    {loading ? "Loading..." : "Select a thesis to view details"}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
         </>
     );
 }

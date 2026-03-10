@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, Clock, Activity, AlertTriangle, ChevronDown, LayoutGrid } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getWatchlistSummary, WatchlistSummary } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import SignupNudge from './SignupNudge';
+import { AuthModal } from './AuthModal';
 
 interface WatchlistSummaryCardProps {
     watchlistId: number;
@@ -17,8 +20,11 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
     const [error, setError] = useState<string | null>(null);
     const [cooldown, setCooldown] = useState(0);
     const [isExpanded, setIsExpanded] = useState(false);
+    const { user } = useAuth();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     const fetchSummary = async (isRefresh: boolean = false) => {
+        if (!user) return;
         setIsLoading(true);
         setError(null);
         try {
@@ -42,11 +48,11 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
     };
 
     useEffect(() => {
-        if (watchlistId) {
+        if (watchlistId && user) {
             // Load existing summary if available, but don't force a fresh generation on every mount
             fetchSummary(false);
         }
-    }, [watchlistId]); // Remove stockCount dependency to prevent accidental re-fetches on every change
+    }, [watchlistId, user]); // Added user to dependencies
 
     useEffect(() => {
         if (cooldown > 0) {
@@ -206,7 +212,15 @@ export default function WatchlistSummaryCard({ watchlistId, watchlistName, stock
 
                 <div className={`transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${isExpanded ? 'max-h-[3000px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'}`}>
                     <div className="relative z-10">
-                        {isLoading && !summary ? (
+                        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+                        {!user ? (
+                            <SignupNudge
+                                featureName="AI Strategist"
+                                description="Deeply analyze your entire watchlist in seconds. Get institutional-grade market synthesis, predictive risk signals, and executive-level briefings."
+                                onSignup={() => setShowAuthModal(true)}
+                            />
+                        ) : isLoading && !summary ? (
                             <div className="space-y-4 py-4">
                                 <div className="h-4 bg-gray-200 dark:bg-white/5 rounded-lg w-3/4 animate-pulse"></div>
                                 <div className="space-y-2">
