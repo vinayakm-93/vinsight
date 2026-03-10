@@ -250,7 +250,7 @@ def generate_thesis_detected(symbol: str) -> str:
         logger.error(f"Failed to generate thesis for {symbol}: {e}")
         return f"Long {symbol} for exposure to {sector}. (Auto-generation failed, please edit)."
 
-def generate_investment_thesis(symbol: str) -> dict:
+def generate_investment_thesis(symbol: str, user_profile: Optional[Dict] = None) -> dict:
     """
     Generates a deep-dive Investment Thesis (used by the Thesis Library).
     Outputs JSON containing stance, one_liner, key_drivers, primary_risk, confidence_score, and content.
@@ -286,20 +286,44 @@ def generate_investment_thesis(symbol: str) -> dict:
             if db:
                 db.close()
         
+        # Format User Profile for LLM context
+        user_context_block = ""
+        if user_profile:
+            goals_list = user_profile.get('goals', [])
+            goals_str = "No specific goals set."
+            if goals_list:
+                goals_str = "\n".join([f"- {g['name']} (Target: ${g['target_amount']:,} by {g['target_date']}) - Priority: {g['priority']}" for g in goals_list])
+                
+            user_context_block = f"""
+            [USER INVESTMENT PROFILE]
+            - Risk Appetite: {user_profile.get('risk_appetite', 'Unknown')}
+            - Monthly Budget: ${user_profile.get('monthly_budget', 0):,}
+            - Experience: {user_profile.get('investment_experience', 'Unknown')}
+            - Specific Goals:
+            {goals_str}
+            """
+            
         # ── STEP 1: Generate Devil's Advocate Bear Case ────────────────────────────
         # Always generate the bear case first, independently, before writing the thesis.
         # This forces the main thesis to explicitly confront counter-arguments.
+        
+        bear_instruction = "Your ONLY job is to find the 3 strongest reasons to SHORT this stock."
+        if user_profile:
+            bear_instruction = "Your ONLY job is to find the 3 strongest reasons this stock could JEOPARDIZE THE USER'S SPECIFIC GOALS listed below, acting as a strict risk manager."
+
         bear_prompt = f"""
         You are a short-seller and forensic analyst with a strong bearish disposition.
-        Your ONLY job is to find the 3 strongest reasons to SHORT {symbol} ({name}).
+        {bear_instruction}
 
+        STOCK: {symbol} ({name})
         BUSINESS SUMMARY: {summary}
         SEC RISK FACTORS: {sec_info_block[:1500]}
+        {user_context_block}
 
         Output exactly 3 concrete, specific bearish arguments as bullet points.
-        Each must be grounded in the SEC data or business fundamentals above — NO vague generalities.
+        Each must be grounded in the SEC data, business fundamentals, or DIRECT CONFLICT with the user's goals — NO vague generalities.
         Examples of acceptable arguments: valuation excess, deteriorating margins, competition moat erosion,
-        regulatory headwinds, insider selling, debt concerns, governance issues.
+        regulatory headwinds, insider selling, debt concerns, governance issues, OR extreme volatility threatening a short-term downpayment goal.
         Format: bullet points only, no preamble.
         """
         bear_case = "No bear case available."
@@ -312,13 +336,15 @@ def generate_investment_thesis(symbol: str) -> dict:
 
         # ── STEP 2: Main Thesis Prompt (must rebut the bear case) ─────────────────
         prompt = f"""
-        You are an elite hedge fund analyst writing a formal Investment Thesis for the Thesis Library.
-        Your analysis MUST be rigorously balanced. A BULLISH rating requires explicitly defeating the bear case.
+        You are an elite financial advisor writing a highly personalized Investment Thesis for a specific retail client.
+        Your analysis MUST be rigorously balanced. A BULLISH rating requires explicitly defeating the bear case AND aligning with the client's goals.
         
         STOCK: {symbol} ({name})
         SECTOR/INDUSTRY: {sector} / {industry}
         PRICE (approx): ${current_price}
         BUSINESS SUMMARY: {summary}
+        
+        {user_context_block}
         
         CORPORATE SEC RISK CONTEXT (READ THIS CAREFULLY):
         {sec_info_block}
@@ -330,10 +356,10 @@ def generate_investment_thesis(symbol: str) -> dict:
         ────────────────────────────────────────────────────────────────────────
         
         STANCE SELECTION RULES (follow strictly):
-        - BULLISH: Only if the bull case clearly and specifically outweighs ALL three bear arguments above.
-        - BEARISH: If the bear arguments are more compelling or unresolvable.
+        - BULLISH: Only if the bull case clearly outweighs ALL three bear arguments AND it is suitable for the User's Risk Profile/Goals.
+        - BEARISH: If the bear arguments are more compelling, unresolvable, OR the stock is too risky/unsuitable for the user's specific goals.
         - NEUTRAL: If evidence is mixed or you cannot decisively favor one side.
-        - Do NOT default to BULLISH out of convention. The data must earn that stance.
+        - Do NOT default to BULLISH out of convention. Ensure strict fiduciary alignment with the user's time horizons.
         
         TASK:
         Generate a highly professional, well-reasoned investment thesis.
@@ -483,50 +509,136 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
     
     research_history = []
     
-    # Phase 2: Parallel Discovery & Brief Generation
-    import concurrent.futures
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 1: FACT COLLECTOR (Turn 0) — Neutral baseline fact-gathering
+    # Runs BEFORE the BULL/BEAR debate so both sides argue over the same facts.
+    # ═══════════════════════════════════════════════════════════════════════════
+    log_agent_thought("RETRIEVE", "Starting FACT COLLECTOR (Turn 0) — gathering neutral baseline facts...", scan_id=scan_id)
     
-    def run_analyst(persona: str) -> dict:
-        log_agent_thought("RETRIEVE", f"Starting {persona} analysis...", scan_id=scan_id)
-        
-        # Step 2A: Generate Search Queries
-        query_prompt = f"""
-        You are the {persona} Analyst evaluating an investment thesis.
+    fact_dossier = "No baseline facts collected."
+    try:
+        # Generate neutral, objective search queries
+        fact_query_prompt = f"""
+        You are a neutral financial researcher. Your job is to collect OBJECTIVE FACTS only — no opinions, no bias.
         STOCK: {symbol}
         ORIGINAL THESIS: "{thesis}"
         TRIGGERING EVENTS: {trigger_context}
         
-        As the {persona}, you must find evidence specifically to {'SUPPORT' if persona == 'BULL' else 'ATTACK'} the thesis.
-        
-        CONSTRAINTS: You have a maximum of 2 escalation turns (though 1 is strongly preferred). 
-        You must find the most high-impact, specific evidence immediately. Do not waste searches on generic queries.
-        
-        Output EXACTLY 2 specific, targeted web search queries to find this evidence.
+        Generate exactly 2 fact-finding search queries to establish the ground truth.
+        Focus on: recent earnings/revenue numbers, regulatory actions, executive changes, 
+        product launches, market share data, or material business developments.
+        Do NOT search for opinions, analyst ratings, or bull/bear cases.
         
         OUTPUT JSON ONLY:
         {{
-            "cot_reasoning": "<1 sentence explaining why you need to run these specific searches>",
+            "cot_reasoning": "<1 sentence on what baseline facts are needed>",
             "queries": ["<query 1>", "<query 2>"]
         }}
         """
-        try:
-            raw_q = get_llm_response(query_prompt)
-            q_data = extract_json(raw_q)
-            queries = q_data.get("queries", [])[:2]
-        except Exception as e:
-            logger.warning(f"Failed to generate queries for {persona}: {e}")
-            queries = [f"{symbol} {persona.lower()} case news", f"{symbol} earnings"][:2]
-
-        # Step 2B: Execute Search
-        search_results = []
-        for q in queries:
-            results = web_search.search(q, top_k=3)
-            search_results.extend(results)
-            
-        snippets_block = "\n".join([f"[{i+1}] {s['title']} - {s.get('snippet', s.get('summary', ''))[:200]}" for i, s in enumerate(search_results)])
-        log_agent_thought("RETRIEVE", f"{persona} ran searches: {queries}. Found {len(search_results)} snippets.", scan_id=scan_id)
+        raw_fq = get_llm_response(fact_query_prompt)
+        fq_data = extract_json(raw_fq)
+        fact_queries = fq_data.get("queries", [])[:2]
+    except Exception as e:
+        logger.warning(f"Fact Collector query generation failed: {e}")
+        fact_queries = [f"{symbol} latest earnings results 2026", f"{symbol} recent news developments"]
+    
+    # Execute fact searches
+    fact_results = []
+    for q in fact_queries:
+        results = web_search.search(q, top_k=3)
+        fact_results.extend(results)
+    
+    log_agent_thought("RETRIEVE", f"FACT COLLECTOR ran searches: {fact_queries}. Found {len(fact_results)} snippets.", scan_id=scan_id)
+    
+    if fact_results:
+        # Distill into a clean, neutral fact dossier
+        raw_facts = "\n\n".join(
+            [f"[{i+1}] {s['title']}\n{s.get('snippet', s.get('summary', ''))[:300]}" for i, s in enumerate(fact_results)]
+        )
+        distill_fact_prompt = f"""
+        You are a neutral fact-checker. Extract ONLY verified, objective facts from these search results.
+        STOCK: {symbol}
         
-        # Step 2C: Generate Brief
+        RAW SEARCH RESULTS:
+        {raw_facts}
+        
+        TASK: Extract 4-6 key objective facts. Each must be a specific, verifiable claim with numbers/dates.
+        NO opinions, NO predictions, NO analyst sentiment. Only hard facts.
+        Format as bullet points:
+        • <fact with specific numbers/dates>
+        """
+        try:
+            fact_dossier = get_llm_response(distill_fact_prompt)
+            research_history.append(f"--- NEUTRAL FACT DOSSIER (Turn 0) ---\nQueries: {fact_queries}\n{fact_dossier}")
+            log_agent_thought("ANALYZE", f"FACT COLLECTOR dossier compiled: {fact_dossier[:200]}...", scan_id=scan_id)
+        except Exception as e:
+            logger.warning(f"Fact distillation failed: {e}")
+            fact_dossier = raw_facts[:1000]
+            research_history.append(f"--- RAW FACTS (Turn 0) ---\n{fact_dossier}")
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 2: Parallel BULL/BEAR Discovery & Brief Generation
+    # Both analysts receive the shared fact dossier as common ground.
+    # ═══════════════════════════════════════════════════════════════════════════
+    import concurrent.futures
+    
+    def run_analyst(persona: str) -> dict:
+        # --- MULTI-TURN SEARCH LOOP ---
+        all_queries = []
+        all_search_results = []
+        snippets_block = "No previous search results."
+        
+        for turn in range(2):
+            log_agent_thought("RETRIEVE", f"Starting {persona} analysis (Turn {turn+1}/2)...", scan_id=scan_id)
+            
+            # Step 2A: Generate Search Queries
+            query_prompt = f"""
+            You are the {persona} Analyst evaluating an investment thesis.
+            STOCK: {symbol}
+            ORIGINAL THESIS: "{thesis}"
+            TRIGGERING EVENTS: {trigger_context}
+            
+            SHARED FACT DOSSIER (collected by neutral researcher — use these as your starting evidence):
+            {fact_dossier}
+            
+            As the {persona}, you must find evidence specifically to {'SUPPORT' if persona == 'BULL' else 'ATTACK'} the thesis.
+            You already have the shared facts above. Now search for ADDITIONAL evidence that the neutral researcher missed.
+            
+            PREVIOUS SEARCH RESULTS (from your earlier turns):
+            {snippets_block}
+            
+            CONSTRAINTS: You are on Turn {turn+1} of 2.
+            Based on the shared facts and your previous results (if any), output EXACTLY 2 specific, targeted web search queries to find the most high-impact, specific missing evidence immediately. Do not waste searches on generic queries or re-searching facts already in the dossier.
+            
+            OUTPUT JSON ONLY:
+            {{
+                "cot_reasoning": "<1 sentence explaining why you need to run these specific searches>",
+                "queries": ["<query 1>", "<query 2>"]
+            }}
+            """
+            try:
+                raw_q = get_llm_response(query_prompt)
+                q_data = extract_json(raw_q)
+                queries = q_data.get("queries", [])[:2]
+            except Exception as e:
+                logger.warning(f"Failed to generate queries for {persona} turn {turn+1}: {e}")
+                queries = [f"{symbol} {persona.lower()} case news", f"{symbol} earnings"][:2]
+
+            all_queries.extend(queries)
+
+            # Step 2B: Execute Search
+            turn_results = []
+            for q in queries:
+                results = web_search.search(q, top_k=3)
+                turn_results.extend(results)
+                
+            all_search_results.extend(turn_results)
+            
+            # Update snippets block for the next turn / final brief
+            snippets_block = "\n".join([f"[{i+1}] {s['title']} - {s.get('snippet', s.get('summary', ''))[:200]}" for i, s in enumerate(all_search_results)])
+            log_agent_thought("RETRIEVE", f"{persona} Turn {turn+1} ran searches: {queries}. Found {len(turn_results)} snippets.", scan_id=scan_id)
+        
+        # Step 2C: Generate Brief (After 2 turns are complete)
         brief_prompt = f"""
         You are the {persona} Analyst.
         STOCK: {symbol}
@@ -536,16 +648,20 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
         BASE SEC FACTS:
         {sec_info_block}
         
-        INDEPENDENT SEARCH RESULTS:
+        SHARED FACT DOSSIER (neutral baseline — you MUST reference these facts):
+        {fact_dossier}
+        
+        INDEPENDENT SEARCH RESULTS (Aggregated from 2 turns):
         {snippets_block}
         
         TASK:
         Write your strongest 3-bullet {'defense of' if persona == 'BULL' else 'attack on'} the thesis.
         
         CRITICAL SAFEGUARDS & CONSTRAINTS:
-        1. HALLUCINATION CHECK: You MUST explicitly cite facts from the SEC Facts or your Search Results. Do NOT invent numbers, dates, or events.
-        2. ESCALATION LIMIT: You have a strict limit of 2 turns total to verify your case. Proceed as if this is your final turn to convince the Judge.
-        3. Even if the evidence is weak, you must present the strongest possible interpretation for your side.
+        1. HALLUCINATION CHECK: You MUST explicitly cite facts from the Shared Fact Dossier, SEC Facts, or your Search Results. Do NOT invent numbers, dates, or events.
+        2. SHARED FACTS FIRST: At least 1 of your 3 bullets MUST reference a fact from the Shared Fact Dossier, interpreting it through your {persona} lens.
+        3. FINAL ANALYSIS: You have completed your 2 search turns. This is your final and only brief. You must present your strongest argument now to convince the Judge.
+        4. Even if the evidence is weak, you must present the strongest possible interpretation for your side.
         
         OUTPUT JSON ONLY:
         {{
@@ -563,17 +679,17 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
         try:
             raw_b = get_llm_response(brief_prompt)
             brief_data = extract_json(raw_b)
-            brief_data["queries_run"] = queries
+            brief_data["queries_run"] = all_queries
             cot = brief_data.get('cot_analysis', 'No CoT provided.')
             argument_preview = " ".join(brief_data.get('argument', []))[:150]
-            log_agent_thought("ANALYZE", f"{persona} completed brief. CoT: {cot} | Arg: {argument_preview}...", scan_id=scan_id)
+            log_agent_thought("ANALYZE", f"{persona} completed brief after 2 turns. CoT: {cot} | Arg: {argument_preview}...", scan_id=scan_id)
             return brief_data
         except Exception as e:
             logger.error(f"{persona} brief failed: {e}")
             log_agent_thought("ERROR", f"{persona} failed to generate brief: {e}", scan_id=scan_id)
-            return {"argument": [f"Failed to generate {persona} brief."], "citations_used": [], "queries_run": queries}
+            return {"argument": [f"Failed to generate {persona} brief."], "citations_used": [], "queries_run": all_queries}
 
-    log_agent_thought("INIT", "Dispatching parallel Bull and Bear agents...", scan_id=scan_id)
+    log_agent_thought("INIT", "Dispatching parallel Bull and Bear agents (with shared fact dossier)...", scan_id=scan_id)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         bull_future = executor.submit(run_analyst, "BULL")
         bear_future = executor.submit(run_analyst, "BEAR")

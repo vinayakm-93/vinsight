@@ -8,7 +8,7 @@ import {
 import { getHistory, getAnalysis, getSimulation, getNews, getInstitutionalData, getEarnings, getStockDetails, getSentiment, analyzeSentiment, getBatchStockDetails, getBatchPrices, getSectorBenchmarks } from '../lib/api';
 import { useRealtimePrice } from '../lib/useRealtimePrice';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, Newspaper, Zap, BarChart2, BarChart3, CandlestickChart as CandleIcon, Settings, MousePointer, PenTool, Type, Move, ZoomIn, Search, Loader, MoreHorizontal, LayoutTemplate, Sliders, Info, BellPlus, FileText, Grid, ChevronDown, ChevronUp, Clock, Target, List, ExternalLink, PieChart as PieChartIcon } from 'lucide-react'; // Renamed icon
-import { Shield, ShieldCheck } from 'lucide-react';
+import { Shield, ShieldCheck, Sparkles } from 'lucide-react';
 import { CandlestickChart } from './CandlestickChart';
 import AlertModal from './AlertModal';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +16,7 @@ import { Watchlist, Portfolio } from '../lib/api';
 import WatchlistSummaryCard from './WatchlistSummaryCard';
 import PortfolioSummaryCard from './PortfolioSummaryCard';
 import GuardianSection from './GuardianSection';
+import ProfileNudgeBanner from './ProfileNudgeBanner';
 
 const InfoTooltip = ({ text }: { text: React.ReactNode }) => (
     <div className="group relative ml-1.5 inline-flex items-center">
@@ -57,6 +58,7 @@ interface DashboardProps {
     activeWatchlist?: Watchlist | null;
     activePortfolio?: Portfolio | null;
     viewMode?: 'watchlist' | 'portfolio';
+    onNavigateToProfile?: () => void;
 }
 
 const TIME_RANGES = [
@@ -89,7 +91,8 @@ export default function Dashboard({
     onSelectStock,
     activeWatchlist,
     activePortfolio,
-    viewMode = 'watchlist'
+    viewMode = 'watchlist',
+    onNavigateToProfile
 }: DashboardProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [analysis, setAnalysis] = useState<any>(null);
@@ -734,6 +737,8 @@ export default function Dashboard({
     if (!ticker) {
         return (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {onNavigateToProfile && <ProfileNudgeBanner onNavigateToProfile={onNavigateToProfile} />}
+
                 {/* AI Watchlist Summary Relocated from Sidebar */}
                 {viewMode === 'watchlist' && activeWatchlist && activeWatchlist.stocks.length > 0 && (
                     <WatchlistSummaryCard
@@ -1477,7 +1482,15 @@ export default function Dashboard({
 
                                 {/* Section Header with Sector Dropdown */}
                                 <div className="flex items-center justify-between mb-3">
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Recommendation Score</p>
+                                        {user && (
+                                            <div className="flex items-center gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded flex-shrink-0 text-[10px] font-medium border border-purple-500/20">
+                                                <Sparkles size={10} />
+                                                Personalized for You
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Persona Selector */}
                                     <div className="flex items-center gap-2">

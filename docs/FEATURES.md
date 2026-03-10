@@ -29,7 +29,7 @@ Autonomous watchdog and deep-reasoning research engine.
     - **Reasoning Caps**: Detailed email deep-dives with space-efficient DB storage.
     - **Evidence Grounding**: Claims are verified against retrieved text; uncorroborated items are tagged `[UNVERIFIED]`.
 -   **Enterprise Retrieval (v5.0)**:
-    - **Agentic Loop**: Plan -> Scrape (DDG/Motley) -> Retrieve SEC (edgartools) -> Reflect.
+    - **Agentic Loop**: Turn 0 (Fact Collection) -> Plan -> Scrape (DDG/Motley) -> Retrieve SEC (edgartools) -> Synthesize.
     - **Pure Text Caching**: Highly efficient, zero-cost SEC data ingestion pipeline storing pre-summarized 10-K/10-Q text blocks in SQLite.
 
 ## 4. VinSight Engine v10.0
@@ -69,3 +69,8 @@ Advanced tools for tracking and auditing actual investment holdings.
 - **AI Portfolio Manager**: 
     - **DeepSeek R1 Audit**: 6-point institutional-grade analysis for focused portfolio health checks.
     - **Contextual Awareness**: Automatically replaces the "AI Strategist" when a portfolio is selected.
+
+## 8. Investor Profile & Deep Personalization (v11.x)
+- **Comprehensive User Profile**: Tracks Time Horizon, Risk Appetite, Monthly Investment Budget, and Specific Financial Goals (Target Date and Target Amount).
+- **Personalized AI Strategist**: Directly integrates the User Profile into the `ReasoningScorer` to algorithmically reward/penalize stocks that strongly align or conflict with the user's explicit goals.
+- **Fiduciary-Bounded Thesis Agent**: The Guardian Agent's "Bear Attack" now actively maps stock risks directly to the user's specific targets, generating hyper-personalized alerts.

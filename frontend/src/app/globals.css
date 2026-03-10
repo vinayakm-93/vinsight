@@ -98,6 +98,7 @@ input[type="range"].premium-slider:hover::-webkit-slider-thumb {
     transform: translateY(0);
   }
 }
+
 /* Custom Markdown Content Styles */
 .prose-custom {
   @apply font-sans;
@@ -126,4 +127,16 @@ input[type="range"].premium-slider:hover::-webkit-slider-thumb {
 
 .prose-custom li {
   @apply flex gap-3 text-[13px] text-gray-600 dark:text-gray-400;
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

@@ -337,4 +337,59 @@ export const scanGuardian = async (symbol: string): Promise<any> => {
   return response.data;
 };
 
+// --- Profile API ---
+
+export interface UserProfile {
+  monthly_budget: number | null;
+  risk_appetite: string | null;
+  default_horizon: string | null;
+  investment_experience: string | null;
+  profile_completed_at: string | null;
+}
+
+export interface UserGoal {
+  id: number;
+  name: string;
+  target_amount: number | null;
+  target_date: string | null;
+  priority: string | null;
+  notes: string | null;
+  portfolio_id: number | null;
+  created_at: string | null;
+}
+
+export interface FullProfile {
+  profile: UserProfile;
+  goals: UserGoal[];
+}
+
+export const getProfile = async (): Promise<FullProfile> => {
+  const response = await api.get<FullProfile>('/api/profile');
+  return response.data;
+};
+
+export const updateProfile = async (data: Partial<UserProfile>): Promise<UserProfile> => {
+  const response = await api.put<UserProfile>('/api/profile', data);
+  return response.data;
+};
+
+export const getGoals = async (): Promise<UserGoal[]> => {
+  const response = await api.get<UserGoal[]>('/api/profile/goals');
+  return response.data;
+};
+
+export const createGoal = async (data: Omit<UserGoal, 'id' | 'created_at'>): Promise<UserGoal> => {
+  const response = await api.post<UserGoal>('/api/profile/goals', data);
+  return response.data;
+};
+
+export const updateGoal = async (id: number, data: Partial<UserGoal>): Promise<UserGoal> => {
+  const response = await api.put<UserGoal>(`/api/profile/goals/${id}`, data);
+  return response.data;
+};
+
+export const deleteGoal = async (id: number): Promise<void> => {
+  await api.delete(`/api/profile/goals/${id}`);
+};
+
 export default api;

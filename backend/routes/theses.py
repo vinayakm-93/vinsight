@@ -6,7 +6,7 @@ from pydantic import BaseModel
 import json
 
 from database import get_db
-from models import User, InvestmentThesis, GuardianThesis
+from models import User, UserGoal, InvestmentThesis, GuardianThesis
 from services import auth, guardian_agent
 
 router = APIRouter(prefix="/api/theses", tags=["theses"])
@@ -203,8 +203,25 @@ def _perform_generation(symbol: str, db: Session, user: User):
     if generated >= limit:
         raise HTTPException(status_code=403, detail="Thesis generation limit reached for this month.")
         
+    # Extract user profile
+    goals = db.query(UserGoal).filter(UserGoal.user_id == user.id).all()
+    goal_list = []
+    for g in goals:
+        goal_list.append({
+            "name": g.name,
+            "target_amount": g.target_amount,
+            "target_date": g.target_date.isoformat() if g.target_date else "N/A",
+            "priority": g.priority
+        })
+    user_profile = {
+        "risk_appetite": user.risk_appetite,
+        "monthly_budget": user.monthly_budget,
+        "investment_experience": user.investment_experience,
+        "goals": goal_list
+    }
+        
     # Connect to explicit agent layer
-    thesis_data = guardian_agent.generate_investment_thesis(symbol)
+    thesis_data = guardian_agent.generate_investment_thesis(symbol, user_profile)
     
     new_thesis = InvestmentThesis(
         user_id=user.id,

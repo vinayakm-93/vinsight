@@ -67,16 +67,23 @@ The Thesis Agent employs an **Asymmetric Escalation Debate Architecture** (The "
 sequenceDiagram
     participant U as User / Cron Trigger
     participant C as Event Filter (Macro/Sentiment)
+    participant N as Neutral Fact Collector
     participant B1 as Bull Agent
     participant B2 as Bear Agent
     participant S as Web Search / SEC DB
     participant J as Judge Agent
     
     U->>C: Provide Ticker & Thesis
-    C->>B1: Trigger Detected (e.g. Price Drop)
-    C->>B2: Trigger Detected
+    C->>N: Trigger Detected (e.g. Price Drop)
     
-    par Parallel Investigation
+    Note over N, S: Turn 0: Establish Ground Truth
+    N->>S: Baseline Search (SEC/News)
+    S-->>N: Returns Objective Fact Dossier
+    
+    N->>B1: Disseminate Fact Dossier
+    N->>B2: Disseminate Fact Dossier
+    
+    par Turn 1 & 2: Parallel Asymmetric Debate
         B1->>S: Targeted Bullish Search Queries
         S-->>B1: Search Results
         B1->>B1: Chain-of-Thought & Brief Gen
@@ -117,6 +124,12 @@ Standard ReAct agents suffer from "sycophancy" (agreeing with the user's initial
 
 ### 4.2 Sentiment Analysis Methodology
 Vinsight utilizes **FinBERT**, a BERT model pre-trained on a massive corpus of financial documents. This allows for superior nuance in detecting "Bullish" vs "Bearish" sentiment compared to general-purpose sentiment libraries.
+
+### 4.3 Deep AI Personalization & User Modeling
+Vinsight moves beyond generic market analysis by ingesting a structured **User Profile** (Risk Appetite, Investment Horizon, Monthly Budget, and Target Financial Goals) directly into its LLM context windows.
+*   **Fiduciary Bounding:** The `ReasoningScorer` dynamically applies a `contextual_adjustment` penalty if a stock's volatility profile mathematically misaligns with the user's tight time horizon or low risk tolerance.
+*   **Goal-Based Risk Assessment:** The Guardian Agent's "Bear Attack" brief specifically evaluates whether a deteriorating stock thesis jeopardizes the user's explicit `$X target by Year Y` goals, generating a uniquely personalized risk alert rather than a generic market warning.
+*   **Robust Extraction:** LLM output is parsed through a resilient `_extract_json` pipeline that aggressively strips markdown backticks and `<think>` reasoning tags, ensuring structural stability even when reasoning models hallucinate formatting.
 
 ---
 

@@ -49,6 +49,7 @@ graph TD
     - **Python Guardrails (Kill Switches)**: Extreme fundamental flaws (e.g., negative FCF, debt traps) trigger absolute point penalties injected into the AI context *before* the narrative is generated.
 - **Agent Collaboration & Grounding Validation**:
     - **1. Tri-Layer Synthesis**: DeepSeek R1/Llama 3.3 handles qualitative synthesis, anchored to the offline `VinSightScorer` algorithmic baseline score.
+    - **1.5 Deep Personalization**: The `ReasoningScorer` dynamically ingests the explicit `UserProfile` (risk tolerance, investment goals, monthly budget, and time horizon) to structurally penalize/reward stocks based on strict fiduciary alignment to the user's goals.
     - **2. Guardian Integration**: `ReasoningScorer` queries the `GuardianAlert` module via Postgres. If a thesis is "BROKEN", the reasoning engine is forced to aggressively address the risks.
     - **3. Scoring Memory**: AI fetches the last 3 score outputs from Postgres (throttled locally by volatility) to evaluate temporal momentum rather than scoring in a vacuum.
     - **4. Strict Grounding Layer**: All generated numbers and quotes are validated against a 5% Pydantic/Regex fuzzy-matcher. Hallucinations >2 automatically suppress the AI text.
@@ -57,9 +58,10 @@ graph TD
 -   **Hybrid Agent Model**: Combines DeepSeek R1 (Reasoning) with Llama 3.3 (Sentiment) and Gemini 2.0 (Fallback).
 -   **Autonomous Loop (Multi-Agent Debate)**:
     1.  **Monitor**: Scheduled Cloud Run Job triggers event detection (including SPY Macro headwind checks and News Sentiment crashes).
-    2.  **Evaluate (The Debate)**: If triggered, a parallel `Bull Agent` and `Bear Agent` independently generate targeted web search queries to validate or attack the thesis.
-    3.  **Synthesize (The Judge)**: A third `Judge Agent` evaluates the Bull and Bear briefs to issue a final verdict (`INTACT`, `AT_RISK`, `BROKEN`). The debate is strictly capped at a maximum of 2 escalation turns to ensure high quality and bounded cost.
-    4.  **Act**: Updates status and sends proactive email alerts.
+    2.  **Turn 0 (Establish Ground Truth)**: A Neutral Researcher Agent gathers an objective "Fact Dossier" pulling SEC filings and real-time news to prevent redundant or hallucinated parallel searches.
+    3.  **Evaluate (The Debate)**: If triggered, a parallel `Bull Agent` and `Bear Agent` independently receive the Fact Dossier and generate targeted web search queries to validate or attack the thesis.
+    4.  **Synthesize (The Judge)**: A third `Judge Agent` evaluates the Bull and Bear briefs to issue a final verdict (`INTACT`, `AT_RISK`, `BROKEN`). The debate is strictly capped at a maximum of 2 escalation turns to ensure high quality and bounded cost.
+    5.  **Act**: Updates status and sends proactive email alerts.
 -   **Pure Text Memory & Safeguards**: Uses SQLite for persistent retrieval of pre-summarized SEC risk data. Strict Hallucination safeguards force agents to cite only verified retrieved contexts.
 -   **Documentation**: See [Thesis Agent Docs](../.gemini/antigravity/brain/7cb40b9e-875f-42f5-934b-cc4ffec9e3df/walkthrough.md) for full details on Phase 4 enhancements.
 

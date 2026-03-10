@@ -155,9 +155,15 @@ export default function ThesisDetail({ thesis, onDelete, onUpdate }: ThesisDetai
         finally { setIsSaving(false); }
     };
 
-    const parseJSON = (str: string | null, fallback: any) => {
+    const parseJSON = (str: any, fallback: any) => {
         if (!str) return fallback;
-        try { return JSON.parse(str); } catch { return fallback; }
+        if (typeof str !== 'string') return str; // Already parsed by Axios
+        try {
+            const parsed = JSON.parse(str);
+            // Handle double stringification
+            if (typeof parsed === 'string') return JSON.parse(parsed);
+            return parsed;
+        } catch { return fallback; }
     };
 
     const getStatusColor = (s: string) => {
@@ -303,7 +309,7 @@ export default function ThesisDetail({ thesis, onDelete, onUpdate }: ThesisDetai
                                     }`}>{scanStatus}</span>
                             )}
                             <span className="text-[10px] text-gray-500">
-                                {scanStarted ? '3-turn reasoning trace · ephemeral' : 'Click Scan Now to run agent'}
+                                {scanStarted ? 'fact collection · bull/bear debate · verdict' : 'Click Scan Now to run agent'}
                             </span>
                         </div>
                         {scanCollapsed

@@ -143,7 +143,7 @@ class ReasoningScorer:
     def _get_benchmarks(self, sector: str) -> Dict:
         return self.fallback_scorer._get_benchmarks(sector)
 
-    def evaluate(self, stock: StockData, persona: str = "CFA", earnings_analysis: Optional[Dict] = None) -> Dict:
+    def evaluate(self, stock: StockData, persona: str = "CFA", earnings_analysis: Optional[Dict] = None, user_profile: Optional[Dict] = None) -> Dict:
         """
         Main entry point for generating a hybrid score.
         """
@@ -184,7 +184,7 @@ class ReasoningScorer:
             from services.score_memory import get_history
             score_history = get_history(stock.ticker, limit=3)
             
-            context = self._build_context(stock, persona, earnings_analysis, news_data, algo_result, guardian_status, score_history)
+            context = self._build_context(stock, persona, earnings_analysis, news_data, algo_result, guardian_status, score_history, user_profile)
         except Exception as e:
             logger.error(f"Context build failed: {e}")
             return self._fallback_to_formula(stock)
@@ -227,7 +227,7 @@ class ReasoningScorer:
             logger.error(f"Response parsing failed: {e}", exc_info=True)
             return self._fallback_to_formula(stock)
 
-    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict], news_data: Optional[Dict] = None, algo_result = None, guardian_status: str = "INTACT", score_history: list = None) -> Dict:
+    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict], news_data: Optional[Dict] = None, algo_result = None, guardian_status: str = "INTACT", score_history: list = None, user_profile: Optional[Dict] = None) -> Dict:
         """Construct the data payload for the AI."""
         benchmarks = self._get_benchmarks(stock.fundamentals.sector_name)
         persona_cfg = PERSONAS.get(persona, PERSONAS["CFA"])
@@ -351,7 +351,8 @@ class ReasoningScorer:
             "market_regime": market_regime,
             "guardian_status": guardian_status,
             "score_history": score_history or [],
-            "python_components": python_components  # NEW: v11.1
+            "python_components": python_components,  # NEW: v11.1
+            "user_profile": user_profile
         }
 
     def _build_system_prompt(self, context: Dict) -> str:
@@ -400,6 +401,11 @@ YOUR AUDIENCE:
 - Smart retail investors who want to understand *WHY* a stock is good or bad.
 - Avoid jargon. Explain implications (e.g., "High debt means rising rates hurt profits").
 
+USER PROFILE & GOALS (CRITICAL):
+{json.dumps(context.get('user_profile', "No user profile available."), indent=2)}
+*INSTRUCTION:* If the user profile contains an investment goal with a target date and amount, or a specific risk appetite, you MUST evaluate if {context['ticker']} aligns with those goals.
+For example, if the goal is a house downpayment in 1 year, and this is a volatile high-beta stock, you must heavily penalize it in `contextual_adjustment` and warn the user.
+
 STYLE: {persona_style}
 FOCUS: {context['persona']['focus']}
 {sensitivity_rule}{guardian_directive}
@@ -435,10 +441,10 @@ QUALITATIVE CONTEXT:
 
 INSTRUCTIONS:
 1. **Thought Process**: Write a 300-400 word analysis using paragraphs.
-2. **Retail Reality**: Answer "Can I sleep well owning this?"
+2. **Retail Reality / Goal Alignment**: Answer "Can I sleep well owning this?" Specifically call out if it aligns or misaligns with the user's explicit goals/horizon.
 3. **Forward Looking**: Focus on what's next (Guidance, Catalysts).
 4. **Contextual Adjustment**: If earnings quality, competitive dynamics, management guidance,
-   or news catalysts justify adjusting the Python score, specify contextual_adjustment (-10 to +10)
+   news catalysts, OR *misalignment with the user's specific goals* justifies adjusting the Python score, specify contextual_adjustment (-10 to +10)
    with detailed reasoning. Only adjust if qualitative signals warrant it. Most stocks need 0.
 
 OUTPUT FORMAT:
@@ -470,6 +476,29 @@ You MUST respond with a single valid JSON object. No other text.
 }}
 """
 
+    def _extract_json(self, text: str) -> Dict:
+        """Robustly extract JSON from LLM output, handling markdown blocks."""
+        # Strip <think> tags if present
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+        
+        # Try finding JSON within markdown blocks
+        json_match = re.search(r'```(?:json)?(.*?)```', text, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+                
+        # Try direct parsing
+        try:
+            return json.loads(text.strip())
+        except json.JSONDecodeError:
+            # Last resort: find anything that looks like a JSON object
+            obj_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if obj_match:
+                return json.loads(obj_match.group(0))
+            raise ValueError(f"Could not extract valid JSON from LLM response: {text[:200]}...")
+
     def _call_openrouter(self, context: Dict) -> Dict:
         """Call OpenRouter API (DeepSeek R1 via OpenRouter). OpenAI-compatible."""
         system_prompt = self._build_system_prompt(context)
@@ -488,20 +517,7 @@ You MUST respond with a single valid JSON object. No other text.
             }
         )
         raw_text = completion.choices[0].message.content
-        
-        # Strip any <think> reasoning tags (common in reasoning models)
-        cleaned = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
-        
-        # Handle markdown code blocks
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
-        
-        return json.loads(cleaned)
+        return self._extract_json(raw_text)
 
     def _call_gemini(self, context: Dict) -> Dict:
         prompt = self._build_system_prompt(context)
@@ -512,9 +528,7 @@ You MUST respond with a single valid JSON object. No other text.
             request_options={'timeout': 12}
         )
         text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:-3].strip()
-        return json.loads(text)
+        return self._extract_json(text)
 
     def _call_deepseek(self, context: Dict) -> Dict:
         """Call DeepSeek R1 API (OpenAI-compatible). Handles <think> tag stripping."""
@@ -530,21 +544,7 @@ You MUST respond with a single valid JSON object. No other text.
             timeout=30.0  # R1 is slower but deeper
         )
         raw_text = completion.choices[0].message.content
-        
-        # DeepSeek R1 outputs <think>...</think> reasoning before the JSON
-        # Strip the think tags and extract only the JSON
-        cleaned = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
-        
-        # Handle markdown code blocks
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
-        
-        return json.loads(cleaned)
+        return self._extract_json(raw_text)
 
     def _call_groq(self, context: Dict) -> Dict:
         system_prompt = self._build_system_prompt(context)
@@ -558,7 +558,7 @@ You MUST respond with a single valid JSON object. No other text.
             max_tokens=1500,
             response_format={"type": "json_object"}
         )
-        return json.loads(completion.choices[0].message.content)
+        return self._extract_json(completion.choices[0].message.content)
 
     def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any) -> Dict:
         """v11.1: Python computes score. LLM provides narrative + bounded ±10 adjustment."""

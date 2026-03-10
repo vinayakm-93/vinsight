@@ -175,14 +175,16 @@ sequenceDiagram
     
     Trigger->>Agent: "Evaluate TSLA Thesis: Long based on FSD"
     
-    loop Agentic Planning (Max 3 Iterations)
-        Agent->>Agent: Identify Information Gaps
-        Agent->>Web: Execute Targeted Search (e.g. "FSD Regulatory Risks")
-        Web-->>Agent: Returns Raw Context (SEC 10-K / News)
-        Agent->>Agent: Update Research History
+    Note over Agent, Web: Turn 0: Neutral Fact Collection
+    Agent->>Web: Execute Baseline Search (SEC/News)
+    Web-->>Agent: Returns Objective Fact Dossier
+    
+    par Turn 1 & 2: Asymmetric Debate
+        Agent->>Agent: BULL Agent: Proves Thesis (uses Fact Dossier)
+        Agent->>Agent: BEAR Agent: Attacks Thesis (uses Fact Dossier)
     end
     
-    Agent->>Agent: Synthesize Final Verdict (CoT)
+    Agent->>Agent: JUDGE Agent: Synthesize Final Verdict (CoT)
     Agent->>Ground: Verify Reasoning vs History
     Note over Ground: Eliminating Hallucinations
     Ground-->>Agent: Verified/Grounded Narrative
@@ -208,6 +210,7 @@ erDiagram
     USER ||--o{ PORTFOLIO : owns
     USER ||--o{ GUARDIAN_THESIS : manages
     USER ||--o{ ALERT : sets
+    USER ||--o{ USER_GOAL : sets
     
     PORTFOLIO ||--o{ PORTFOLIO_HOLDING : contains
     
@@ -216,9 +219,20 @@ erDiagram
     USER {
         int id
         string email
+        float monthly_budget
+        string risk_appetite
+        string default_horizon
         int alert_limit
         int guardian_limit
         bool is_vip
+    }
+
+    USER_GOAL {
+        int id
+        string name
+        float target_amount
+        date target_date
+        string priority
     }
 
     WATCHLIST {

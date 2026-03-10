@@ -118,10 +118,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="relative group p-[1px] rounded-3xl overflow-hidden w-full max-w-md transition-all duration-500 shadow-[0_0_30px_rgba(56,189,248,0.15)] animate-in zoom-in-95 duration-300">
+                <div className="absolute inset-0 bg-gradient-to-r from-sky-500/50 via-indigo-500/50 to-emerald-500/50 transition-opacity duration-700 blur-[2px] opacity-100"></div>
+                <div className="relative bg-gray-900/90 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden p-6 h-full">
+                    <div className="absolute top-0 right-0 -mt-16 -mr-16 w-48 h-48 bg-sky-500/10 dark:bg-sky-400/10 blur-[50px] rounded-full pointer-events-none"></div>
+                    <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-48 h-48 bg-emerald-500/10 dark:bg-emerald-400/10 blur-[50px] rounded-full pointer-events-none"></div>
+                    <div className="relative z-10 w-full">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white">
+                    <h2 className="text-[16px] font-black text-white uppercase tracking-[0.15em]">
                         {isLogin ? "Welcome Back" : step === 2 ? "Verify Email" : step === 3 ? "Your Profile" : "Create Account"}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
@@ -132,13 +137,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 {step === 1 && (
                     <div className="flex gap-4 mb-6">
                         <button
-                            className={`flex-1 pb-2 text-sm font-medium border-b-2 transition-colors ${isLogin ? 'text-white border-blue-500' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                            className={`flex-1 pb-2 text-[11px] font-black uppercase tracking-wider border-b-2 transition-colors ${isLogin ? 'text-sky-400 border-sky-400' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
                             onClick={() => { setIsLogin(true); reset(); }}
                         >
                             Sign In
                         </button>
                         <button
-                            className={`flex-1 pb-2 text-sm font-medium border-b-2 transition-colors ${!isLogin ? 'text-white border-blue-500' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                            className={`flex-1 pb-2 text-[11px] font-black uppercase tracking-wider border-b-2 transition-colors ${!isLogin ? 'text-sky-400 border-sky-400' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
                             onClick={() => { setIsLogin(false); reset(); }}
                         >
                             Sign Up
@@ -157,14 +162,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     {step === 1 && (
                         <>
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400">Email</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Email</label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <input
                                         type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors"
                                         placeholder="name@example.com"
                                         required
                                     />
@@ -172,14 +177,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400">Password</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Password</label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-10 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-10 text-white focus:outline-none focus:border-sky-500 transition-colors"
                                         placeholder="••••••••"
                                         required
                                         minLength={6}
@@ -199,18 +204,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     {/* STEP 2: Verification */}
                     {step === 2 && !isLogin && (
                         <div className="space-y-4 animate-in slide-in-from-right duration-200">
-                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-300">
+                            <div className="p-4 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sm text-blue-300">
                                 We've sent a verification code to <b>{email}</b>.
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400">Verification Code</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Verification Code</label>
                                 <div className="relative">
                                     <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <input
                                         type="text"
                                         value={verifyCode}
                                         onChange={(e) => setVerifyCode(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors tracking-widest text-center font-mono text-lg"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors tracking-widest text-center font-mono text-lg"
                                         placeholder="000000"
                                         required
                                     />
@@ -223,13 +228,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     {step === 3 && !isLogin && (
                         <div className="space-y-4 animate-in slide-in-from-right duration-200">
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400">Investing Goal</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Investing Goal</label>
                                 <div className="relative">
                                     <Target className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                                     <select
                                         value={investingGoal}
                                         onChange={(e) => setInvestingGoal(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors appearance-none"
                                     >
                                         {INVESTING_GOALS.map(g => <option key={g} value={g}>{g}</option>)}
                                     </select>
@@ -237,13 +242,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400">What feature do you want more of?</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">What feature do you want more of?</label>
                                 <div className="relative">
                                     <Zap className="absolute left-3 top-3 text-gray-500" size={16} />
                                     <textarea
                                         value={featureRequest}
                                         onChange={(e) => setFeatureRequest(e.target.value)}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors max-h-24 min-h-[80px]"
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors max-h-24 min-h-[80px]"
                                         placeholder="e.g. More AI analysis..."
                                     />
                                 </div>
@@ -254,7 +259,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-6"
+                        className="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-6"
                     >
                         {loading && <Loader2 size={16} className="animate-spin" />}
                         {isLogin ? "Sign In" : (step === 3 ? "Complete Registration" : "Next")}
@@ -310,6 +315,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         setShowPassword={setShowPassword}
                     />
                 )}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -429,19 +436,19 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
             {/* Step 1: Enter Email */}
             {resetStep === 1 && (
                 <form onSubmit={handleRequestReset} className="space-y-4">
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-300">
+                    <div className="p-4 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sm text-blue-300">
                         Enter your email address and we'll send you a code to reset your password.
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400">Email</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Email</label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors"
                                 placeholder="name@example.com"
                                 required
                             />
@@ -451,7 +458,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                         {loading && <Loader2 size={16} className="animate-spin" />}
                         Send Reset Code
@@ -470,19 +477,19 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
             {/* Step 2: Enter Code */}
             {resetStep === 2 && (
                 <form onSubmit={handleVerifyCode} className="space-y-4">
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-300">
+                    <div className="p-4 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sm text-blue-300">
                         We've sent a reset code to <b>{email}</b>.
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400">Reset Code</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Reset Code</label>
                         <div className="relative">
                             <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                             <input
                                 type="text"
                                 value={resetCode}
                                 onChange={(e) => setResetCode(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors tracking-widest text-center font-mono text-lg"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-sky-500 transition-colors tracking-widest text-center font-mono text-lg"
                                 placeholder="000000"
                                 required
                             />
@@ -492,7 +499,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                         {loading && <Loader2 size={16} className="animate-spin" />}
                         Verify Code
@@ -516,14 +523,14 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-400">New Password</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">New Password</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                             <input
                                 type={showPassword ? "text" : "password"}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-10 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2.5 pl-10 pr-10 text-white focus:outline-none focus:border-sky-500 transition-colors"
                                 placeholder="••••••••"
                                 required
                                 minLength={6}
@@ -541,7 +548,7 @@ const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                         {loading && <Loader2 size={16} className="animate-spin" />}
                         Reset Password

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, UniqueConstraint, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, UniqueConstraint, Text
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -24,6 +24,13 @@ class User(Base):
     investing_goals = Column(String, nullable=True)
     feature_requests = Column(String, nullable=True)
     
+    # Investor Profile Fields (global defaults)
+    monthly_budget = Column(Float, nullable=True)
+    risk_appetite = Column(String, nullable=True)          # conservative, moderate, aggressive
+    default_horizon = Column(String, nullable=True)        # "< 1 year", "1-3 years", etc.
+    investment_experience = Column(String, nullable=True)  # beginner, intermediate, advanced
+    profile_completed_at = Column(DateTime, nullable=True)
+    
     # Alert Limits & Tracking
     alerts_triggered_this_month = Column(Integer, default=0)
     alert_limit = Column(Integer, default=30) # Default limit: 30 alerts per month
@@ -39,6 +46,7 @@ class User(Base):
     watchlists = relationship("Watchlist", back_populates="user")
     alerts = relationship("Alert", back_populates="user", cascade="all, delete-orphan")
     portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
+    goals = relationship("UserGoal", back_populates="user", cascade="all, delete-orphan")
 
 class Feedback(Base):
     __tablename__ = "feedback"
@@ -197,6 +205,12 @@ class Portfolio(Base):
     name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Investor Profile Fields
+    risk_tolerance = Column(String, nullable=True)       # conservative, moderate, aggressive
+    time_horizon = Column(String, nullable=True)         # "< 1 year", "1-3 years", "3-5 years", "5-10 years", "10+ years"
+    monthly_contribution = Column(Float, nullable=True)  # Expected monthly contribution in USD
+    investment_goal = Column(Text, nullable=True)        # Free-text long-term goal
+
     # AI Summary Fields (mirrors Watchlist pattern)
     last_summary_at = Column(DateTime, nullable=True)
     last_summary_text = Column(Text, nullable=True)
@@ -248,4 +262,31 @@ class SecSummary(Base):
     latest_10k_date = Column(String, nullable=True)
     latest_10q_date = Column(String, nullable=True)
     last_updated_at = Column(DateTime, default=datetime.utcnow)
+
+class UserGoal(Base):
+    __tablename__ = "user_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String, nullable=False)
+    target_amount = Column(Float, nullable=True)
+    target_date = Column(Date, nullable=True)
+    priority = Column(String, nullable=True)      # high, medium, low
+    notes = Column(Text, nullable=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="goals")
+    portfolio = relationship("Portfolio")
+
+class ProfileEvent(Base):
+    __tablename__ = "profile_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event = Column(String, nullable=False)   # profile_opened, field_saved, goal_created, etc.
+    field = Column(String, nullable=True)     # which field was changed
+    value = Column(String, nullable=True)     # new value (for analytics)
+    created_at = Column(DateTime, default=datetime.utcnow)
 

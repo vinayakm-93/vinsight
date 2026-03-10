@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 from database import get_db
+from models import User, UserGoal
+from services import auth
 from services import finance, analysis, simulation, search, earnings
 from services.search import search_ticker
 from services.vinsight_scorer import VinSightScorer, StockData, Fundamentals, Technicals, Sentiment, Projections, ScoreResult
@@ -155,7 +158,7 @@ def get_stock_news(ticker: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/analysis/{ticker}")
-def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, include_simulation: bool = False, sector_override: str = None, scoring_engine: str = "reasoning", persona: str = "CFA"):
+def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d", include_sentiment: bool = False, include_simulation: bool = False, sector_override: str = None, scoring_engine: str = "reasoning", persona: str = "CFA", db: Session = Depends(get_db), user: Optional[User] = Depends(auth.get_current_user_optional)):
     """
     Technical analysis with optional sector override and scoring engine selection.
     scoring_engine: "reasoning" (LLM) or "formula" (Legacy)
@@ -565,12 +568,32 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         score_result_raw = None
         ai_analysis_response = None
         
+        # Prepare User Profile for AI Strategist
+        user_profile = None
+        if user:
+            # Reconstruct the profile natively for the LLM context
+            goals = db.query(UserGoal).filter(UserGoal.user_id == user.id).all()
+            goal_list = []
+            for g in goals:
+                goal_list.append({
+                    "name": g.name,
+                    "target_amount": g.target_amount,
+                    "target_date": g.target_date.isoformat() if g.target_date else "N/A",
+                    "priority": g.priority
+                })
+            user_profile = {
+                "risk_appetite": user.risk_appetite,
+                "monthly_budget": user.monthly_budget,
+                "investment_experience": user.investment_experience,
+                "goals": goal_list
+            }
+
         # Branch based on Scoring Engine
         if scoring_engine == "reasoning":
             try:
                 reasoning_scorer = ReasoningScorer()
                 # ReasoningScorer returns a dict fully formatted for UI usage (backward compatible)
-                ai_analysis_response = reasoning_scorer.evaluate(stock_data, persona, earnings_analysis)
+                ai_analysis_response = reasoning_scorer.evaluate(stock_data, persona, earnings_analysis, user_profile)
             except Exception as e:
                 logger.error(f"Reasoning Engine Failed: {e}. Falling back to formula.")
                 # Fallback handled inside evaluate? No, evaluate handles it.

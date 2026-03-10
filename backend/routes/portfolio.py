@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from database import get_db
-from models import User, Portfolio, PortfolioHolding
+from models import User, Portfolio, PortfolioHolding, UserGoal
 from services import auth
 from services import portfolio_parser
 from services import portfolio_summary
@@ -42,6 +42,21 @@ class PortfolioOut(BaseModel):
     name: str
     created_at: Optional[datetime]
     holdings: List[HoldingOut]
+
+    class Config:
+        from_attributes = True
+
+class InvestorProfileUpdate(BaseModel):
+    risk_tolerance: Optional[str] = None       # conservative, moderate, aggressive
+    time_horizon: Optional[str] = None         # "< 1 year", "1-3 years", etc.
+    monthly_contribution: Optional[float] = None
+    investment_goal: Optional[str] = None
+
+class InvestorProfileOut(BaseModel):
+    risk_tolerance: Optional[str]
+    time_horizon: Optional[str]
+    monthly_contribution: Optional[float]
+    investment_goal: Optional[str]
 
     class Config:
         from_attributes = True
@@ -190,6 +205,72 @@ async def clear_holdings(
     return {"status": "cleared", "portfolio_id": portfolio_id}
 
 
+@router.get("/{portfolio_id}/profile", response_model=InvestorProfileOut)
+async def get_investor_profile(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(auth.get_current_user)
+):
+    """Get the investor profile for a portfolio."""
+    portfolio = db.query(Portfolio).filter(
+        Portfolio.id == portfolio_id,
+        Portfolio.user_id == user.id
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return InvestorProfileOut(
+        risk_tolerance=portfolio.risk_tolerance,
+        time_horizon=portfolio.time_horizon,
+        monthly_contribution=portfolio.monthly_contribution,
+        investment_goal=portfolio.investment_goal,
+    )
+
+
+@router.put("/{portfolio_id}/profile", response_model=InvestorProfileOut)
+async def update_investor_profile(
+    portfolio_id: int,
+    body: InvestorProfileUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(auth.get_current_user)
+):
+    """Update the investor profile for a portfolio."""
+    portfolio = db.query(Portfolio).filter(
+        Portfolio.id == portfolio_id,
+        Portfolio.user_id == user.id
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    VALID_RISK = {"conservative", "moderate", "aggressive"}
+    VALID_HORIZON = {"< 1 year", "1-3 years", "3-5 years", "5-10 years", "10+ years"}
+
+    if body.risk_tolerance is not None:
+        if body.risk_tolerance.lower() not in VALID_RISK:
+            raise HTTPException(status_code=400, detail=f"risk_tolerance must be one of: {', '.join(VALID_RISK)}")
+        portfolio.risk_tolerance = body.risk_tolerance.lower()
+    if body.time_horizon is not None:
+        if body.time_horizon not in VALID_HORIZON:
+            raise HTTPException(status_code=400, detail=f"time_horizon must be one of: {', '.join(VALID_HORIZON)}")
+        portfolio.time_horizon = body.time_horizon
+    if body.monthly_contribution is not None:
+        portfolio.monthly_contribution = body.monthly_contribution
+    if body.investment_goal is not None:
+        portfolio.investment_goal = body.investment_goal[:500]  # Cap length
+
+    # Invalidate cached summary since profile changed
+    portfolio.last_summary_at = None
+    portfolio.last_summary_text = None
+
+    db.commit()
+    db.refresh(portfolio)
+    return InvestorProfileOut(
+        risk_tolerance=portfolio.risk_tolerance,
+        time_horizon=portfolio.time_horizon,
+        monthly_contribution=portfolio.monthly_contribution,
+        investment_goal=portfolio.investment_goal,
+    )
+
+
 @router.get("/{portfolio_id}/summary")
 async def get_portfolio_summary(
     portfolio_id: int,
@@ -245,7 +326,20 @@ async def get_portfolio_summary(
             'companyName': info.get('shortName') or info.get('companyName', h.symbol)
         })
 
-    result = portfolio_summary.generate_portfolio_summary(portfolio.name, holdings_data)
+    # Fetch explicit user goals
+    user_goals = db.query(UserGoal).filter(UserGoal.user_id == user.id).all()
+    goals_list = [{"name": g.name, "amount": g.target_amount, "date": g.target_date.isoformat() if g.target_date else "N/A", "priority": g.priority} for g in user_goals]
+
+    # Build investor profile context (per-portfolio overrides → user defaults)
+    investor_profile = {
+        'risk_tolerance': portfolio.risk_tolerance or user.risk_appetite,
+        'time_horizon': portfolio.time_horizon or user.default_horizon,
+        'monthly_contribution': portfolio.monthly_contribution or user.monthly_budget,
+        'investment_goal': portfolio.investment_goal,
+        'user_goals': goals_list
+    }
+
+    result = portfolio_summary.generate_portfolio_summary(portfolio.name, holdings_data, investor_profile)
 
     # Cache
     portfolio.last_summary_at = datetime.utcnow()

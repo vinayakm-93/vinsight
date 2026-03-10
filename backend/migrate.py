@@ -347,6 +347,90 @@ def migrate():
                     conn.commit()
                     logger.info("'portfolio_holdings' table created.")
 
+                # --- Investor Profile columns on portfolios ---
+                if portfolios_exist:
+                    if is_postgres:
+                        result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='portfolios'"))
+                    else:
+                        result = conn.execute(text("PRAGMA table_info(portfolios)"))
+                    p_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+
+                    profile_cols = [
+                        ('risk_tolerance', 'VARCHAR'),
+                        ('time_horizon', 'VARCHAR'),
+                        ('monthly_contribution', 'FLOAT'),
+                        ('investment_goal', 'TEXT'),
+                    ]
+                    for col_name, col_type in profile_cols:
+                        if col_name not in p_columns:
+                            logger.info(f"Adding '{col_name}' to 'portfolios'")
+                            conn.execute(text(f"ALTER TABLE portfolios ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+
+                # --- User Profile columns ---
+                if is_postgres:
+                    result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users'"))
+                else:
+                    result = conn.execute(text("PRAGMA table_info(users)"))
+                u_columns = [row[0] if is_postgres else row[1] for row in result.fetchall()]
+
+                user_profile_cols = [
+                    ('monthly_budget', 'FLOAT'),
+                    ('risk_appetite', 'VARCHAR'),
+                    ('default_horizon', 'VARCHAR'),
+                    ('investment_experience', 'VARCHAR'),
+                    ('profile_completed_at', 'TIMESTAMP'),
+                ]
+                for col_name, col_type in user_profile_cols:
+                    if col_name not in u_columns:
+                        logger.info(f"Adding '{col_name}' to 'users'")
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+
+                # --- User Goals table ---
+                if is_postgres:
+                    goals_exist = conn.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='user_goals')")).scalar()
+                else:
+                    goals_exist = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='user_goals'")).fetchone() is not None
+                if not goals_exist:
+                    logger.info("Creating 'user_goals' table...")
+                    conn.execute(text("""
+                        CREATE TABLE user_goals (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name VARCHAR NOT NULL,
+                            target_amount FLOAT,
+                            target_date DATE,
+                            priority VARCHAR,
+                            notes TEXT,
+                            portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE SET NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    conn.commit()
+                    logger.info("'user_goals' table created.")
+
+                # --- Profile Events table (telemetry) ---
+                if is_postgres:
+                    pe_exist = conn.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='profile_events')")).scalar()
+                else:
+                    pe_exist = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='profile_events'")).fetchone() is not None
+                if not pe_exist:
+                    logger.info("Creating 'profile_events' table...")
+                    conn.execute(text("""
+                        CREATE TABLE profile_events (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            event VARCHAR NOT NULL,
+                            field VARCHAR,
+                            value VARCHAR,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    conn.commit()
+                    logger.info("'profile_events' table created.")
+
                 logger.info("Migration check complete.")
                     
             except Exception as e:

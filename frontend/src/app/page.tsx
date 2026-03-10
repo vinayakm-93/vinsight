@@ -4,11 +4,12 @@ import React, { useState } from 'react';
 import WatchlistComponent from "../components/Watchlist";
 import Dashboard from "../components/Dashboard";
 import ThesisLayout from "../components/ThesisRepository/Layout";
+import ProfilePage from "../components/ProfilePage";
 import { AuthModal } from '../components/AuthModal';
 import { Watchlist, Portfolio } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { User as UserIcon, LogOut, Sun, Moon, Monitor, PanelLeft } from 'lucide-react';
+import { User as UserIcon, LogOut, Sun, Moon, Monitor, PanelLeft, Settings, List, Briefcase, BookOpen, UserCircle } from 'lucide-react';
 
 // import { FeedbackModal } from '../components/FeedbackModal';
 
@@ -17,7 +18,7 @@ export default function Home() {
   const [watchlistStocks, setWatchlistStocks] = useState<string[]>([]);
   const [activeWatchlist, setActiveWatchlist] = useState<Watchlist | null>(null);
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null);
-  const [currentView, setCurrentView] = useState<'watchlist' | 'portfolio' | 'thesis'>('watchlist');
+  const [currentView, setCurrentView] = useState<'watchlist' | 'portfolio' | 'thesis' | 'profile'>('watchlist');
   const { user, logout } = useAuth();
   const { theme, setTheme, effectiveTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -66,7 +67,7 @@ export default function Home() {
       </div>
 
       {/* Header */}
-      <header className="p-4 md:p-6 flex justify-between items-center text-black dark:text-white shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
+      <header className="p-4 md:p-6 flex flex-wrap justify-between items-center gap-y-4 text-black dark:text-white shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsWatchlistVisible(!isWatchlistVisible)}
@@ -85,38 +86,49 @@ export default function Home() {
             Vinsight
           </h1>
 
+        </div>
+
+        {/* Right Section: Controls */}
+        <div className="flex items-center gap-4 order-2 sm:order-none ml-auto sm:ml-0">
           {/* Main Navigation Tabs */}
-          <div className="hidden sm:flex ml-8 bg-gray-100 dark:bg-gray-800/80 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="hidden sm:flex mx-2 sm:mx-8 overflow-x-auto hide-scrollbar bg-gray-100 dark:bg-gray-800/80 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+            
             <button
               onClick={() => setCurrentView('watchlist')}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${currentView === 'watchlist' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'watchlist' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              title="Watchlist"
             >
-              Watchlists
+              <List size={16} className="sm:hidden shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Watchlist</span>
             </button>
             <button
               onClick={() => setCurrentView('portfolio')}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${currentView === 'portfolio' ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'portfolio' ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              title="Portfolio"
             >
-              Portfolios
+              <Briefcase size={16} className="sm:hidden shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Portfolio</span>
             </button>
             <button
               onClick={() => setCurrentView('thesis')}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'thesis' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'thesis' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              title="Theses"
             >
-              Thesis Library <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 uppercase tracking-wider">Beta</span>
+              <BookOpen size={16} className="sm:hidden shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Theses</span> <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 uppercase tracking-wider">Beta</span>
             </button>
+            {user && (
+              <button
+                onClick={() => setCurrentView('profile')}
+                className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'profile' ? 'bg-white dark:bg-gray-600 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                title="Profile"
+              >
+                <UserCircle size={16} className="sm:hidden shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">Profile</span>
+              </button>
+            )}
           </div>
 
-          {/* Feedback Button - Nav Item */}
-          {/* <button
-            onClick={() => setShowFeedbackModal(true)}
-            className="ml-6 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors flex items-center gap-2 font-medium"
-          >
-            Feedback
-          </button> */}
-        </div>
-
-        <div className="flex items-center gap-4">
           {/* Theme Toggle */}
           <div className="flex bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full p-1 transition-colors duration-300">
             <button onClick={() => setTheme('system')} className={`p-1.5 rounded-full transition-all ${theme === 'system' ? 'bg-white dark:bg-gray-600 text-blue-500 shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`} title="System Default">
@@ -137,6 +149,16 @@ export default function Home() {
                 {user.email.length > 20 ? user.email.substring(0, 18) + '...' : user.email}
               </span>
               <button
+                onClick={() => setCurrentView('profile')}
+                className={`p-2 rounded-full transition-all ${currentView === 'profile'
+                  ? 'bg-emerald-500/10 text-emerald-500'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                title="Investor Profile"
+              >
+                <Settings size={14} />
+              </button>
+              <button
                 onClick={handleLogout}
                 className="p-2 bg-gray-200 dark:bg-gray-700 hover:bg-red-500/10 hover:text-red-500 dark:hover:bg-red-500/20 dark:hover:text-red-400 rounded-full transition-all"
                 title="Sign Out"
@@ -154,11 +176,52 @@ export default function Home() {
             </button>
           )}
         </div>
+
+        {/* Mobile Navigation Tabs */}
+        <div className="flex sm:hidden w-full order-last mx-auto overflow-x-auto hide-scrollbar bg-gray-100 dark:bg-gray-800/80 p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+          
+          <button
+            onClick={() => setCurrentView('watchlist')}
+            className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'watchlist' ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            title="Watchlist"
+          >
+            <List size={16} className="sm:hidden shrink-0" />
+            <span className="hidden sm:inline whitespace-nowrap">Watchlist</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('portfolio')}
+            className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'portfolio' ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            title="Portfolio"
+          >
+            <Briefcase size={16} className="sm:hidden shrink-0" />
+            <span className="hidden sm:inline whitespace-nowrap">Portfolio</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('thesis')}
+            className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'thesis' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+            title="Theses"
+          >
+            <BookOpen size={16} className="sm:hidden shrink-0" />
+            <span className="hidden sm:inline whitespace-nowrap">Theses</span> <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[9px] bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 uppercase tracking-wider">Beta</span>
+          </button>
+          {user && (
+            <button
+              onClick={() => setCurrentView('profile')}
+              className={`px-3 sm:px-4 py-1.5 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${currentView === 'profile' ? 'bg-white dark:bg-gray-600 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              title="Profile"
+            >
+              <UserCircle size={16} className="sm:hidden shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Profile</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Content */}
       <div className={`max-w-7xl 2xl:max-w-[95%] 3xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300 ${currentView === 'thesis' ? '' : ''}`}>
-        {currentView === 'watchlist' || currentView === 'portfolio' ? (
+        {currentView === 'profile' ? (
+          <ProfilePage onBack={() => setCurrentView('watchlist')} />
+        ) : currentView === 'watchlist' || currentView === 'portfolio' ? (
           <div className={`grid grid-cols-1 ${isWatchlistVisible ? 'lg:grid-cols-[320px_1fr] 2xl:grid-cols-[360px_1fr]' : ''} gap-8`}>
 
             {/* Sidebar / Watchlist */}
@@ -185,6 +248,7 @@ export default function Home() {
                 onClearSelection={() => setSelectedTicker(null)}
                 onRequireAuth={() => setShowAuthModal(true)}
                 onSelectStock={setSelectedTicker}
+                onNavigateToProfile={() => setCurrentView('profile')}
               />
             </div>
           </div>

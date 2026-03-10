@@ -84,9 +84,9 @@ function SortableWatchlistTab({ watchlist, isActive, onClick }: SortableWatchlis
             {...attributes}
             {...listeners}
             onClick={onClick}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border shrink-0 ${isActive
-                ? 'bg-blue-100 dark:bg-blue-600/20 border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
+            className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${isActive
+                ? 'bg-sky-500/10 border-sky-400 text-sky-500 shadow-[0_0_15px_rgba(56,189,248,0.2)]'
+                : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white'
                 }`}
         >
             {watchlist.name}
@@ -149,11 +149,11 @@ function SortableStockRow({
 
             <div
                 onClick={() => onSelectStock && onSelectStock(stock)}
-                className="relative flex-1 flex items-center py-1 pl-1 pr-0.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                className="relative flex-1 flex items-center py-1.5 px-1.5 hover:bg-sky-500/5 dark:hover:bg-sky-400/5 rounded-xl transition-all border border-transparent hover:border-sky-500/20 dark:hover:border-sky-400/20 cursor-pointer group/row -ml-1 border-b border-gray-100 dark:border-white/5 last:border-transparent"
             >
                 {/* Left: Ticker & Name */}
                 <div className="flex-1 min-w-0 pr-1">
-                    <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{stock}</h3>
+                    <h3 className="font-black text-gray-900 dark:text-white text-[13px] tracking-tight leading-tight">{stock}</h3>
                     <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight max-w-[90px] sm:max-w-[120px]">
                         {info?.companyName || info?.shortName || "Loading..."}
                     </p>
@@ -178,7 +178,7 @@ function SortableStockRow({
                                 </div>
                             </>
                         ) : (
-                            <span className="text-xs text-blue-400 animate-pulse">---</span>
+                            <span className="text-xs text-sky-400 animate-pulse">---</span>
                         )}
                     </div>
 
@@ -818,7 +818,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                         )}
                         <button
                             onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
-                            className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white transition-colors"
+                            className="p-1.5 text-sky-500 dark:text-sky-400 hover:text-blue-700 dark:hover:text-white transition-colors"
                             title="Create new watchlist"
                         >
                             <Plus size={20} />
@@ -904,13 +904,13 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         mode === 'watchlist' && !isLoading && !error && watchlists.length === 0 && user && (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                 <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
-                    <LayoutGrid className="text-blue-600 dark:text-blue-400" size={28} />
+                    <LayoutGrid className="text-blue-600 dark:text-sky-400" size={28} />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Watchlists Yet</h3>
                 <p className="text-gray-500 text-sm mb-4">Create your first watchlist to start tracking stocks.</p>
                 <button
                     onClick={() => setIsCreating(true)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                 >
                     <Plus size={16} /> Create Watchlist
                 </button>
@@ -979,7 +979,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                                         >
                                             <div className="flex flex-col">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-black text-gray-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase">{result.symbol}</span>
+                                                    <span className="font-black text-gray-900 dark:text-white group-hover:text-sky-500 transition-colors uppercase">{result.symbol}</span>
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
                                                         {result.quoteType === 'ETF' ? 'ETF' : result.quoteType || 'EQUITY'}
                                                     </span>
@@ -988,7 +988,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                                             </div>
                                             <div className="flex flex-col items-end gap-1.5">
                                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{result.exchange}</span>
-                                                <div className="p-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                <div className="p-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-sky-500 opacity-0 group-hover:opacity-100 transition-all">
                                                     <Plus size={14} />
                                                 </div>
                                             </div>
@@ -1012,7 +1012,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                             <p className="text-xs">Search above to add stocks.</p>
                             {!user && (
                                 <div className="mt-4">
-                                    <p className="text-xs text-blue-500 mb-2">Sign in to save your watchlist permanently!</p>
+                                    <p className="text-xs text-sky-500 mb-2">Sign in to save your watchlist permanently!</p>
                                 </div>
                             )}
                         </div>
@@ -1210,7 +1210,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
                                                     ) : null}
                                                 </>
                                             ) : (
-                                                <span className="text-xs text-blue-400 animate-pulse">---</span>
+                                                <span className="text-xs text-sky-400 animate-pulse">---</span>
                                             )}
                                         </div>
                                     </div>

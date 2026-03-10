@@ -25,6 +25,7 @@ graph TD
         
         Context -->|Injects| Persona[Active Persona Rules]
         Context -->|Injects| Metrics[Calculated Metrics (PEG, FCF Yield)]
+        Context -->|Injects| UserProfile[Investor Profile & Goals]
     end
 
     subgraph AI Engine [The Judge]
@@ -74,6 +75,18 @@ Before the AI writes a single word, it receives a structured JSON context. It do
     "name": "Value Investor",
     "focus": "Margin of Safety, Cash Flow",
     "style": "Skeptical, Contrarian"
+  },
+  "investor_profile": {
+    "risk_tolerance": "moderate",
+    "time_horizon": "5-10 years",
+    "monthly_contribution": 500.0,
+    "user_goals": [
+      {
+        "name": "House Downpayment",
+        "amount": 50000.0,
+        "date": "2028-12-01"
+      }
+    ]
   }
 }
 ```
@@ -93,6 +106,10 @@ Your name is VinSight AI. Evaluate {ticker} ({sector}) and assign a conviction s
 YOUR AUDIENCE:
 - Smart retail investors who want to understand *WHY* a stock is good or bad.
 - Avoid excessive jargon. Explain implications (e.g., "High Debt means rising rates will hurt profits").
+
+USER ALIGNMENT / PERSONALIZATION (CRITICAL):
+- The user's risk tolerance is {user_risk} and time horizon is {user_horizon}.
+- You MUST penalize volatile stocks if their risk is "conservative" or if they have short-term goals ({user_goals}).
 
 STYLE: {persona_style} (e.g. "Ruthless, Skeptical")
 FOCUS: {persona_focus} (e.g. "Free Cash Flow, Deep Value")
