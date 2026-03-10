@@ -15,7 +15,12 @@ const getGuestUUID = () => {
   if (typeof window === 'undefined') return null;
   let uuid = localStorage.getItem('vinsight_guest_uuid');
   if (!uuid) {
-    uuid = crypto.randomUUID();
+    try {
+      uuid = crypto.randomUUID();
+    } catch (e) {
+      // Fallback for older mobile browsers or non-HTTPS environments
+      uuid = 'guest-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
     localStorage.setItem('vinsight_guest_uuid', uuid);
   }
   return uuid;
@@ -262,6 +267,73 @@ export const getMe = async (): Promise<any> => {
 
 export const sendFeedback = async (message: string, rating?: number): Promise<any> => {
   const response = await api.post('/api/feedback/', { message, rating });
+  return response.data;
+};
+
+// --- Thesis API ---
+
+export interface InvestmentThesis {
+  id: number;
+  symbol: string;
+  stance: string | null;
+  one_liner: string | null;
+  key_drivers: string | null;
+  primary_risk: string | null;
+  confidence_score: number | null;
+  content: string | null;
+  sources: string | null;
+  agent_log: string | null;
+  is_edited: boolean;
+  is_monitoring: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThesisUpdateData {
+  stance?: string;
+  content?: string;
+  one_liner?: string;
+}
+
+export interface QuotaOut {
+  thesis_limit: number;
+  theses_generated_this_month: number;
+}
+
+export const getTheses = async (stance?: string, symbol?: string): Promise<InvestmentThesis[]> => {
+  const params: any = {};
+  if (stance) params.stance = stance;
+  if (symbol) params.symbol = symbol;
+  const response = await api.get<InvestmentThesis[]>('/api/theses', { params });
+  return response.data;
+};
+
+export const getThesisQuota = async (): Promise<QuotaOut> => {
+  const response = await api.get<QuotaOut>('/api/theses/quota');
+  return response.data;
+};
+
+export const getThesisDetails = async (symbol: string): Promise<InvestmentThesis> => {
+  const response = await api.get<InvestmentThesis>(`/api/theses/${symbol}`);
+  return response.data;
+};
+
+export const generateThesis = async (symbol: string): Promise<InvestmentThesis> => {
+  const response = await api.post<InvestmentThesis>('/api/theses/generate', { symbol });
+  return response.data;
+};
+
+export const updateThesis = async (id: number, data: ThesisUpdateData): Promise<InvestmentThesis> => {
+  const response = await api.put<InvestmentThesis>(`/api/theses/${id}`, data);
+  return response.data;
+};
+
+export const deleteThesis = async (id: number): Promise<void> => {
+  await api.delete(`/api/theses/${id}`);
+};
+
+export const scanGuardian = async (symbol: string): Promise<any> => {
+  const response = await api.post(`/api/guardian/scan/${symbol}`);
   return response.data;
 };
 

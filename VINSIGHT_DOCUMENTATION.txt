@@ -98,8 +98,9 @@ graph TD
 | :--- | :--- |
 | **Frontend** | Next.js 14/15, TypeScript, Tailwind CSS, Framer Motion |
 | **Backend** | Python 3.11, FastAPI, Pydantic, SQLAlchemy |
-| **Database** | Cloud SQL (PostgreSQL 15) for Prod; SQLite for Local |
-| **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, Alpha Vantage |
+| **Database** | Cloud SQL (PostgreSQL 15) with **pgvector** |
+| **AI Models** | Groq (Llama 3.3), Gemini 1.5 Pro, edgartools (SEC) |
+| **Vector DB** | FAISS (Local) / pgvector (Prod) |
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
 ## 3. Core Engine Logic
@@ -318,6 +319,10 @@ FILE: docs/FEATURES.md
     - **MSPR Tracking**: Monthly Share Purchase Ratio from SEC filings.
     - **10b5-1 Filter**: Distinguishes planned trades from discretionary executive action.
 - **Spin Detection**: Automated detection of "positive framing" on negative financial news.
+- **Agentic Guardian (v4.0)**:
+    - **Deep-Thinking Loop**: Plan -> Retrieve (SEC/Web) -> Reflect -> Final Verdict.
+    - **Evidence Grounding**: Claims are verified against retrieved text with `[UNVERIFIED]` tags for hallucinations.
+    - **Robust SEC Retrieval**: Powered by `edgartools` and `pgvector` for enterprise-grade 10-K analysis.
 
 ## 3. VinSight Score v9.0
 Institutional-grade scoring with adaptive sector intelligence.

@@ -191,17 +191,20 @@ class GroqSentimentAnalyzer:
 
 "{text}"
 
-Classify the sentiment from an INVESTOR's perspective:
-- positive (bullish, good for stock price)
-- negative (bearish, bad for stock price)  
-- neutral (mixed, unclear, or offsetting signals)
+You are a SKEPTICAL financial analyst. Your default is to be conservative and err on the side of caution.
+Classify the sentiment from a SOPHISTICATED INVESTOR's perspective:
+- positive (clear bullish signal with specific, material evidence)
+- negative (bearish signal: misses, cuts, lawsuits, fundamental deterioration)
+- neutral (genuinely mixed, or no material information)
 
-CRITICAL: Consider how the MARKET typically reacts, not just face-value sentiment:
-- Layoffs during restructuring can be BULLISH (cost-cutting → margin expansion)
-- Revenue miss in a growth stock is MORE negative than in a mature value stock
-- "In line with expectations" = neutral, not positive
-- Buyback announcements = bullish (management believes stock is undervalued)
-- Debt issuance can be positive (growth funding) or negative (covering losses) — context matters
+CRITICAL CALIBRATION RULES:
+- Restructuring/layoffs WITHOUT revenue context: lean NEGATIVE (score around -0.25). Assume problems unless proven otherwise.
+- Layoffs WITH revenue decline or guidance cut: CLEARLY NEGATIVE (score < -0.60).
+- "In line with expectations" = neutral (score ~0.0). Not positive.
+- "Beat earnings but cut guidance" = NEGATIVE. Guidance matters more than past beats.
+- Buyback announcements alone = slightly positive but NOT strongly bullish without context.
+- PR language ("strategic", "transformative", "exciting") is a RED FLAG. Discount it.
+- Debt issuance: negative unless clearly linked to accretive growth.
 
 Provide your analysis in this EXACT JSON format:
 {{
@@ -213,28 +216,44 @@ Provide your analysis in this EXACT JSON format:
 
 Examples:
 
-Text: "Apple exceeds earnings expectations, beats on revenue and EPS"
+Text: "Apple exceeds earnings expectations, beats on revenue and EPS, raises full-year guidance"
 {{
   "label": "positive",
-  "score": 0.85,
+  "score": 0.82,
   "confidence": 0.95,
-  "reasoning": "Strong earnings beat indicates solid business performance, typically bullish for stock"
+  "reasoning": "Beat on both revenue and EPS, plus guidance raise, signals durable momentum. Clearly bullish."
 }}
 
 Text: "Company announces layoffs affecting 15% of workforce as part of strategic restructuring"
 {{
-  "label": "neutral",
-  "score": 0.10,
-  "confidence": 0.70,
-  "reasoning": "Layoffs signal pain but restructuring suggests margin improvement ahead — market often reacts positively to cost discipline"
+  "label": "negative",
+  "score": -0.35,
+  "confidence": 0.72,
+  "reasoning": "Layoffs without revenue context likely signal underlying weakness. 'Strategic restructuring' is often PR spin for cost problems. Lean bearish pending further evidence."
 }}
 
-Text: "Company announces layoffs affecting 15% of workforce amid revenue decline"
+Text: "Company announces layoffs affecting 15% of workforce amid declining revenue and missed guidance"
 {{
   "label": "negative",
-  "score": -0.75,
-  "confidence": 0.90,
-  "reasoning": "Layoffs paired with declining revenue signals fundamental weakness, not proactive cost management"
+  "score": -0.82,
+  "confidence": 0.93,
+  "reasoning": "Layoffs compounded by revenue decline and a guidance miss is fundamental distress, not proactive management. Strongly bearish."
+}}
+
+Text: "Company reports earnings in line with expectations, reaffirms guidance"
+{{
+  "label": "neutral",
+  "score": 0.02,
+  "confidence": 0.78,
+  "reasoning": "Meeting expectations is not an upside catalyst. Reaffirming guidance removes downside risk but creates no new reason to buy. Neutral."
+}}
+
+Text: "Beat Q3 earnings but lowered full-year revenue guidance citing macro headwinds"
+{{
+  "label": "negative",
+  "score": -0.55,
+  "confidence": 0.85,
+  "reasoning": "Guidance cuts outweigh past beats. Forward-looking guidance is what the market prices in — macro headwinds signal ongoing pressure."
 }}
 
 Text: "Merger talks ongoing, outcome uncertain"

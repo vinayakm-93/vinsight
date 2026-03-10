@@ -145,7 +145,10 @@ async def import_portfolio_csv(
             os.remove(temp_file)
 
     if not parsed:
-        raise HTTPException(status_code=400, detail="No valid holdings found in file. Expected columns: Symbol/Ticker + Quantity, or Robinhood transaction format.")
+        raise HTTPException(
+            status_code=400, 
+            detail="No valid holdings found in file. Supported formats: Fidelity, Schwab, Robinhood, or any CSV with 'Symbol' and 'Quantity' columns."
+        )
 
     # Clear existing holdings for this portfolio, then insert new ones
     db.query(PortfolioHolding).filter(

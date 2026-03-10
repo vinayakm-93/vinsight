@@ -31,14 +31,16 @@ if "sqlite" in SQLALCHEMY_DATABASE_URL:
 else:
     # Production / Cloud SQL (PostgreSQL)
     # Recommended pool settings for Cloud Run
-    connect_args = {}
+    connect_args = {"connect_timeout": 5}
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         pool_size=5,
         max_overflow=2,
         pool_timeout=30,
-        pool_recycle=1800
+        pool_recycle=1800,
+        connect_args=connect_args
     )
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

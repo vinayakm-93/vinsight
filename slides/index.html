@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinsight Presentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</head>
+
+<body>
+    <div class="progress-bar" id="progress"></div>
+
+    <div class="notes-toggle">
+        <button id="toggleNotes">Toggle Speaker Notes (N)</button>
+    </div>
+
+    <div class="controls">
+        <button id="prevBtn">← Previous</button>
+        <button id="nextBtn">Next →</button>
+    </div>
+
+    <div class="slide-container" id="slides">
+        <!-- Slide 1: Title -->
+        <div class="slide active"
+            data-notes="Welcome everyone. Today I'm presenting Vinsight. Unlike traditional dashboards, Vinsight is built around a singular mission: providing autonomous valuation and defense of your investment ideas through our flagship Thesis Agent.">
+            <img src="assets/vinsight_logo_glossy_1772500508604.png" alt="Vinsight Logo" class="logo-large">
+            <h1>Vinsight Intelligence Platform</h1>
+            <p class="hero-text">Autonomous Thesis Guarding for High-Conviction Investing</p>
+            <ul>
+                <li>Team 1: Vinayak Malhotra, Abhisek, LJ, Joel</li>
+                <li>Site: www.vinsights.page</li>
+                <li>Git: github.com/vinayakm-93/vinsight</li>
+            </ul>
+        </div>
+
+        <!-- Slide 2: Problem -->
+        <div class="slide"
+            data-notes="In today's market, information is noise. Analysts spend 80% of their time just trying to parse data, rather than thinking. But the real enemy is confirmation bias—we are hard-wired to ignore evidence that complicates our investment narrative. We needed a tool that acts as a devil's advocate.">
+            <h2>The Business Problem</h2>
+            <div class="hero-text">Investors are drowning in "Signal Toxicity."</div>
+            <ul>
+                <li>Analysts spend 80% of time reading, 20% deciding.</li>
+                <li>Information overload leads to research friction.</li>
+                <li>Confirmation Bias blinds even professional investors.</li>
+            </ul>
+        </div>
+
+        <!-- Slide 3: Thesis Agent (Hero) -->
+        <div class="slide"
+            data-notes="Introducing the Thesis Agent. This isn't just a search tool; it's an autonomous guardian. It evaluates your investment thesis against the coldest, hardest data available, specifically looking for reasons your thesis might be 'At Risk' or 'Broken'. It's built on 'Counter-Bias Engineering'—it's here to challenge you.">
+            <h2>The Hero: Thesis Agent</h2>
+            <p>Our flagship autonomous guardian service.</p>
+            <ul>
+                <li><strong>Autonomous Watchdog</strong>: 24/7 pressure-testing of investment ideas.</li>
+                <li><strong>Counter-Bias Engineering</strong>: Designed to falsify, not just confirm.</li>
+                <li><strong>Evidence-Grounded</strong>: Verifiable citations from SEC & news.</li>
+            </ul>
+            <img src="assets/vinsight_dashboard_mockup_1772500496504.png" alt="Thesis Agent UI"
+                class="dashboard-mockup">
+        </div>
+
+        <!-- Slide 4: AI Suite -->
+        <div class="slide"
+            data-notes="While the Thesis Agent is the pilot, it's powered by the Vinsight AI Suite. This is a collection of high-fidelity tools—from specialized financial sentiment models to deterministic scoring engines—that work in concert to give the Agent the data it needs to make high-conviction verdicts.">
+            <h2>Premium AI Suite</h2>
+            <p>The intelligence layer powering the Agent.</p>
+            <ul>
+                <li><strong>Sentiment Service</strong>: FinBERT-based high-fidelity analysis.</li>
+                <li><strong>Earnings AI</strong>: Automated tone & Q&A extraction.</li>
+                <li><strong>Scoring Engine</strong>: Deterministic Python-based 5-component math.</li>
+                <li><strong>Monte Carlo</strong>: Probabilistic risk modeling (5,000 paths).</li>
+            </ul>
+        </div>
+
+        <!-- Slide 5: Architecture -->
+        <div class="slide"
+            data-notes="Technically, Vinsight is an orchestration layer. The Thesis Agent sits at the center, autonomously calling upon our AI Suite tools—the Scorer, Sentiment engine, and Monte Carlo simulator—to gather evidence before synthesizing a final verdict via Gemini 1.5 Pro.">
+            <h2>Technical Architecture</h2>
+            <pre class="mermaid">
+graph TD
+    User([User]) --> WebUI[Next.js Dashboard]
+    WebUI --> API[FastAPI Gateway]
+    
+    subgraph Core_Service [Thesis Agent Orchestrator]
+        Agent[Thesis Agent Loop]
+    end
+    
+    subgraph AI_Suite [Vinsight AI Suite]
+        Scorer[Deterministic Scorer]
+        Sentiment[FinBERT Sentiment]
+        Earnings[Transcript AI]
+        Monte[Monte Carlo Sim]
+    end
+    
+    Agent --> API
+    API --> AI_Suite
+    Agent --> LLM[Gemini 1.5 Pro]
+            </pre>
+        </div>
+
+        <!-- Slide 6: Agentic Logic -->
+        <div class="slide"
+            data-notes="The Thesis Agent's logic is rigorous. It doesn't just read once. It iterates, identifying gaps in its own knowledge. Most importantly, we use 'Evidence Grounding.' If the AI makes a claim it can't find in the source text, it's tagged as 'Unverified.' This eliminates hallucination in high-stakes financial environments.">
+            <h2>Agentic Logic & Grounding</h2>
+            <ul>
+                <li><strong>Iterative Research</strong>: Plan → Search → Reflect loop.</li>
+                <li><strong>Evidence Grounding</strong>: Mandatory 30% semantic match for assertions.</li>
+                <li><strong>Zero Hallucination</strong>: [UNVERIFIED] tags for unbacked claims.</li>
+            </ul>
+        </div>
+
+        <!-- Slide 7: Scoring Engine -->
+        <div class="slide"
+            data-notes="Part of our AI Suite is the Scoring Engine. We enforce 'Ruthless Objectivity' here. Python is the sole authority for numbers. The LLM can only suggest a small nudge based on narrative context. This ensures our core signal remains stable and mathematically sound.">
+            <h2>The Scoring Engine</h2>
+            <p>Ruthless Objectivity via Python Determinism.</p>
+            <ul>
+                <li><strong>5-Component Base</strong>: Valuation, Health, Growth, Profit, Technicals.</li>
+                <li><strong>The Analyst's Veto</strong>: Hard-caps for insolvency outliers.</li>
+                <li><strong>Buffer + Gradient</strong>: Penalties that ignore market jitter.</li>
+            </ul>
+        </div>
+
+        <!-- Slide 8: Demo -->
+        <div class="slide"
+            data-notes="In our demo, we see the Agent in action. A user enters a bullish thesis on Tesla. Instead of agreeing, the Agent immediately searches for regulatory risks and safety data. It presents a balanced view, highlighting exactly where the user's assumptions clash with the grounded evidence.">
+            <h2>Demo: Evaluating "Long TSLA"</h2>
+            <ul>
+                <li><strong>Thesis</strong>: "Going long on FSD dominance."</li>
+                <li><strong>Agent Action</strong>: Scrapes latest 10-K and safety recalls.</li>
+                <li><strong>Verdict</strong>: AT RISK (Regulatory hurdles prioritized).</li>
+            </ul>
+        </div>
+
+        <!-- Slide 9: Impact -->
+        <div class="slide"
+            data-notes="The impact is clear: better, less biased decisions and an 80% reduction in research time. Moving forward, we want to integrate transactional tools—allowing the Agent to 'unlock' a trade only after it has successfully verified the thesis.">
+            <h2>Impact & Next Steps</h2>
+            <div class="hero-text">Decisions backed by evidence, not emotion.</div>
+            <ul>
+                <li>Reduce research friction by 80%.</li>
+                <li>Institutional-grade risk metrics for retail.</li>
+                <li><strong>Next</strong>: Transactional 2FA "Verified Orders."</li>
+            </ul>
+        </div>
+
+        <!-- Slide 10: Summary -->
+        <div class="slide"
+            data-notes="To sum up: Vinsight is the defense your portfolio needs. By centering on the Thesis Agent and supporting it with a professional AI Suite, we offer the first truly counter-bias investment platform. Any questions?">
+            <h2>Summary: Vinsight</h2>
+            <ul>
+                <li><strong>Hero</strong>: The Thesis Agent (Autonomous Guardian).</li>
+                <li><strong>Engine</strong>: Vinsight AI Suite (High-Fidelity Suite).</li>
+                <li><strong>Site</strong>: www.vinsights.page</li>
+                <li><strong>Git</strong>: github.com/vinayakm-93/vinsight</li>
+            </ul>
+            <h1>Questions?</h1>
+        </div>
+    </div>
+
+    <div class="speaker-notes" id="notes"></div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const notesEl = document.getElementById('notes');
+        const progressEl = document.getElementById('progress');
+        let currentSlide = 0;
+
+        function updateSlide() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'past');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                    notesEl.innerHTML = `<strong>Speaker Notes:</strong><br>${slide.dataset.notes || 'No notes for this slide.'}`;
+                } else if (index < currentSlide) {
+                    slide.classList.add('past');
+                }
+            });
+            progressEl.style.width = `${((currentSlide + 1) / slides.length) * 100}%`;
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        });
+
+        document.getElementById('toggleNotes').addEventListener('click', () => {
+            notesEl.classList.toggle('visible');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                if (currentSlide < slides.length - 1) {
+                    currentSlide++;
+                    updateSlide();
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    updateSlide();
+                }
+            } else if (e.key.toLowerCase() === 'n') {
+                notesEl.classList.toggle('visible');
+            }
+        });
+
+        updateSlide();
+    </script>
+</body>
+
+</html>

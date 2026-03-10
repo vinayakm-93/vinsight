@@ -28,6 +28,8 @@ class User(Base):
     alerts_triggered_this_month = Column(Integer, default=0)
     alert_limit = Column(Integer, default=30) # Default limit: 30 alerts per month
     guardian_limit = Column(Integer, default=10) # Default limit: 10 active guardian stocks
+    thesis_limit = Column(Integer, default=10) # Default limit: 10 theses per month
+    theses_generated_this_month = Column(Integer, default=0)
 
     last_alert_reset = Column(DateTime, default=datetime.utcnow)
     is_vip = Column(Boolean, default=False)
@@ -126,6 +128,7 @@ class GuardianThesis(Base):
     auto_generated = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
     last_checked_at = Column(DateTime, nullable=True)
+    last_manual_scan_at = Column(DateTime, nullable=True)
     last_price = Column(Float, nullable=True)
     check_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -137,6 +140,34 @@ class GuardianThesis(Base):
     __table_args__ = (
         UniqueConstraint('user_id', 'symbol', name='uq_user_guardian_thesis'),
     )
+
+class InvestmentThesis(Base):
+    __tablename__ = "investment_theses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    symbol = Column(String, index=True, nullable=False)
+    
+    # Tier 1 Info
+    stance = Column(String, nullable=True) # BULLISH, BEARISH, NEUTRAL
+    one_liner = Column(String, nullable=True)
+    
+    # Tier 2 Info
+    key_drivers = Column(Text, nullable=True) # JSON array of strings
+    primary_risk = Column(Text, nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    
+    # Tier 3 Info
+    content = Column(Text, nullable=True) # Detailed analysis (markdown/HTML)
+    sources = Column(Text, nullable=True) # JSON list of citations
+    agent_log = Column(Text, nullable=True) # Working trace
+    
+    is_edited = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
 
 class GuardianAlert(Base):
     __tablename__ = "guardian_alerts"
@@ -150,6 +181,8 @@ class GuardianAlert(Base):
     recommended_action = Column(String, nullable=True)  # HOLD / REDUCE / SELL
     key_evidence = Column(Text, nullable=True)          # JSON string
     events_detected = Column(Text, nullable=True)       # JSON string
+    research_history = Column(Text, nullable=True)      # JSON string - full agent search trail
+    thinking_log = Column(Text, nullable=True)          # JSON string - internal agent thought trace
     is_read = Column(Boolean, default=False)
     email_sent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -201,4 +234,18 @@ class ScoreHistory(Base):
     rating = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class SecSummary(Base):
+    __tablename__ = "sec_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, unique=True, index=True, nullable=False)
+    business_description = Column(Text, nullable=True)
+    risk_factors_10k = Column(Text, nullable=True)
+    legal_proceedings = Column(Text, nullable=True)
+    mda = Column(Text, nullable=True)
+    latest_10q_delta = Column(Text, nullable=True)
+    latest_10k_date = Column(String, nullable=True)
+    latest_10q_date = Column(String, nullable=True)
+    last_updated_at = Column(DateTime, default=datetime.utcnow)
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## [v11.3.0] - AI Thesis Library & Guardian Sync (2026-03-06)
+
+### 🚀 Major Feature: The AI Thesis Library
+- **Unified Navigation**: Extracted Watchlists, Portfolios, and Thesis Library to top-level navigation tabs.
+- **Master-Detail UI**: Built a dedicated Thesis Library interface (`ThesisList` and `ThesisDetail`) for managing AI-generated investment theses.
+- **Deep Generation API**: Upgraded `/api/theses/generate` to use the full AI model, generating Stance (BULLISH/BEARISH/NEUTRAL), One-Liners, Key Drivers, Risks, Confidence Scores, and Deep Dives.
+- **Interactive Management**: Added functionality to seamlessly Regenerate, Edit, and Delete theses directly from the UI.
+
+### 🛡️ Guardian Agent Integration
+- **Bidirectional Syncing**: Activating the Thesis Agent for a stock automatically populates the Thesis Library. Deleting a thesis correctly disables the background Guardian monitoring.
+- **Manual "Scan Now" Overrides**: Added `/api/guardian/scan/{symbol}`. Users can trigger an on-demand, rigorous Guardian evaluation of a thesis (rate-limited to 1 per day per stock).
+- **Incident Log Hub**: Integrated the Guardian status (INTACT / AT_RISK / BROKEN) and historical stress-test Incident Logs natively into the Thesis Detail view.
+
+### ⚙️ Backend & Resilience 
+- **LLM JSON Parsing Reliability**: Enforced strict escaping rules (`\"`, `\n`) in the AI prompt and implemented `strict=False` in Python's JSON parser to prevent crashes caused by unescaped characters in AI-generated markdown.
+- **Event Loop Management**: Offloaded synchronous LLM generation calls inside the FastAPI `/scan` route entirely to background worker threads. This eliminated a critical bug where long AI reasoning times would freeze the main web server and trigger 500 errors across the application.
+- **Compact UI Enhancements**: Replaced massive Guardian headers with sleek, space-efficient single-row badges. Replaced browser alerts with elegantly styled inline Toast notifications.
+
+---
+
+## [v11.2.0] - On-Demand Pure Text SEC RAG (2026-03-06)
+
+### 🚀 Major Feature: Thesis Agent Text RAG
+- **Zero-Cost Ingestion**: Built a new `sec_summarizer.py` microservice that dynamically checks SEC metadata for new 10-K/10-Q filing dates before scraping.
+- **Pure Text Caching**: Ripped out computationally heavy `pgvector`/FAISS vector embeddings. We now pre-summarize SEC 10-K risk factors and MD&A via `Gemini 2.0 Flash` (to leverage its massive 1M token context window) and store them in local SQLite (`finance.db`) as highly dense pure text blocks.
+- **Prompt Injection**: The `guardian_agent.py` no longer "guesses" vector search queries. It explicitly injects the pre-calculated SEC Risk Summary straight into the DeepSeek/Gemini baseline context window for 100% accurate recall.
+- **Tech Debt Cleanup**: Deleted all legacy vector FAISS indexing scripts, `sec_rag.py`, and multi-gigabyte `.pkl`/`.faiss` storage folders to streamline Cloud Run deployments.
+
+---
+
 ## [v10.0.0] - The Era of Objectivity (2026-02-19)
 
 ### 🚀 Scoring Engine: VinSight v10.0
@@ -32,8 +62,12 @@
 - **Automated Enrichment**: Imported holdings are instantly hydrated with real-time market data and historical sector benchmarks.
 
 ### 🧠 AI Portfolio Manager
+- **Added Agentic Portfolio Guardian** with deep-thinking reasoning loop.
+- Integrated `edgartools` for robust SEC 10-K parsing.
+- Implemented Guardian Guardrails: Evidence Grounding, Reasoning Caps, and Rate Limiting.
 - **6-Point Institutional Audit**: DeepSeek R1-powered synthesis covering Health Score, Concentration Risk, Winner/Loser Analysis, Sector Audit, Risk Scenarios, and Actionable Recommendations.
 - **Reliability Patch**: Resolved a critical 500 error in the AI summary pipeline caused by masked 404s on non-existent portfolios.
+- Planned Phase 5 migration to `pgvector` on Cloud SQL for production vector storage.
 
 ---
 

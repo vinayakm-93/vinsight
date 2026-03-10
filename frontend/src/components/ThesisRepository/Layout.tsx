@@ -57,6 +57,9 @@ export default function ThesisLayout() {
         }
     };
 
+    const activeCount = theses.filter(t => t.is_monitoring).length;
+    const guardianLimit = user?.guardian_limit || 10;
+
     return (
         <>
             <GenerateModal
@@ -75,6 +78,8 @@ export default function ThesisLayout() {
                             selectedId={selectedThesis?.id}
                             onSelect={setSelectedThesis}
                             onNewClick={() => setIsGenerateOpen(true)}
+                            activeCount={activeCount}
+                            limit={guardianLimit}
                         />
                     </div>
                 </div>

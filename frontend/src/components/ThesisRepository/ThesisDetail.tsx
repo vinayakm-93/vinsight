@@ -64,7 +64,7 @@ export default function ThesisDetail({ thesis, onDelete, onUpdate }: ThesisDetai
         const fetchGuardianData = async () => {
             try {
                 const thesesRes = await api.get('/api/guardian/theses');
-                const gThesis = thesesRes.data.find((t: any) => t.symbol === thesis.symbol);
+                const gThesis = thesesRes.data.find((t: any) => t.symbol.toUpperCase() === thesis.symbol.toUpperCase());
                 if (gThesis && gThesis.is_active) {
                     setGuardianStatus(gThesis.status);
                     const alertsRes = await api.get(`/api/guardian/alerts?symbol=${thesis.symbol}`);
@@ -133,7 +133,7 @@ export default function ThesisDetail({ thesis, onDelete, onUpdate }: ThesisDetai
                     const alertsRes = await api.get(`/api/guardian/alerts?symbol=${thesis.symbol}`);
                     setAlerts(alertsRes.data);
                     const gRes = await api.get('/api/guardian/theses');
-                    const gThesis = gRes.data.find((t: any) => t.symbol === thesis.symbol);
+                    const gThesis = gRes.data.find((t: any) => t.symbol.toUpperCase() === thesis.symbol.toUpperCase());
                     if (gThesis) setGuardianStatus(gThesis.status);
                 }
             } catch {
@@ -222,11 +222,26 @@ export default function ThesisDetail({ thesis, onDelete, onUpdate }: ThesisDetai
                             </>
                         ) : (
                             <>
-                                {guardianStatus && (
+                                {thesis.is_monitoring || guardianStatus ? (
                                     <button onClick={handleScanClick} disabled={isScanning}
-                                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-blue-100 bg-blue-600 border border-blue-500 rounded-lg hover:bg-blue-500 disabled:opacity-60 transition-colors shadow-sm">
+                                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-blue-100 bg-blue-600 border border-blue-500 rounded-lg hover:bg-blue-500 disabled:opacity-60 transition-colors shadow-sm animate-in fade-in zoom-in duration-300">
                                         {isScanning ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
                                         {isScanning ? 'Scanning…' : 'Scan Now'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await api.post('/api/guardian/enable', { symbol: thesis.symbol });
+                                                // Refresh to show "Scan Now"
+                                                window.location.reload();
+                                            } catch (err: any) {
+                                                alert(err.response?.data?.detail || "Failed to activate Thesis Agent");
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-gray-900 dark:bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                                    >
+                                        <Shield size={14} /> Activate Agent
                                     </button>
                                 )}
                                 <button onClick={handleRegenerateClick} disabled={isRegenerating}

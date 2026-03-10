@@ -37,8 +37,8 @@ graph TD
 | :--- | :--- |
 | **Frontend** | Next.js 14/15, TypeScript, Tailwind CSS, Framer Motion |
 | **Backend** | Python 3.11, FastAPI, Pydantic, SQLAlchemy |
-| **Database** | Cloud SQL (PostgreSQL 15) for Prod; SQLite for Local |
-| **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, Alpha Vantage |
+| **Database** | Cloud SQL (PostgreSQL 15) & Local SQLite |
+| **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, edgartools (SEC) |
 | **Email** | FAST-Mail (SMTP/Gmail) |
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
@@ -55,11 +55,13 @@ graph TD
 
 ## 5. Thesis Agent Architecture
 -   **Hybrid Agent Model**: Combines DeepSeek R1 (Reasoning) with Llama 3.3 (Sentiment) and Gemini 2.0 (Fallback).
--   **Autonomous Loop**:
-    1.  **Monitor**: Scheduled Cloud Run Job triggers event detection.
-    2.  **Evaluate**: Specialized prompts determine if an event breaks the user's specific thesis.
-    3.  **Act**: Updates status and sends proactive email alerts.
--   **Documentation**: See [Thesis Agent Docs](../.gemini/antigravity/brain/797d5707-6eeb-42e7-9505-2b09f8dbab87/THESIS_AGENT.md) for full details.
+-   **Autonomous Loop (Multi-Agent Debate)**:
+    1.  **Monitor**: Scheduled Cloud Run Job triggers event detection (including SPY Macro headwind checks and News Sentiment crashes).
+    2.  **Evaluate (The Debate)**: If triggered, a parallel `Bull Agent` and `Bear Agent` independently generate targeted web search queries to validate or attack the thesis.
+    3.  **Synthesize (The Judge)**: A third `Judge Agent` evaluates the Bull and Bear briefs to issue a final verdict (`INTACT`, `AT_RISK`, `BROKEN`). The debate is strictly capped at a maximum of 2 escalation turns to ensure high quality and bounded cost.
+    4.  **Act**: Updates status and sends proactive email alerts.
+-   **Pure Text Memory & Safeguards**: Uses SQLite for persistent retrieval of pre-summarized SEC risk data. Strict Hallucination safeguards force agents to cite only verified retrieved contexts.
+-   **Documentation**: See [Thesis Agent Docs](../.gemini/antigravity/brain/7cb40b9e-875f-42f5-934b-cc4ffec9e3df/walkthrough.md) for full details on Phase 4 enhancements.
 
 ## 6. Model Context Protocol (MCP) Integration
 VinSight exposes its internal analysis tools via an MCP Server, allowing external AI agents (like Claude Desktop) to invoke them.

@@ -66,7 +66,9 @@ The system follows a modern **Client-Server** architecture tailored for cloud de
     *   *Failure*: Too slow (>5s latency) and expensive. Context windows filled up with useless raw HTML.
 2.  **Iteration 1 (Vector Store)**: Attempted to vector-index all SEC filings.
     *   *Challenge*: Financials change too fast. Indexing was always stale.
-3.  **Final Design (Agentic Tools)**: Instead of pre-indexing, we gave the LLM "Tools" to fetch live data on demand (e.g., `get_stock_price`, `get_latest_news`). This "Just-In-Time" context injection proved superior for market data.
+3.  **Iteration 2 (Single-Agent Loop)**: A standard ReAct agent equipped with search tools.
+    *   *Challenge*: Suffered from "sycophancy" (agreeing with the user's bias) and fell into expensive, infinite search loops trying to confirm that bias. Sequential searches were also too slow.
+4.  **Final Design (Asymmetric Multi-Agent Debate)**: We replaced the single loop with two parallel agents (`BULL` and `BEAR`) forced into extreme, opposing personas, strictly capped at 2 escalation turns to bound costs. A neutral `Judge Agent` acts as the final arbiter. This eradicated bias, bounded costs, and cut latency in half via concurrency.
 
 ---
 

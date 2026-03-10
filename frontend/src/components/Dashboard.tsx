@@ -1446,7 +1446,23 @@ export default function Dashboard({
                 </div>
 
                 {activeTab === 'guardian' && (
-                    <GuardianSection ticker={ticker!} />
+                    user ? (
+                        <GuardianSection ticker={ticker!} />
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-20 bg-white/60 dark:bg-gray-900/40 glass-panel rounded-2xl border border-gray-200 dark:border-gray-800 text-center shadow-lg mt-6">
+                            <Shield className="w-16 h-16 text-blue-500 mb-4" />
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Thesis Agent <span className="text-sm font-normal text-gray-500">(AI Strategist)</span></h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                                Autonomous 24/7 monitoring and deep-dive investment thesis generation require a free account.
+                            </p>
+                            <button
+                                onClick={onRequireAuth}
+                                className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 mx-auto"
+                            >
+                                Login / Sign Up to Access
+                            </button>
+                        </div>
+                    )
                 )}
 
                 {activeTab === 'ai' && (

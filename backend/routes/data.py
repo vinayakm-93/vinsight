@@ -108,7 +108,7 @@ def get_stock_details(ticker: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch-prices")
-async def get_batch_prices_endpoint(request: BatchStockRequest):
+def get_batch_prices_endpoint(request: BatchStockRequest):
     """
     Get lightweight batch stock prices for Watchlist Sidebar.
     Optimized for speed.
@@ -120,7 +120,7 @@ async def get_batch_prices_endpoint(request: BatchStockRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/batch-stock")
-async def get_batch_stock_details(payload: dict):
+def get_batch_stock_details(payload: dict):
     """
     Fetch details for multiple stocks in one request.
     Payload: { "tickers": ["AAPL", "MSFT", ...] }

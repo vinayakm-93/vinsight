@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { InvestmentThesis } from '../../lib/api';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Shield } from 'lucide-react';
 
 interface ThesisListProps {
     theses: InvestmentThesis[];
@@ -8,9 +8,11 @@ interface ThesisListProps {
     selectedId?: number;
     onSelect: (thesis: InvestmentThesis) => void;
     onNewClick: () => void;
+    activeCount: number;
+    limit: number;
 }
 
-export default function ThesisList({ theses, loading, selectedId, onSelect, onNewClick }: ThesisListProps) {
+export default function ThesisList({ theses, loading, selectedId, onSelect, onNewClick, activeCount, limit }: ThesisListProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [stanceFilter, setStanceFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH' | 'NEUTRAL'>('ALL');
 
@@ -25,7 +27,7 @@ export default function ThesisList({ theses, loading, selectedId, onSelect, onNe
         <div className="flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-1">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">Research Hub</h2>
                     <button
                         onClick={onNewClick}
@@ -34,6 +36,16 @@ export default function ThesisList({ theses, loading, selectedId, onSelect, onNe
                     >
                         <Plus size={18} />
                     </button>
+                </div>
+
+                {/* Capacity indicator */}
+                <div className="flex items-center justify-between mb-4">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Thesis agent</span>
+                    <div className="flex items-center gap-2">
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-black ${activeCount >= limit ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                            CAPACITY {activeCount} / {limit}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="relative">
@@ -86,7 +98,14 @@ export default function ThesisList({ theses, loading, selectedId, onSelect, onNe
                                 }`}
                         >
                             <div className="flex justify-between items-start mb-2.5">
-                                <span className="font-bold text-gray-900 dark:text-white text-[15px]">{thesis.symbol}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-gray-900 dark:text-white text-[15px]">{thesis.symbol}</span>
+                                    {thesis.is_monitoring && (
+                                        <div title="Thesis Agent Monitoring Active">
+                                            <Shield size={12} className="text-blue-500 fill-blue-500/20" />
+                                        </div>
+                                    )}
+                                </div>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${thesis.stance === 'BULLISH' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50' :
                                     thesis.stance === 'BEARISH' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border border-red-200 dark:border-red-800/50' :
                                         'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600'

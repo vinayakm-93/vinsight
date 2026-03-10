@@ -52,7 +52,7 @@ interface WatchlistProps {
     onWatchlistChange?: (stocks: string[]) => void;
     onActiveWatchlistChange?: (watchlist: Watchlist | null) => void;
     onActivePortfolioChange?: (portfolio: Portfolio | null) => void;
-    onModeChange?: (mode: 'watchlist' | 'portfolio') => void;
+    mode?: 'watchlist' | 'portfolio';
 }
 
 // --- Sortable Helper Components ---
@@ -227,7 +227,7 @@ function SortableStockRow({
 
 // --- Main Component ---
 
-export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange, onActivePortfolioChange, onModeChange }: WatchlistProps) {
+export default function WatchlistComponent({ onSelectStock, onWatchlistChange, onActiveWatchlistChange, onActivePortfolioChange, mode = 'watchlist' }: WatchlistProps) {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [activeWatchlistId, setActiveWatchlistId] = useState<number | null>(null);
 
@@ -239,9 +239,6 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         stocks: ["AAPL", "NVDA", "SPY", "TSLA", "AMZN", "MSFT", "GOOGL"],
         position: 0
     };
-
-    // --- Mode Toggle ---
-    const [sidebarMode, setSidebarMode] = useState<'watchlist' | 'portfolio'>('watchlist');
 
     // --- Portfolio State ---
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -310,11 +307,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         }
     }, [activePortfolioId, portfolios, onActivePortfolioChange]);
 
-    useEffect(() => {
-        if (onModeChange) {
-            onModeChange(sidebarMode);
-        }
-    }, [sidebarMode, onModeChange]);
+
 
     const handleWatchlistDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -703,14 +696,14 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
     }, [user, activePortfolioId]);
 
     useEffect(() => {
-        if (sidebarMode === 'portfolio' && user) {
+        if (mode === 'portfolio' && user) {
             fetchPortfolios();
         }
-    }, [sidebarMode, user]);
+    }, [mode, user]);
 
     // Fetch prices for portfolio holdings
     useEffect(() => {
-        if (sidebarMode !== 'portfolio') return;
+        if (mode !== 'portfolio') return;
         const allSymbols = portfolios.flatMap(p => p.holdings.map(h => h.symbol));
         const unique = [...new Set(allSymbols)].filter(s => !portfolioStockData[s]);
         if (unique.length === 0) return;
@@ -721,7 +714,7 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
             });
             setPortfolioStockData(newData);
         }).catch(console.error);
-    }, [portfolios, sidebarMode]);
+    }, [portfolios, mode]);
 
     const handleCreatePortfolio = async () => {
         if (!newPortfolioName.trim()) return;
@@ -804,458 +797,447 @@ export default function WatchlistComponent({ onSelectStock, onWatchlistChange, o
         const totalPLPct = totalCost > 0 ? (totalPL / totalCost) * 100 : 0;
         return { totalValue, totalCost, totalPL, totalPLPct };
     };
-
     return (
         <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl p-3 rounded-3xl shadow-2xl border border-white/20 dark:border-white/10 h-full flex flex-col relative transition-all duration-500" onClick={() => { setShowResults(false); setMenuOpenFor(null); }}>
-            {/* Segmented Toggle: Watchlist | Portfolio */}
             <div className="flex justify-between items-center mb-4 shrink-0">
-                {user ? (
-                    <div className="flex bg-gray-100 dark:bg-gray-800/60 rounded-xl p-0.5 border border-gray-200 dark:border-gray-700/50">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                {mode === 'watchlist' ? 'Watchlists' : 'Portfolios'}
+            </h2>
+            {/* Action buttons change based on mode */}
+            <div className="flex gap-1">
+                {mode === 'watchlist' ? (
+                    <>
+                        {activeWatchlistId && (
+                            <button
+                                onClick={handleDeleteWatchlist}
+                                className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
+                                title="Delete this watchlist"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        )}
                         <button
-                            onClick={() => setSidebarMode('watchlist')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sidebarMode === 'watchlist'
-                                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                                }`}
+                            onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
+                            className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white transition-colors"
+                            title="Create new watchlist"
                         >
-                            <LayoutGrid size={14} />
-                            Watchlist
+                            <Plus size={20} />
                         </button>
-                        <button
-                            onClick={() => setSidebarMode('portfolio')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sidebarMode === 'portfolio'
-                                ? 'bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <Briefcase size={14} />
-                            Portfolio
-                        </button>
-                    </div>
+                        {activeWatchlistId && (
+                            <label className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors cursor-pointer" title="Import from Excel/CSV">
+                                <Upload size={18} />
+                                <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleImport} />
+                            </label>
+                        )}
+                    </>
                 ) : (
-                    <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 truncate flex items-center gap-2">
-                        Watchlist
-                    </h2>
+                    <>
+                        {activePortfolioId && (
+                            <button
+                                onClick={handleDeletePortfolio}
+                                className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
+                                title="Delete this portfolio"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsCreatingPortfolio(true); }}
+                            className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-white transition-colors"
+                            title="Create new portfolio"
+                        >
+                            <Plus size={20} />
+                        </button>
+                    </>
                 )}
-                {/* Action buttons change based on mode */}
-                <div className="flex gap-1">
-                    {sidebarMode === 'watchlist' ? (
-                        <>
-                            {activeWatchlistId && (
-                                <button
-                                    onClick={handleDeleteWatchlist}
-                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
-                                    title="Delete this watchlist"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+            </div>
+        </div>
+
+        {
+        mode === 'watchlist' && isCreating && (
+            <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                    type="text"
+                    value={newWatchlistName}
+                    onChange={(e) => setNewWatchlistName(e.target.value)}
+                    placeholder="New List Name"
+                    className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateWatchlist()}
+                    autoFocus
+                />
+                <button onClick={handleCreateWatchlist} className="px-3 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors">
+                    <Check size={16} />
+                </button>
+                <button onClick={() => setIsCreating(false)} className="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white transition-colors">
+                    <X size={16} />
+                </button>
+            </div>
+        )
+    }
+
+    {/* Loading State */ }
+    {
+        mode === 'watchlist' && isLoading && (
+            <div className="flex-1 flex items-center justify-center">
+                <div className="text-gray-500 animate-pulse">Loading watchlists...</div>
+            </div>
+        )
+    }
+
+    {/* Error State */ }
+    {
+        mode === 'watchlist' && error && !isLoading && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                {error}
+                <button
+                    onClick={fetchWatchlists}
+                    className="ml-2 underline hover:no-underline"
+                >
+                    Retry
+                </button>
+            </div>
+        )
+    }
+
+    {/* Empty State - No Watchlists */ }
+    {
+        mode === 'watchlist' && !isLoading && !error && watchlists.length === 0 && user && (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+                    <LayoutGrid className="text-blue-600 dark:text-blue-400" size={28} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Watchlists Yet</h3>
+                <p className="text-gray-500 text-sm mb-4">Create your first watchlist to start tracking stocks.</p>
+                <button
+                    onClick={() => setIsCreating(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                    <Plus size={16} /> Create Watchlist
+                </button>
+            </div>
+        )
+    }
+
+    {/* Tabs - Only show when there are watchlists */ }
+    {
+        mode === 'watchlist' && !isLoading && watchlists.length > 0 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleWatchlistDragEnd}
+                >
+                    <SortableContext
+                        items={watchlists.map(w => w.id)}
+                        strategy={horizontalListSortingStrategy}
+                    >
+                        {watchlists.map(w => (
+                            <SortableWatchlistTab
+                                key={w.id}
+                                watchlist={w}
+                                isActive={activeWatchlistId === w.id}
+                                onClick={() => setActiveWatchlistId(w.id)}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
+            </div>
+        )
+    }
+
+    {/* Active Watchlist Content */ }
+    {
+        mode === 'watchlist' && activeWatchlist && (
+            <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                {/* Add Stock / Search */}
+                <div className="relative shrink-0 z-50">
+                    <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => { if (searchResults.length > 0) setShowResults(true); }}
+                        placeholder="Add symbol..."
+                        className="w-full bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    />
+                    {isSearching && (
+                        <div className="absolute right-3 top-2.5">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
+
+                    {/* Search Results Dropdown */}
+                    {showResults && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-[60] animate-in fade-in slide-in-from-top-1">
+                            {searchResults.length > 0 ? (
+                                <div className="flex flex-col">
+                                    {searchResults.map((result: any, idx: number) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => handleAddStock(result.symbol)}
+                                            className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-left border-b border-gray-100 dark:border-gray-800 last:border-0 group"
+                                        >
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-black text-gray-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase">{result.symbol}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
+                                                        {result.quoteType === 'ETF' ? 'ETF' : result.quoteType || 'EQUITY'}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[180px]">{result.shortname || result.longname || result.name}</span>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1.5">
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{result.exchange}</span>
+                                                <div className="p-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <Plus size={14} />
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : searchQuery.length > 0 && !isSearching && (
+                                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                                    No results found for "{searchQuery}"
+                                </div>
                             )}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsCreating(true); }}
-                                className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white transition-colors"
-                                title="Create new watchlist"
-                            >
-                                <Plus size={20} />
-                            </button>
-                            {activeWatchlistId && (
-                                <label className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors cursor-pointer" title="Import from Excel/CSV">
-                                    <Upload size={18} />
-                                    <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleImport} />
-                                </label>
+                        </div>
+                    )}
+                </div>
+
+                {/* Stock List */}
+                <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
+                    {activeWatchlist.stocks.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-800 rounded-xl">
+                            <p className="mb-2">This watchlist is empty.</p>
+                            <p className="text-xs">Search above to add stocks.</p>
+                            {!user && (
+                                <div className="mt-4">
+                                    <p className="text-xs text-blue-500 mb-2">Sign in to save your watchlist permanently!</p>
+                                </div>
                             )}
-                        </>
+                        </div>
                     ) : (
-                        <>
-                            {activePortfolioId && (
-                                <button
-                                    onClick={handleDeletePortfolio}
-                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
-                                    title="Delete this portfolio"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            )}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsCreatingPortfolio(true); }}
-                                className="p-1.5 text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-white transition-colors"
-                                title="Create new portfolio"
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleStockDragEnd}
+                        >
+                            <SortableContext
+                                items={activeWatchlist.stocks}
+                                strategy={verticalListSortingStrategy}
                             >
-                                <Plus size={20} />
-                            </button>
-                        </>
+                                {activeWatchlist.stocks.map((stock) => (
+                                    <SortableStockRow
+                                        key={stock}
+                                        stock={stock}
+                                        stockData={stockData}
+                                        menuOpenFor={menuOpenFor}
+                                        setMenuOpenFor={setMenuOpenFor}
+                                        onSelectStock={onSelectStock}
+                                        handleRemoveStock={handleRemoveStock}
+                                        handleMoveStock={handleMoveStock}
+                                        watchlists={watchlists}
+                                        activeWatchlistId={activeWatchlistId}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </DndContext>
                     )}
                 </div>
             </div>
+        )
+    }
 
-            {sidebarMode === 'watchlist' && isCreating && (
-                <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
-                    <input
-                        type="text"
-                        value={newWatchlistName}
-                        onChange={(e) => setNewWatchlistName(e.target.value)}
-                        placeholder="New List Name"
-                        className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none"
-                        onKeyDown={(e) => e.key === 'Enter' && handleCreateWatchlist()}
-                        autoFocus
-                    />
-                    <button onClick={handleCreateWatchlist} className="px-3 bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors">
-                        <Check size={16} />
-                    </button>
-                    <button onClick={() => setIsCreating(false)} className="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white transition-colors">
-                        <X size={16} />
-                    </button>
-                </div>
-            )}
-
-            {/* Loading State */}
-            {sidebarMode === 'watchlist' && isLoading && (
-                <div className="flex-1 flex items-center justify-center">
-                    <div className="text-gray-500 animate-pulse">Loading watchlists...</div>
-                </div>
-            )}
-
-            {/* Error State */}
-            {sidebarMode === 'watchlist' && error && !isLoading && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                    {error}
-                    <button
-                        onClick={fetchWatchlists}
-                        className="ml-2 underline hover:no-underline"
-                    >
-                        Retry
-                    </button>
-                </div>
-            )}
-
-            {/* Empty State - No Watchlists */}
-            {sidebarMode === 'watchlist' && !isLoading && !error && watchlists.length === 0 && user && (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
-                        <LayoutGrid className="text-blue-600 dark:text-blue-400" size={28} />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Watchlists Yet</h3>
-                    <p className="text-gray-500 text-sm mb-4">Create your first watchlist to start tracking stocks.</p>
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                    >
-                        <Plus size={16} /> Create Watchlist
-                    </button>
-                </div>
-            )}
-
-            {/* Tabs - Only show when there are watchlists */}
-            {sidebarMode === 'watchlist' && !isLoading && watchlists.length > 0 && (
-                <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleWatchlistDragEnd}
-                    >
-                        <SortableContext
-                            items={watchlists.map(w => w.id)}
-                            strategy={horizontalListSortingStrategy}
-                        >
-                            {watchlists.map(w => (
-                                <SortableWatchlistTab
-                                    key={w.id}
-                                    watchlist={w}
-                                    isActive={activeWatchlistId === w.id}
-                                    onClick={() => setActiveWatchlistId(w.id)}
-                                />
-                            ))}
-                        </SortableContext>
-                    </DndContext>
-                </div>
-            )}
-
-            {/* Active Watchlist Content */}
-            {sidebarMode === 'watchlist' && activeWatchlist && (
-                <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                    {/* Add Stock / Search */}
-                    <div className="relative shrink-0 z-50">
-                        <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
+    {/* ============ PORTFOLIO MODE ============ */ }
+    {
+        mode === 'portfolio' && user && (
+            <>
+                {/* Create Portfolio Inline */}
+                {isCreatingPortfolio && (
+                    <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
                         <input
                             type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onFocus={() => { if (searchResults.length > 0) setShowResults(true); }}
-                            placeholder="Add symbol..."
-                            className="w-full bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg py-1.5 pl-9 pr-4 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                            value={newPortfolioName}
+                            onChange={(e) => setNewPortfolioName(e.target.value)}
+                            placeholder="Portfolio Name"
+                            className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-emerald-500 outline-none"
+                            onKeyDown={(e) => e.key === 'Enter' && handleCreatePortfolio()}
+                            autoFocus
                         />
-                        {isSearching && (
-                            <div className="absolute right-3 top-2.5">
-                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                        )}
-
-                        {/* Search Results Dropdown */}
-                        {showResults && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-[60] animate-in fade-in slide-in-from-top-1">
-                                {searchResults.length > 0 ? (
-                                    <div className="flex flex-col">
-                                        {searchResults.map((result: any, idx: number) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => handleAddStock(result.symbol)}
-                                                className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-left border-b border-gray-100 dark:border-gray-800 last:border-0 group"
-                                            >
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-black text-gray-900 dark:text-white group-hover:text-blue-500 transition-colors uppercase">{result.symbol}</span>
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tighter">
-                                                            {result.quoteType === 'ETF' ? 'ETF' : result.quoteType || 'EQUITY'}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[180px]">{result.shortname || result.longname || result.name}</span>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1.5">
-                                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{result.exchange}</span>
-                                                    <div className="p-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 opacity-0 group-hover:opacity-100 transition-all">
-                                                        <Plus size={14} />
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                ) : searchQuery.length > 0 && !isSearching && (
-                                    <div className="px-4 py-6 text-center text-gray-500 text-sm">
-                                        No results found for "{searchQuery}"
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        <button onClick={handleCreatePortfolio} className="px-3 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
+                            <Check size={16} />
+                        </button>
+                        <button onClick={() => setIsCreatingPortfolio(false)} className="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white transition-colors">
+                            <X size={16} />
+                        </button>
                     </div>
+                )}
 
-                    {/* Stock List */}
-                    <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
-                        {activeWatchlist.stocks.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500 border border-dashed border-gray-300 dark:border-gray-800 rounded-xl">
-                                <p className="mb-2">This watchlist is empty.</p>
-                                <p className="text-xs">Search above to add stocks.</p>
-                                {!user && (
-                                    <div className="mt-4">
-                                        <p className="text-xs text-blue-500 mb-2">Sign in to save your watchlist permanently!</p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={closestCenter}
-                                onDragEnd={handleStockDragEnd}
-                            >
-                                <SortableContext
-                                    items={activeWatchlist.stocks}
-                                    strategy={verticalListSortingStrategy}
-                                >
-                                    {activeWatchlist.stocks.map((stock) => (
-                                        <SortableStockRow
-                                            key={stock}
-                                            stock={stock}
-                                            stockData={stockData}
-                                            menuOpenFor={menuOpenFor}
-                                            setMenuOpenFor={setMenuOpenFor}
-                                            onSelectStock={onSelectStock}
-                                            handleRemoveStock={handleRemoveStock}
-                                            handleMoveStock={handleMoveStock}
-                                            watchlists={watchlists}
-                                            activeWatchlistId={activeWatchlistId}
-                                        />
-                                    ))}
-                                </SortableContext>
-                            </DndContext>
-                        )}
+                {/* Portfolio Loading */}
+                {portfolioLoading && portfolios.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="text-gray-500 animate-pulse">Loading portfolios...</div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* ============ PORTFOLIO MODE ============ */}
-            {sidebarMode === 'portfolio' && user && (
-                <>
-                    {/* Create Portfolio Inline */}
-                    {isCreatingPortfolio && (
-                        <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
-                            <input
-                                type="text"
-                                value={newPortfolioName}
-                                onChange={(e) => setNewPortfolioName(e.target.value)}
-                                placeholder="Portfolio Name"
-                                className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-emerald-500 outline-none"
-                                onKeyDown={(e) => e.key === 'Enter' && handleCreatePortfolio()}
-                                autoFocus
-                            />
-                            <button onClick={handleCreatePortfolio} className="px-3 bg-emerald-600 rounded-lg hover:bg-emerald-500 transition-colors">
-                                <Check size={16} />
-                            </button>
-                            <button onClick={() => setIsCreatingPortfolio(false)} className="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white transition-colors">
-                                <X size={16} />
-                            </button>
+                {/* Empty State: No Portfolios */}
+                {!portfolioLoading && portfolios.length === 0 && !isCreatingPortfolio && (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                        <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
+                            <Briefcase className="text-emerald-600 dark:text-emerald-400" size={28} />
                         </div>
-                    )}
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Portfolios Yet</h3>
+                        <p className="text-gray-500 text-sm mb-4">Import your holdings from Robinhood<br />or create a portfolio manually.</p>
+                        <button
+                            onClick={() => setIsCreatingPortfolio(true)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                        >
+                            <Plus size={16} /> Create Portfolio
+                        </button>
+                    </div>
+                )}
 
-                    {/* Portfolio Loading */}
-                    {portfolioLoading && portfolios.length === 0 && (
-                        <div className="flex-1 flex items-center justify-center">
-                            <div className="text-gray-500 animate-pulse">Loading portfolios...</div>
-                        </div>
-                    )}
-
-                    {/* Empty State: No Portfolios */}
-                    {!portfolioLoading && portfolios.length === 0 && !isCreatingPortfolio && (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
-                                <Briefcase className="text-emerald-600 dark:text-emerald-400" size={28} />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Portfolios Yet</h3>
-                            <p className="text-gray-500 text-sm mb-4">Import your holdings from Robinhood<br />or create a portfolio manually.</p>
+                {/* Portfolio Tabs */}
+                {portfolios.length > 0 && (
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
+                        {portfolios.map(p => (
                             <button
-                                onClick={() => setIsCreatingPortfolio(true)}
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                key={p.id}
+                                onClick={() => setActivePortfolioId(p.id)}
+                                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border shrink-0 ${activePortfolioId === p.id
+                                    ? 'bg-emerald-100 dark:bg-emerald-600/20 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
+                                    }`}
                             >
-                                <Plus size={16} /> Create Portfolio
+                                {p.name}
                             </button>
-                        </div>
-                    )}
+                        ))}
+                    </div>
+                )}
 
-                    {/* Portfolio Tabs */}
-                    {portfolios.length > 0 && (
-                        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                            {portfolios.map(p => (
-                                <button
-                                    key={p.id}
-                                    onClick={() => setActivePortfolioId(p.id)}
-                                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all border shrink-0 ${activePortfolioId === p.id
-                                        ? 'bg-emerald-100 dark:bg-emerald-600/20 border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                                        : 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-300'
-                                        }`}
-                                >
-                                    {p.name}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                {/* Active Portfolio Content */}
+                {activePortfolio && (
+                    <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                        {/* Portfolio Summary Card */}
+                        {activePortfolio.holdings.length > 0 && (() => {
+                            const totals = computePortfolioTotals(activePortfolio.holdings);
+                            return (
+                                <div className="bg-gray-50 dark:bg-gray-800/40 rounded-xl p-3 border border-gray-200 dark:border-gray-700/50 shrink-0">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total Value</div>
+                                            <div className="text-lg font-black text-gray-900 dark:text-white tabular-nums">
+                                                ${totals.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total P&L</div>
+                                            <div className={`text-sm font-bold tabular-nums ${totals.totalPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                                }`}>
+                                                {totals.totalPL >= 0 ? '+' : ''}${totals.totalPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                <span className="ml-1 text-[10px]">
+                                                    ({totals.totalPL >= 0 ? '+' : ''}{totals.totalPLPct.toFixed(1)}%)
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
-                    {/* Active Portfolio Content */}
-                    {activePortfolio && (
-                        <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                            {/* Portfolio Summary Card */}
-                            {activePortfolio.holdings.length > 0 && (() => {
-                                const totals = computePortfolioTotals(activePortfolio.holdings);
+                        {/* Import Zone (when portfolio has no holdings) */}
+                        {activePortfolio.holdings.length === 0 && (
+                            <div
+                                className={`text-center py-8 border-2 border-dashed rounded-xl transition-all ${isDraggingFile
+                                    ? 'border-emerald-500 bg-emerald-500/10'
+                                    : 'border-gray-300 dark:border-gray-700'
+                                    }`}
+                                onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                                onDragLeave={() => setIsDraggingFile(false)}
+                                onDrop={handleDrop}
+                            >
+                                <FolderUp size={32} className="mx-auto text-gray-400 mb-3" />
+                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Drop CSV here</p>
+                                <p className="text-xs text-gray-500 mb-3">or click to browse</p>
+                                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">
+                                    <Upload size={14} />
+                                    Upload CSV
+                                    <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Re-import button (when portfolio has holdings) */}
+                        {activePortfolio.holdings.length > 0 && (
+                            <div className="flex gap-2 shrink-0">
+                                <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+                                    <Upload size={12} />
+                                    Re-import CSV
+                                    <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Holdings List */}
+                        <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
+                            {activePortfolio.holdings.map((holding) => {
+                                const { currentPrice, pl, plPct } = computeHoldingPL(holding.symbol, holding.quantity, holding.avg_cost);
                                 return (
-                                    <div className="bg-gray-50 dark:bg-gray-800/40 rounded-xl p-3 border border-gray-200 dark:border-gray-700/50 shrink-0">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total Value</div>
-                                                <div className="text-lg font-black text-gray-900 dark:text-white tabular-nums">
-                                                    ${totals.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Total P&L</div>
-                                                <div className={`text-sm font-bold tabular-nums ${totals.totalPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                                                    }`}>
-                                                    {totals.totalPL >= 0 ? '+' : ''}${totals.totalPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    <span className="ml-1 text-[10px]">
-                                                        ({totals.totalPL >= 0 ? '+' : ''}{totals.totalPLPct.toFixed(1)}%)
+                                    <div
+                                        key={holding.id}
+                                        onClick={() => onSelectStock && onSelectStock(holding.symbol)}
+                                        className="flex items-center py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
+                                    >
+                                        {/* Left: Ticker & Holdings Info */}
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{holding.symbol}</h3>
+                                            <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
+                                                {holding.quantity} shares{holding.avg_cost ? ` · avg $${holding.avg_cost.toFixed(2)}` : ''}
+                                            </p>
+                                        </div>
+                                        {/* Right: Price & P&L */}
+                                        <div className="text-right shrink-0">
+                                            {currentPrice ? (
+                                                <>
+                                                    <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight tabular-nums">
+                                                        ${currentPrice.toFixed(2)}
                                                     </span>
-                                                </div>
-                                            </div>
+                                                    {holding.avg_cost ? (
+                                                        <span className={`text-[10px] font-bold tabular-nums block mt-0.5 ${pl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                                            }`}>
+                                                            {pl >= 0 ? '+' : ''}${pl.toFixed(0)} ({pl >= 0 ? '+' : ''}{plPct.toFixed(1)}%)
+                                                        </span>
+                                                    ) : null}
+                                                </>
+                                            ) : (
+                                                <span className="text-xs text-blue-400 animate-pulse">---</span>
+                                            )}
                                         </div>
                                     </div>
                                 );
-                            })()}
-
-                            {/* Import Zone (when portfolio has no holdings) */}
-                            {activePortfolio.holdings.length === 0 && (
-                                <div
-                                    className={`text-center py-8 border-2 border-dashed rounded-xl transition-all ${isDraggingFile
-                                        ? 'border-emerald-500 bg-emerald-500/10'
-                                        : 'border-gray-300 dark:border-gray-700'
-                                        }`}
-                                    onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
-                                    onDragLeave={() => setIsDraggingFile(false)}
-                                    onDrop={handleDrop}
-                                >
-                                    <FolderUp size={32} className="mx-auto text-gray-400 mb-3" />
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Drop CSV here</p>
-                                    <p className="text-xs text-gray-500 mb-3">or click to browse</p>
-                                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">
-                                        <Upload size={14} />
-                                        Upload CSV
-                                        <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
-                                    </label>
-                                </div>
-                            )}
-
-                            {/* Re-import button (when portfolio has holdings) */}
-                            {activePortfolio.holdings.length > 0 && (
-                                <div className="flex gap-2 shrink-0">
-                                    <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-                                        <Upload size={12} />
-                                        Re-import CSV
-                                        <input type="file" accept=".csv,.txt" className="hidden" onChange={handlePortfolioFileInput} />
-                                    </label>
-                                </div>
-                            )}
-
-                            {/* Holdings List */}
-                            <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
-                                {activePortfolio.holdings.map((holding) => {
-                                    const { currentPrice, pl, plPct } = computeHoldingPL(holding.symbol, holding.quantity, holding.avg_cost);
-                                    return (
-                                        <div
-                                            key={holding.id}
-                                            onClick={() => onSelectStock && onSelectStock(holding.symbol)}
-                                            className="flex items-center py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all border-b border-gray-200 dark:border-gray-800/50 last:border-0 cursor-pointer"
-                                        >
-                                            {/* Left: Ticker & Holdings Info */}
-                                            <div className="flex-1 min-w-0 pr-1">
-                                                <h3 className="font-bold text-gray-900 dark:text-white text-sm leading-tight">{holding.symbol}</h3>
-                                                <p className="text-[10px] text-gray-500 truncate mt-0.5 leading-tight">
-                                                    {holding.quantity} shares{holding.avg_cost ? ` · avg $${holding.avg_cost.toFixed(2)}` : ''}
-                                                </p>
-                                            </div>
-                                            {/* Right: Price & P&L */}
-                                            <div className="text-right shrink-0">
-                                                {currentPrice ? (
-                                                    <>
-                                                        <span className="font-bold text-sm text-gray-900 dark:text-white block leading-tight tabular-nums">
-                                                            ${currentPrice.toFixed(2)}
-                                                        </span>
-                                                        {holding.avg_cost ? (
-                                                            <span className={`text-[10px] font-bold tabular-nums block mt-0.5 ${pl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                                                                }`}>
-                                                                {pl >= 0 ? '+' : ''}${pl.toFixed(0)} ({pl >= 0 ? '+' : ''}{plPct.toFixed(1)}%)
-                                                            </span>
-                                                        ) : null}
-                                                    </>
-                                                ) : (
-                                                    <span className="text-xs text-blue-400 animate-pulse">---</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            })}
                         </div>
-                    )}
-                </>
-            )}
+                    </div>
+                )}
+            </>
+        )
+    }
 
-            {/* Portfolio mode: Not logged in */}
-            {sidebarMode === 'portfolio' && !user && (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                    <Briefcase className="text-gray-400 mb-3" size={32} />
-                    <p className="text-gray-500 text-sm mb-3">Sign in to import your portfolio</p>
-                    <button
-                        onClick={() => setShowAuthModal(true)}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                        Sign In
-                    </button>
-                </div>
-            )}
-        </div>
+    {/* Portfolio mode: Not logged in */ }
+    {
+        mode === 'portfolio' && !user && (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                <Briefcase className="text-gray-400 mb-3" size={32} />
+                <p className="text-gray-500 text-sm mb-3">Sign in to import your portfolio</p>
+                <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                    Sign In
+                </button>
+            </div>
+        )
+    }
+    </div >
     );
 }

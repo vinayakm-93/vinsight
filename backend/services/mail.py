@@ -182,7 +182,7 @@ async def send_alert_email(email: EmailStr, symbol: str, price: float, condition
         print(f"[MOCK ALERT] {symbol} {condition} {target}")
         return
 
-    app_link = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    app_link = os.getenv("FRONTEND_URL", "https://www.vinsight.page")
     reset_link = f"{app_link}/dashboard?ticker={symbol}&action=reset_alert"
     
     color = "#10b981" if condition == 'above' else "#ef4444"
@@ -247,6 +247,8 @@ async def send_guardian_alert_email(email: EmailStr, alert):
     status = alert.thesis_status if hasattr(alert, 'thesis_status') else alert['thesis_status']
     reasoning = alert.reasoning if hasattr(alert, 'reasoning') else alert['reasoning']
     events = alert.events_detected if hasattr(alert, 'events_detected') else alert['events_detected']
+    confidence = alert.confidence if hasattr(alert, 'confidence') else alert.get('confidence', 0)
+    confidence_pct = int((confidence or 0) * 100)
     
     logger.info(f"Preparing Guardian alert email for {email} (Symbol: {symbol})")
     
@@ -256,7 +258,7 @@ async def send_guardian_alert_email(email: EmailStr, alert):
         return
 
     # Use FRONTEND_URL from env, which is set in deploy.sh
-    app_link = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    app_link = os.getenv("FRONTEND_URL", "https://www.vinsight.page")
     if app_link.endswith("/"):
         app_link = app_link[:-1]
         
@@ -279,9 +281,14 @@ async def send_guardian_alert_email(email: EmailStr, alert):
         <div style="padding: 32px 24px; text-align: left;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid #334155; padding-bottom: 16px;">
                 <span style="font-size: 20px; font-weight: bold; color: #f8fafc;">{symbol}</span>
-                <span style="font-size: 14px; background-color: {color}20; color: {color}; padding: 4px 12px; border-radius: 99px; border: 1px solid {color}40; font-weight: bold;">
-                    {icon} {status}
-                </span>
+                <div>
+                    <span style="font-size: 14px; background-color: {color}20; color: {color}; padding: 4px 12px; border-radius: 99px; border: 1px solid {color}40; font-weight: bold;">
+                        {icon} {status}
+                    </span>
+                    <span style="font-size: 13px; background-color: #334155; color: #94a3b8; padding: 4px 10px; border-radius: 99px; margin-left: 8px; font-weight: 600;">
+                        {confidence_pct}% confidence
+                    </span>
+                </div>
             </div>
             
             <p style="font-size: 16px; color: #cbd5e1; margin-bottom: 16px; line-height: 1.6;">

@@ -25,7 +25,16 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
     current_price = None
 
     try:
-        # 1. Price Check
+        # 1. Macro Regime Check
+        try:
+            regime = finance.get_market_regime()
+            if not regime.get('bull_regime', True):
+                triggered = True
+                events.append("MACRO HEADWIND: S&P 500 is currently below its 200-day SMA, indicating a broad market distribution regime.")
+        except Exception as e:
+            logger.warning(f"Macro regime check failed: {e}")
+
+        # 2. Price Check
         stock_info = finance.get_stock_info(symbol)
         if stock_info:
             current_price = stock_info.get('currentPrice') or stock_info.get('regularMarketPrice')
@@ -45,17 +54,6 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
                     triggered = True
                     events.append(f"Price dropped {daily_change:.1f}% in one session")
 
-        # 2. Insider Activity
-        # We'll use get_institutional_holders but focusing on insider signals if available
-        # finance.calculate_insider_signal expects a list of transactions.
-        # Let's see if we can get insider data. 
-        # finance.get_insider_transactions isn't exposed directly in top level scope of finance.py based on outline.
-        # But get_institutional_holders might trigger insider cache? 
-        # Actually, let's use finance.get_stock_info which returns some insider data or 
-        # check if we can add a specific insider function if needed.
-        # For now, let's skip complex insider check if function not ready, 
-        # or use a simplified check if data is in stock_info.
-        
         # 3. Analyst Downgrades
         analyst_data = finance.get_analyst_targets(symbol)
         if analyst_data:
@@ -65,19 +63,16 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
                 events.append(f"Analyst consensus is now {rec_key.upper()}")
 
         # 4. Sentiment Crash
-        # Only run on-demand if we suspect something, or run light version?
-        # analyze_sentiment_ondemand is "expensive" (Groq call).
-        # Maybe skip for Stage 1 unless we want to be very proactive.
-        # Let's stick to checking if we have recent cached sentiment?
-        # Or just run it. It's relatively cheap (~$0.001). 
-        # Let's run it.
         sentiment_result = analysis.analyze_sentiment_ondemand(symbol)
         if sentiment_result and sentiment_result.get('quant_score', 0) <= SENTIMENT_CRASH_THRESHOLD:
             triggered = True
-            events.append(f"Sentiment score crashed to {sentiment_result.get('quant_score')}")
+            event_str = f"Sentiment score crashed to {sentiment_result.get('quant_score')}."
+            # Append specific bearish context so the agents know what broke
+            if sentiment_result.get('key_events'):
+                event_str += f" Reported risks: {sentiment_result['key_events'][:200]}"
+            events.append(event_str)
 
         # 5. Earnings Miss
-        # finance.get_earnings_surprise(symbol)
         earnings_surprise = finance.get_earnings_surprise(symbol)
         if earnings_surprise is not None and earnings_surprise <= EARNINGS_MISS_THRESHOLD:
             triggered = True
@@ -102,7 +97,13 @@ def gather_evidence(symbol: str) -> Dict[str, Any]:
     
     try:
         # 1. News
-        news = finance.get_news(symbol)
+        news_data = finance.get_news(symbol)
+        news = []
+        if isinstance(news_data, dict):
+            news = news_data.get('latest', []) + news_data.get('historical', [])
+        elif isinstance(news_data, list):
+            news = news_data
+            
         evidence['news'] = news[:5] if news else []
 
         # 2. Financials / Stats

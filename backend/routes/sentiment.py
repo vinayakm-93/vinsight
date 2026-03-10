@@ -23,7 +23,7 @@ class SentimentResponse(BaseModel):
     source: str
 
 @router.get("/analyze")
-async def get_sentiment_analysis(ticker: str = Query(..., description="Stock Ticker Symbol")):
+def get_sentiment_analysis(ticker: str = Query(..., description="Stock Ticker Symbol")):
     """
     Trigger on-demand sentiment analysis (Finnhub + Groq) with caching.
     """

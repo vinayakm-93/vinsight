@@ -108,13 +108,13 @@ gcloud run jobs deploy vinsight-guardian \
     --set-secrets="DB_USER=DB_USER:latest,DB_PASS=DB_PASS:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,API_NINJAS_KEY=API_NINJAS_KEY:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_FROM=MAIL_FROM:latest,FINNHUB_API_KEY=FINNHUB_API_KEY:latest,EODHD_API_KEY=EODHD_API_KEY:latest,FMP_API_KEY=FMP_API_KEY:latest,SERPER_API_KEY=SERPER_API_KEY:latest,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest" \
     --set-cloudsql-instances "$CLOUDSQL_INSTANCE"
 
-# 2.2 Create/Update Cloud Scheduler for Guardian (Every 6 hours)
+# 2.2 Create/Update Cloud Scheduler for Guardian (Every 3 hours)
 echo -e "${GREEN}Updating Guardian Scheduler...${NC}"
 # Check if job exists first
 if gcloud scheduler jobs describe guardian-scan --location $REGION > /dev/null 2>&1; then
     gcloud scheduler jobs update http guardian-scan \
         --location $REGION \
-        --schedule "0 */6 * * *" \
+        --schedule "0 */3 * * *" \
         --uri "https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/vinsight-guardian:run" \
         --http-method POST \
         --oauth-service-account-email $(gcloud auth list --filter=status:ACTIVE --format="value(account)") \
@@ -128,7 +128,7 @@ else
     # For now, let's skip auto-creating the scheduler in this script to avoid complex Auth logic if Service Account is needed.
     # We will output instructions.
     echo "⚠️  REMINDER: Create Cloud Scheduler job 'guardian-scan' manually if not exists."
-    echo "Command: gcloud scheduler jobs create http guardian-scan --schedule '0 */6 * * *' --uri 'https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/vinsight-guardian:run' --http-method POST --oauth-service-account-email <YOUR_SERVICE_ACCOUNT>"
+    echo "Command: gcloud scheduler jobs create http guardian-scan --schedule '0 */3 * * *' --uri 'https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/vinsight-guardian:run' --http-method POST --oauth-service-account-email <YOUR_SERVICE_ACCOUNT>"
 fi
 
 cd ..

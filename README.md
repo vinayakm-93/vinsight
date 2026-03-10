@@ -13,8 +13,10 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 - **Institutional Portfolio Dashboard**: Real-time aggregate metrics (Net Worth, P&L, Day Change) with sector allocation charts and high-density holdings tables.
 - **Smart CSV Importer**: Seamlessly import holdings from Robinhood or generic CSV exports with instant market data enrichment.
 - **Institutional Conviction Index**: Triple-factor signal synthesis (Algo + Smart Money + Sentiment) for decisive trading verdicts.
+- **Pure Text SEC RAG**: On-Demand, zero-cost pipeline that scrapes, summarizes, and caches 10-K/10-Q risk factors directly into the Thesis Agent's context window.
 - **Progressive Hydration Dashboard**: Ultra-fast initial rendering (Formula Engine) with background LLM hydration for deep reasoning.
-- **AI Sentinel**: Multi-source news sentiment with Groq-powered reasoning, spin detection, and DIY earnings scraper.
+- **Thesis Guardian (Agentic Debate Model)**: Evaluates portfolio risks by spinning up parallel Bull and Bear AI agents that independently search the web, debate thesis weaknesses, and present findings to a Judge LLM (capped at 2 escalation turns) to flag broken theses.
+- **Deep Market & Sentiment Triggers**: Proactively triggers the Guardian using Macro Regime checking (S&P 500 SMA) and Llama 3.3 Sentiment crash detections.
 - **Monte Carlo Projections**: 10,000+ simulated price paths with Risk Analytics (VaR, Volatility).
 - **Insider Intelligence**: Discretionary trade filtering and coordinated "Cluster Selling" detection.
 - **Global Health Bar**: Real-time market pulse ticker for top indices (S&P 500, Nasdaq, BTC).

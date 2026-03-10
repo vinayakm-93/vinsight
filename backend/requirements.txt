@@ -22,6 +22,8 @@ scipy
 scikit-learn
 yfinance
 ta
+faiss-cpu
+sentence-transformers
 
 # AI / Google
 google-generativeai>=0.4.0
@@ -33,6 +35,7 @@ groq
 # Tools
 beautifulsoup4
 duckduckgo-search
+edgartools
 fake-useragent
 apscheduler
 cachetools
