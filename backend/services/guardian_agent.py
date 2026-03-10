@@ -182,6 +182,32 @@ def get_llm_response(prompt: str) -> str:
     logger.error(f"CRITICAL: All LLM providers (Groq, DeepSeek, Gemini) failed.")
     raise Exception("All LLM providers failed")
 
+def extract_json(text: str) -> dict:
+    """Safely extract JSON from LLM output, handling markdown and common escaping errors."""
+    if not text:
+        raise ValueError("Empty response from LLM")
+    
+    # Try regex first to find a markdown block
+    import re
+    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if match:
+        cln = match.group(1)
+    else:
+        # Fallback to sweeping for structural braces
+        start_idx = text.find('{')
+        end_idx = text.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            cln = text[start_idx:end_idx+1]
+        else:
+            logger.error(f"No JSON object found. Raw LLM output: \n{text}\n")
+            raise ValueError("No JSON object found in output")
+            
+    try:
+        return json.loads(cln, strict=False)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON extraction failed. Raw LLM output: \n{text}\n")
+        raise ValueError(f"Invalid JSON string format: {e}")
+
 # --- Core Functions ---
 
 def generate_thesis_detected(symbol: str) -> str:
@@ -333,14 +359,7 @@ def generate_investment_thesis(symbol: str) -> dict:
         """
         
         raw = get_llm_response(prompt)
-        # Parse JSON
-        if "```json" in raw:
-            raw = raw.split("```json")[1].split("```")[0]
-        elif "```" in raw:
-            raw = raw.split("```")[1].split("```")[0]
-            
-        # Ensure strict=False to handle unescaped control characters like \n in strings
-        data = json.loads(raw.strip(), strict=False)
+        data = extract_json(raw)
         
         # Ensure stance is valid
         if data.get('stance') not in ['BULLISH', 'BEARISH', 'NEUTRAL']:
@@ -492,11 +511,7 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
         """
         try:
             raw_q = get_llm_response(query_prompt)
-            if "```json" in raw_q:
-                raw_q = raw_q.split("```json")[1].split("```")[0]
-            elif "```" in raw_q:
-                raw_q = raw_q.split("```")[1].split("```")[0]
-            q_data = json.loads(raw_q.strip(), strict=False)
+            q_data = extract_json(raw_q)
             queries = q_data.get("queries", [])[:2]
         except Exception as e:
             logger.warning(f"Failed to generate queries for {persona}: {e}")
@@ -539,14 +554,15 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
             "citations_used": ["<exact title from search result or SEC section>"],
             "hallucination_safeguard_passed": true
         }}
+        
+        CRITICAL JSON RULES:
+        1. Ensure your JSON is completely valid. There must be no other text output.
+        2. Escape ALL internal double quotes (\\") inside strings.
+        3. Do NOT use literal newlines inside JSON string values.
         """
         try:
             raw_b = get_llm_response(brief_prompt)
-            if "```json" in raw_b:
-                raw_b = raw_b.split("```json")[1].split("```")[0]
-            elif "```" in raw_b:
-                raw_b = raw_b.split("```")[1].split("```")[0]
-            brief_data = json.loads(raw_b.strip(), strict=False)
+            brief_data = extract_json(raw_b)
             brief_data["queries_run"] = queries
             cot = brief_data.get('cot_analysis', 'No CoT provided.')
             argument_preview = " ".join(brief_data.get('argument', []))[:150]
@@ -607,13 +623,7 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
     
     try:
         raw_final = get_llm_response(verdict_prompt)
-        json_str = raw_final
-        if "```json" in json_str:
-            json_str = json_str.split("```json")[1].split("```")[0]
-        elif "```" in json_str:
-            json_str = json_str.split("```")[1].split("```")[0]
-            
-        result = json.loads(json_str.strip(), strict=False)
+        result = extract_json(raw_final)
         
         # Default safety checks
         if result.get('thesis_status') not in ['INTACT', 'AT_RISK', 'BROKEN']:
