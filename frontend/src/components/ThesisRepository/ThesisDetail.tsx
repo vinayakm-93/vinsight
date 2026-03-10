@@ -18,6 +18,7 @@ const STAGE_COLORS: Record<string, string> = {
     INIT: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
     PLAN: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
     RETRIEVE: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+    ANALYZE: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
     VERDICT: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
     GROUNDING: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
     COMPLETE: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',

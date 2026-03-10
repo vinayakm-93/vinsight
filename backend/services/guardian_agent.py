@@ -549,10 +549,12 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
             brief_data = json.loads(raw_b.strip(), strict=False)
             brief_data["queries_run"] = queries
             cot = brief_data.get('cot_analysis', 'No CoT provided.')
-            log_agent_thought("ANALYZE", f"{persona} completed brief. CoT: {cot}", scan_id=scan_id)
+            argument_preview = " ".join(brief_data.get('argument', []))[:150]
+            log_agent_thought("ANALYZE", f"{persona} completed brief. CoT: {cot} | Arg: {argument_preview}...", scan_id=scan_id)
             return brief_data
         except Exception as e:
             logger.error(f"{persona} brief failed: {e}")
+            log_agent_thought("ERROR", f"{persona} failed to generate brief: {e}", scan_id=scan_id)
             return {"argument": [f"Failed to generate {persona} brief."], "citations_used": [], "queries_run": queries}
 
     log_agent_thought("INIT", "Dispatching parallel Bull and Bear agents...", scan_id=scan_id)
@@ -628,7 +630,7 @@ def evaluate_risk_agentic(symbol: str, thesis: str, events: list, evidence: dict
         result['research_history'] = research_history
         result['agent_thinking_log'] = active_scan_logs.get(scan_id, []) if scan_id else []
         
-        log_agent_thought("VERDICT", f"Status={result['thesis_status']}, Confidence={result.get('confidence')}", scan_id=scan_id)
+        log_agent_thought("VERDICT", f"Status={result['thesis_status']}, Confidence={result.get('confidence')} | Rule: {result['reasoning_full'][:200]}...", scan_id=scan_id)
         return result
 
     except Exception as e:
