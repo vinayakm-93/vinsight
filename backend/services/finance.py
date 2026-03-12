@@ -936,7 +936,7 @@ def fetch_coordinated_analysis_data(ticker: str):
              
              # Info usage (already fetched? no, yfinance caches info property)
              # But we can access it from the other thread's result if we waited, but better to just hit it.
-             i = stock.info
+             i = stock.info or {}
              holders["insidersPercentHeld"] = i.get("heldPercentInsiders", 0)
              holders["institutionsPercentHeld"] = i.get("heldPercentInstitutions", 0)
              
@@ -977,7 +977,7 @@ def fetch_coordinated_analysis_data(ticker: str):
             "return_on_assets": 0.0, "current_ratio": 0.0
         }
         try:
-            i = stock.info
+            i = stock.info or {}
             metrics['return_on_assets'] = i.get('returnOnAssets', 0.0) or 0.0
             metrics['current_ratio'] = i.get('currentRatio', 0.0) or 0.0
             
@@ -1027,78 +1027,88 @@ def get_batch_prices(tickers: list):
     
     sorted_tickers = sorted(tickers)
     cache_key = f"batch_prices_{'_'.join(sorted_tickers)}"
-    cached_data = price_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    CHUNK_SIZE = 25
     results = []
-    try:
-        # Fetch 5 days to ensure we have previous close even after weekends/holidays
-        # group_by='ticker' ensures consistent structure even for single ticker
-        # threads=False to avoid rate limits and potential worker crashes
-        df = yf.download(tickers, period="5d", group_by='ticker', progress=False, threads=False)
-        
-        # Parse DataFrame (CPU bound, fast)
-        for symbol in tickers:
-            try:
-                # Handle MultiIndex
-                if len(tickers) > 1:
-                    if symbol in df.columns.levels[0]: # Check if symbol exists in top level keys
-                        ticker_df = df[symbol]
+    
+    # Process in chunks to avoid connection resets and timeouts with large lists
+    for i in range(0, len(tickers), CHUNK_SIZE):
+        chunk = tickers[i:i + CHUNK_SIZE]
+        try:
+            # threads=False for maximum stability in production
+            df = yf.download(chunk, period="5d", group_by='ticker', progress=False, threads=False)
+            
+            # Parse chunk results
+            for symbol in chunk:
+                try:
+                    # Handle MultiIndex
+                    if len(chunk) > 1:
+                        if symbol in df.columns.levels[0]: # Check if symbol exists in top level keys
+                            ticker_df = df[symbol]
+                        else:
+                            continue
                     else:
+                        ticker_df = df
+                        
+                    if ticker_df.empty:
                         continue
-                else:
-                    ticker_df = df
+                        
+                    # Get last valid row
+                    # Drop rows with all NaNs
+                    ticker_df = ticker_df.dropna(how='all')
                     
-                if ticker_df.empty:
-                    continue
+                    if ticker_df.empty:
+                        continue
+
+                    curr_row = ticker_df.iloc[-1]
                     
-                # Get last valid row
-                # Drop rows with all NaNs
-                ticker_df = ticker_df.dropna(how='all')
-                
-                if ticker_df.empty:
-                    continue
+                    # Check if Close exists
+                    if 'Close' not in curr_row:
+                        continue
 
-                curr_row = ticker_df.iloc[-1]
-                
-                # Check if Close exists
-                if 'Close' not in curr_row:
+                    current = float(curr_row['Close'])
+                    prev = None
+                    
+                    # Try to get previous close (row before last)
+                    if len(ticker_df) >= 2:
+                        prev = float(ticker_df.iloc[-2]['Close'])
+                    else:
+                        prev = float(curr_row['Open']) # Fallback
+                    
+                    change = current - prev if prev else 0
+                    pct = (change / prev * 100) if prev else 0
+                    
+                    results.append({
+                        "symbol": symbol,
+                        "currentPrice": current,
+                        "previousClose": prev,
+                        "regularMarketChange": change,
+                        "regularMarketChangePercent": pct,
+                        "companyName": symbol  # yf.download doesn't give name, keep simplified
+                    })
+                except Exception as e:
                     continue
+                
+        except Exception as e:
+            logger.warning(f"Chunk fetch error for {chunk}: {e}")
+            # Individual fallback for failed chunk
+            for sym in chunk:
+                try:
+                    # Only try single if we don't have it yet
+                    if not any(r['symbol'] == sym for r in results):
+                        p = get_price(sym)
+                        if p:
+                            results.append({
+                                "symbol": sym, "currentPrice": p, "companyName": sym
+                            })
+                except: continue
 
-                current = float(curr_row['Close'])
-                prev = None
-                
-                # Try to get previous close (row before last)
-                if len(ticker_df) >= 2:
-                    prev = float(ticker_df.iloc[-2]['Close'])
-                else:
-                    prev = float(curr_row['Open']) # Fallback
-                
-                change = current - prev if prev else 0
-                pct = (change / prev * 100) if prev else 0
-                
-                results.append({
-                    "symbol": symbol,
-                    "currentPrice": current,
-                    "previousClose": prev,
-                    "regularMarketChange": change,
-                    "regularMarketChangePercent": pct,
-                    "companyName": symbol  # yf.download doesn't give name, keep simplified
-                })
-            except Exception as e:
-                # logger.warning(f"Error parsing batch price for {symbol}: {e}")
-                continue
-                
-                # Store in cache for 60 seconds (Short TTL for prices)
-        if results:
-            price_cache.set(cache_key, results, ttl=60)
-                
-    except Exception as e:
-        logger.warning(f"Batch fetch error (Rate Limit?): {e}")
-        # Circuit Breaker: Cache empty result for 15s to prevent hammering API
-        price_cache.set(cache_key, [], ttl=15)
-        return []
+    # Store in cache for 60 seconds
+    if results:
+        price_cache.set(cache_key, results, ttl=60)
+    
+    # Final check if we missing ANY
+    if len(results) < len(tickers) and len(tickers) > 0:
+        logger.warning(f"Batch prices incomplete: {len(results)}/{len(tickers)}")
 
     return results
 
@@ -1117,133 +1127,140 @@ def get_batch_stock_details(tickers: list):
     if cached_batch:
         return cached_batch
         
+    CHUNK_SIZE = 25
     results = []
-    try:
-        # 1. Fetch History for ALL tickers in ONE call
-        # We fetch 1y to cover YTD, SMAs, and 6mo metrics
-        # auto_adjust=True is good for total return analysis
-        hist_data = yf.download(tickers, period="1y", group_by='ticker', progress=False, threads=True)
-        
-        # 2. Process DataFrames (CPU Only - No Network Loop)
-        for ticker in tickers:
-            try:
-                # Get history slice for this ticker
-                if len(tickers) == 1:
-                    df = hist_data
-                else:
-                    try:
-                        df = hist_data[ticker]
-                    except KeyError:
-                        continue
-                
-                # Check column level, sometimes yfinance returns multiindex columns if multiple tickers
-                # But group_by='ticker' usually handles top level.
-                
-                if df.empty:
-                    continue
-
-                # Clean NaN rows
-                df = df.dropna(how='all')
-                if df.empty:
-                    continue
-
-                # Metric Extraction (No Network Calls)
-                current = float(df['Close'].iloc[-1])
-                
-                prev_close = None
-                if len(df) >= 2:
-                    prev_close = float(df['Close'].iloc[-2])
-                else:
-                    prev_close = float(df['Open'].iloc[-1])
-                    
-                year_high = float(df['High'].max())
-                # year_low = float(df['Low'].min())
-                
-                # Performance Metrics
-                closes = df['Close']
-                
-                def get_pct(days):
-                    if len(closes) > days:
-                        past = float(closes.iloc[-days-1])
-                        if past > 0:
-                            return ((current - past) / past) * 100
-                    return None
-                
-                five_day = get_pct(5)
-                one_month = get_pct(21)
-                six_month = get_pct(126)
-                
-                # YTD
-                ytd_change = None
-                try:
-                    current_year = datetime.now().year
-                    last_year_end = df[df.index.year == (current_year - 1)]
-                    if not last_year_end.empty:
-                        start_price = float(last_year_end['Close'].iloc[-1])
-                        if start_price > 0:
-                            ytd_change = ((current - start_price) / start_price) * 100
-                    else:
-                        # Fallback for early Jan or lack of data: use first available if waiting for year
-                        pass
-                except: pass
-
-                # SMAs
-                sma20 = None
-                sma50 = None
-                if len(closes) >= 20:
-                    sma20 = float(closes.rolling(window=20).mean().iloc[-1])
-                if len(closes) >= 50:
-                    sma50 = float(closes.rolling(window=50).mean().iloc[-1])
-
-                # Metadata (PE/EPS/Sector) - Try Cache Only first
-                cached_info = stock_info_cache.get(f"info_{ticker}")
-                pe, eps, sector, peg = None, None, None, None
-                
-                if cached_info:
-                    pe = cached_info.get('trailingPE')
-                    eps = cached_info.get('trailingEps')
-                    sector = cached_info.get('sector')
-                    peg = cached_info.get('pegRatio')
-                else:
-                    # OPTIMIZATION:
-                    # If info is missing, we *could* fetch it. But that triggers N network calls.
-                    # For "Overview" table, maybe we skip PE/Sector if not cached?
-                    # Or we limit the concurrency. 
-                    # Let's Skip explicit fetch here to keep it FAST. 
-                    # The user can click detail view to populate cache.
-                    pass
-
-                results.append({
-                    "symbol": ticker,
-                    "currentPrice": current,
-                    "regularMarketChange": (current - prev_close) if prev_close else 0,
-                    "regularMarketChangePercent": ((current - prev_close)/prev_close * 100) if prev_close else 0,
-                    "previousClose": prev_close,
-                    "fiveDayChange": five_day,
-                    "oneMonthChange": one_month,
-                    "sixMonthChange": six_month,
-                    "ytdChangePercent": ytd_change,
-                    "sma20": sma20,
-                    "sma50": sma50,
-                    "trailingEps": eps,
-                    "trailingPE": pe,
-                    "pegRatio": peg,
-                    "sector": sector,
-                    "fiftyTwoWeekHigh": year_high
-                })
-
-            except Exception as e:
-                # logger.error(f"Error processing {ticker} in batch details: {e}")
-                continue
+    
+    for i in range(0, len(tickers), CHUNK_SIZE):
+        chunk = tickers[i:i + CHUNK_SIZE]
+        try:
+            # Using threads=False for stability in detail fetch
+            hist_data = yf.download(chunk, period="1y", group_by='ticker', progress=False, threads=False)
             
-        # Store in cache
-        if results:
-            analysis_cache.set(cache_key, results)
-                
-    except Exception as e:
-        logger.error(f"Batch detail fetch error: {e}")
-        return []
+            for ticker in chunk:
+                try:
+                    # Get history slice for this ticker
+                    if len(chunk) == 1:
+                        df = hist_data
+                    else:
+                        try:
+                            # Safely handle multi-index
+                            if ticker in hist_data.columns.levels[0]:
+                                df = hist_data[ticker]
+                            else:
+                                continue
+                        except (KeyError, AttributeError):
+                            continue
+                    # Check column level, sometimes yfinance returns multiindex columns if multiple tickers
+                    # But group_by='ticker' usually handles top level.
+                    
+                    if df.empty:
+                        continue
 
+                    # Clean NaN rows
+                    df = df.dropna(how='all')
+                    if df.empty:
+                        continue
+
+                    # Metric Extraction (No Network Calls)
+                    current = float(df['Close'].iloc[-1])
+                    
+                    prev_close = None
+                    if len(df) >= 2:
+                        prev_close = float(df['Close'].iloc[-2])
+                    else:
+                        prev_close = float(df['Open'].iloc[-1])
+                        
+                    year_high = float(df['High'].max())
+                    # year_low = float(df['Low'].min())
+                
+                    # Performance Metrics
+                    closes = df['Close']
+                    
+                    def get_pct(days):
+                        if len(closes) > days:
+                            past = float(closes.iloc[-days-1])
+                            if past > 0:
+                                return ((current - past) / past) * 100
+                        return None
+                    
+                    five_day = get_pct(5)
+                    one_month = get_pct(21)
+                    six_month = get_pct(126)
+                    
+                    # YTD
+                    ytd_change = None
+                    try:
+                        current_year = datetime.now().year
+                        last_year_end = df[df.index.year == (current_year - 1)]
+                        if not last_year_end.empty:
+                            start_price = float(last_year_end['Close'].iloc[-1])
+                            if start_price > 0:
+                                ytd_change = ((current - start_price) / start_price) * 100
+                        else:
+                            # Fallback for early Jan or lack of data: use first available if waiting for year
+                            pass
+                    except: pass
+
+                    # SMAs
+                    sma20 = None
+                    sma50 = None
+                    if len(closes) >= 20:
+                        sma20 = float(closes.rolling(window=20).mean().iloc[-1])
+                    if len(closes) >= 50:
+                        sma50 = float(closes.rolling(window=50).mean().iloc[-1])
+
+                    # Metadata (PE/EPS/Sector) - Try Cache Only first
+                    cached_info = stock_info_cache.get(f"info_{ticker}")
+                    pe, eps, sector, peg = None, None, None, None
+                
+                    if cached_info:
+                        pe = cached_info.get('trailingPE')
+                        eps = cached_info.get('trailingEps')
+                        sector = cached_info.get('sector')
+                        peg = cached_info.get('pegRatio')
+                    else:
+                        # OPTIMIZATION:
+                        # If info is missing, we *could* fetch it. But that triggers N network calls.
+                        # For "Overview" table, maybe we skip PE/Sector if not cached?
+                        # Or we limit the concurrency. 
+                        # Let's Skip explicit fetch here to keep it FAST. 
+                        # The user can click detail view to populate cache.
+                        pass
+
+                    results.append({
+                        "symbol": ticker,
+                        "currentPrice": current,
+                        "regularMarketChange": (current - prev_close) if prev_close else 0,
+                        "regularMarketChangePercent": ((current - prev_close)/prev_close * 100) if prev_close else 0,
+                        "previousClose": prev_close,
+                        "fiveDayChange": five_day,
+                        "oneMonthChange": one_month,
+                        "sixMonthChange": six_month,
+                        "ytdChangePercent": ytd_change,
+                        "sma20": sma20,
+                        "sma50": sma50,
+                        "trailingEps": eps,
+                        "trailingPE": pe,
+                        "pegRatio": peg,
+                        "sector": sector,
+                        "fiftyTwoWeekHigh": year_high
+                    })
+
+                except Exception:
+                    continue
+            
+        except Exception as e:
+            logger.error(f"Chunk detail fetch error for {chunk}: {e}")
+            
+    # Final fallback if details completely failed (keeps table populated)
+    if not results and tickers:
+        try:
+            results = get_batch_prices(tickers)
+        except: pass
+
+    if results:
+        analysis_cache.set(cache_key, results, ttl=300)
+                
     return results
     """
     Rule-based 'AI' analyst with industry-standard benchmarks.

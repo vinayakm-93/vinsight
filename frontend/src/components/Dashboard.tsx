@@ -463,39 +463,54 @@ export default function Dashboard({
     useEffect(() => {
         if (ticker || !watchlistStocks || watchlistStocks.length === 0) return;
 
+        let isCancelled = false;
+
         const fetchSummary = async () => {
             setLoadingSummary(true);
             try {
                 // PHASE 1: Ultra-Fast Basic Prices (Minimal Data)
-                // This gives the user immediate feedback with current prices/trends
                 const basicResults = await getBatchPrices(watchlistStocks);
+                if (isCancelled) return;
+
                 if (basicResults && basicResults.length > 0) {
                     setSummaryData(basicResults);
-                    // If we have some data, we can "soften" the loading state 
-                    // This allows the table to show while we fetch deep history
                     setLoadingSummary(false);
                 }
 
-                // PHASE 2: Deeper Stock Details & History (Heavier Data)
+                // PHASE 2: Deeper Stock Details & History
                 const detailedResults = await getBatchStockDetails(watchlistStocks);
+                if (isCancelled) return;
 
-                // Merge or replace with detailed results
                 if (detailedResults && detailedResults.length > 0) {
-                    // Sort details to match the order of watchlistStocks
-                    detailedResults.sort((a: any, b: any) => {
-                        const indexA = watchlistStocks.indexOf(a.symbol);
-                        const indexB = watchlistStocks.indexOf(b.symbol);
-                        return indexA - indexB;
+                    setSummaryData((prev: any[]) => {
+                        const detailedMap = new Map(detailedResults.map(r => [r.symbol, r]));
+                        const merged = prev.map(item => {
+                            const detailed = detailedMap.get(item.symbol);
+                            return detailed ? { ...item, ...detailed } : item;
+                        });
+                        
+                        // Sort by original watchlist order
+                        return merged.sort((a: any, b: any) => {
+                            const indexA = watchlistStocks.indexOf(a.symbol);
+                            const indexB = watchlistStocks.indexOf(b.symbol);
+                            return indexA - indexB;
+                        });
                     });
-                    setSummaryData(detailedResults);
                 }
             } catch (e) {
                 console.error("Summary fetch error", e);
             } finally {
-                setLoadingSummary(false);
+                if (!isCancelled) {
+                    setLoadingSummary(false);
+                }
             }
         };
+
         fetchSummary();
+
+        return () => {
+            isCancelled = true;
+        };
     }, [ticker, watchlistStocks]);
 
     // Portfolio Summary Fetching
@@ -524,11 +539,16 @@ export default function Dashboard({
                 // PHASE 2: Deeper Stock Details & History (Heavier Data)
                 const detailedResults = await getBatchStockDetails(symbols);
                 if (detailedResults && detailedResults.length > 0) {
-                    const mergedDetailed = detailedResults.map(data => {
-                        const holding = activePortfolio.holdings.find(h => h.symbol === data.symbol);
-                        return { ...data, ...holding };
+                    setPortfolioSummaryData((prev: any[]) => {
+                        const detailedMap = new Map(detailedResults.map(r => [r.symbol, r]));
+                        return prev.map(item => {
+                            const detailed = detailedMap.get(item.symbol);
+                            if (detailed) {
+                                return { ...item, ...detailed };
+                            }
+                            return item;
+                        });
                     });
-                    setPortfolioSummaryData(mergedDetailed);
                 }
             } catch (e) {
                 console.error("Portfolio summary fetch error", e);
