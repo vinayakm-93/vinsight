@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinsight — Investor Pitch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-card: rgba(255,255,255,0.04);
+            --bg-card-hover: rgba(255,255,255,0.07);
+            --text-primary: #f0f2f8;
+            --text-secondary: rgba(240,242,248,0.6);
+            --text-dim: rgba(240,242,248,0.35);
+            --accent-cyan: #00d4ff;
+            --accent-purple: #a855f7;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-gold: #fbbf24;
+            --gradient-brand: linear-gradient(135deg, #00d4ff 0%, #a855f7 100%);
+            --gradient-bull: linear-gradient(135deg, #00d4ff 0%, #22c55e 100%);
+            --gradient-bear: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
+            --border: rgba(255,255,255,0.08);
+            --glow-cyan: 0 0 40px rgba(0,212,255,0.15);
+            --glow-purple: 0 0 40px rgba(168,85,247,0.15);
+        }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, sans-serif;
+            overflow: hidden;
+        }
+
+        /* ── Slide Container ── */
+        .deck {
+            width: 100%; height: 100vh;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 60px 80px;
+            opacity: 0;
+            transform: translateX(60px);
+            transition: opacity 0.6s cubic-bezier(0.4,0,0.2,1), transform 0.6s cubic-bezier(0.4,0,0.2,1);
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .slide.exit-left {
+            opacity: 0;
+            transform: translateX(-60px);
+        }
+
+        /* ── Ambient Background ── */
+        .slide::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: 
+                radial-gradient(ellipse 80% 60% at 20% 80%, rgba(0,212,255,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 80% 20%, rgba(168,85,247,0.06) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* ── Typography ── */
+        .slide-number {
+            position: absolute; top: 30px; right: 40px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+            letter-spacing: 2px;
+        }
+
+        .brand-top {
+            position: absolute; top: 30px; left: 40px;
+            font-weight: 700; font-size: 16px;
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+        }
+
+        h1 {
+            font-size: 56px; font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            max-width: 900px;
+            text-align: center;
+        }
+
+        h1 .gradient {
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        h2 {
+            font-size: 38px; font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+        }
+
+        h2 .gradient {
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 20px; font-weight: 400;
+            color: var(--text-secondary);
+            max-width: 700px;
+            text-align: center;
+            line-height: 1.6;
+            margin-top: 20px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 6px 16px;
+            font-size: 12px; font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-radius: 100px;
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            margin-bottom: 24px;
+        }
+
+        /* ── Content Layouts ── */
+        .content-area {
+            display: flex; flex-direction: column;
+            align-items: flex-start;
+            width: 100%; max-width: 1100px;
+            position: relative; z-index: 1;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            width: 100%; max-width: 1100px;
+            margin-top: 30px;
+        }
+
+        .three-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            width: 100%; max-width: 1100px;
+            margin-top: 30px;
+        }
+
+        .four-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 20px;
+            width: 100%; max-width: 1100px;
+            margin-top: 30px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255,255,255,0.12);
+        }
+
+        .card .card-icon {
+            font-size: 28px;
+            margin-bottom: 14px;
+        }
+
+        .card h3 {
+            font-size: 17px; font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            font-size: 14px; line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .card-accent-cyan { border-top: 2px solid var(--accent-cyan); }
+        .card-accent-purple { border-top: 2px solid var(--accent-purple); }
+        .card-accent-green { border-top: 2px solid var(--accent-green); }
+        .card-accent-red { border-top: 2px solid var(--accent-red); }
+        .card-accent-amber { border-top: 2px solid var(--accent-amber); }
+        .card-accent-gold { border-top: 2px solid var(--accent-gold); }
+
+        /* ── Stats Row ── */
+        .stat-row {
+            display: flex; gap: 40px;
+            margin-top: 32px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat .stat-num {
+            font-size: 42px; font-weight: 800;
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat .stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Flow Diagram ── */
+        .flow {
+            display: flex; align-items: center;
+            gap: 12px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .flow-box {
+            padding: 14px 22px;
+            border-radius: 12px;
+            font-size: 14px; font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .flow-arrow {
+            font-size: 20px;
+            color: var(--text-dim);
+        }
+
+        .flow-neutral { background: rgba(100,116,139,0.2); border: 1px solid rgba(100,116,139,0.3); color: #94a3b8; }
+        .flow-bull { background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.25); color: var(--accent-cyan); }
+        .flow-bear { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); color: var(--accent-red); }
+        .flow-judge { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.25); color: var(--accent-gold); }
+        .flow-verdict { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: var(--accent-green); }
+
+        /* ── Comparison Bar ── */
+        .compare-bar {
+            display: flex; align-items: stretch;
+            width: 100%; max-width: 900px;
+            margin-top: 30px;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .compare-side {
+            flex: 1;
+            padding: 30px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center;
+        }
+
+        .compare-side.left {
+            background: rgba(239,68,68,0.06);
+            border-right: 1px solid var(--border);
+        }
+
+        .compare-side.right {
+            background: rgba(34,197,94,0.06);
+        }
+
+        .compare-side .price {
+            font-size: 36px; font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .compare-side .label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .compare-vs {
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 16px;
+            font-size: 14px; font-weight: 700;
+            color: var(--text-dim);
+            background: var(--bg-primary);
+        }
+
+        /* ── Tier Table ── */
+        .tier-row {
+            display: grid;
+            grid-template-columns: 140px 100px 1fr;
+            gap: 0;
+            width: 100%; max-width: 900px;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tier-row.header {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .tier-name {
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .tier-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: var(--accent-cyan);
+        }
+
+        .tier-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ── Funnel ── */
+        .funnel {
+            display: flex; align-items: center;
+            gap: 8px; margin-top: 30px;
+            width: 100%; max-width: 1000px;
+            justify-content: center;
+        }
+
+        .funnel-step {
+            flex: 1;
+            text-align: center;
+            padding: 18px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .funnel-arrow {
+            font-size: 18px;
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        /* ── Use of Funds Bars ── */
+        .fund-bar-container {
+            width: 100%; max-width: 700px;
+            margin-top: 10px;
+        }
+
+        .fund-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .fund-bar-label {
+            width: 120px;
+            font-size: 14px; font-weight: 600;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .fund-bar-track {
+            flex: 1; height: 32px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .fund-bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            padding-left: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--bg-primary);
+            transition: width 1s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        /* ── Big Quote ── */
+        .big-quote {
+            font-size: 28px;
+            font-weight: 600;
+            line-height: 1.5;
+            text-align: center;
+            max-width: 800px;
+            font-style: italic;
+            color: var(--text-primary);
+            margin-top: 30px;
+        }
+
+        .big-quote .em {
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            font-style: normal;
+        }
+
+        /* ── Bullet Lists ── */
+        .bullet-list {
+            list-style: none;
+            margin-top: 16px;
+        }
+
+        .bullet-list li {
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            padding-left: 24px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        .bullet-list li::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 10px;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+        }
+
+        /* ── Slide-Specific Image ── */
+        .slide-img {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: var(--glow-cyan);
+        }
+
+        /* ── Navigation ── */
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between;
+            align-items: center;
+            padding: 16px 40px;
+            z-index: 100;
+            background: linear-gradient(to top, rgba(10,14,26,0.95) 60%, transparent);
+        }
+
+        .nav-dots {
+            display: flex; gap: 8px;
+        }
+
+        .nav-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .nav-dot.active {
+            background: var(--accent-cyan);
+            box-shadow: 0 0 12px rgba(0,212,255,0.4);
+            width: 28px;
+            border-radius: 5px;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        /* ── Moat icons ── */
+        .moat-number {
+            display: inline-flex;
+            width: 32px; height: 32px;
+            align-items: center; justify-content: center;
+            border-radius: 50%;
+            font-size: 14px; font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .moat-number.cyan { background: rgba(0,212,255,0.15); color: var(--accent-cyan); }
+        .moat-number.purple { background: rgba(168,85,247,0.15); color: var(--accent-purple); }
+        .moat-number.green { background: rgba(34,197,94,0.15); color: var(--accent-green); }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .slide { padding: 40px 30px; }
+            h1 { font-size: 36px; }
+            h2 { font-size: 28px; }
+            .two-col, .three-col, .four-col { grid-template-columns: 1fr; }
+            .stat-row { flex-direction: column; gap: 20px; }
+            .compare-bar { flex-direction: column; }
+        }
+
+        /* ── Title slide special ── */
+        .title-slide-bg {
+            position: absolute; inset: 0;
+            background: url('pitch_assets/bg.png') center/cover no-repeat;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        .website-link {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            color: var(--accent-cyan);
+            margin-top: 16px;
+            letter-spacing: 1px;
+        }
+
+        /* ── Animate-in children ── */
+        .slide.active .anim-in {
+            animation: fadeUp 0.6s ease forwards;
+        }
+
+        .slide.active .anim-in:nth-child(2) { animation-delay: 0.1s; }
+        .slide.active .anim-in:nth-child(3) { animation-delay: 0.2s; }
+        .slide.active .anim-in:nth-child(4) { animation-delay: 0.3s; }
+        .slide.active .anim-in:nth-child(5) { animation-delay: 0.35s; }
+        .slide.active .anim-in:nth-child(6) { animation-delay: 0.4s; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .anim-in {
+            opacity: 0;
+        }
+
+        /* ── Vertical align helper ── */
+        .center-content {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center;
+            position: relative; z-index: 1;
+        }
+
+        .left-content {
+            display: flex; flex-direction: column;
+            align-items: flex-start;
+            width: 100%; max-width: 1100px;
+            position: relative; z-index: 1;
+        }
+
+        .small-text {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 1: TITLE -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide active" data-slide="0">
+        <div class="title-slide-bg"></div>
+        <div class="center-content">
+            <div class="anim-in tag">Seed Round · March 2026</div>
+            <h1 class="anim-in" style="font-size: 64px;">
+                <span class="gradient">Vinsight</span>
+            </h1>
+            <p class="subtitle anim-in" style="font-size: 24px; margin-top: 16px; font-weight: 500;">
+                Institutional Intelligence. Universal Access.
+            </p>
+            <p class="subtitle anim-in" style="margin-top: 12px; font-size: 16px;">
+                AI-native financial research that reads everything, argues with itself,<br>and knows the investor.
+            </p>
+            <div class="website-link anim-in">vinsight.page</div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 2: THE PROBLEM -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="1">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">02 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">The Problem</div>
+            <h2 class="anim-in">Data Is <span class="gradient">Democratized</span>.<br>Synthesis Is Not.</h2>
+            <p class="subtitle anim-in" style="font-size: 16px;">
+                Fintech gave everyone access to data. Nobody gave them the tools to process it. The real gap isn't information — it's the ability to turn 200 pages into a decision.
+            </p>
+
+            <div class="compare-bar anim-in" style="margin-top: 32px;">
+                <div class="compare-side left">
+                    <div class="price" style="color: var(--accent-red);">$25,000<span style="font-size: 18px;">/yr</span></div>
+                    <div class="label">Bloomberg Terminal</div>
+                    <div class="small-text">Institutional quality, institutional price</div>
+                </div>
+                <div class="compare-vs">VS</div>
+                <div class="compare-side right">
+                    <div class="price" style="color: var(--accent-green);">$0</div>
+                    <div class="label">Reddit / Google / ChatGPT</div>
+                    <div class="small-text">Free but unreliable, biased, or guardrailed</div>
+                </div>
+            </div>
+
+            <div class="stat-row anim-in">
+                <div class="stat">
+                    <div class="stat-num">130M</div>
+                    <div class="stat-label">Brokerage accounts globally</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num">50K</div>
+                    <div class="stat-label">Words per earnings transcript</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num">200+</div>
+                    <div class="stat-label">Pages per annual report</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 3: THE SOLUTION -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="2">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">03 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">The Solution</div>
+            <h2 class="anim-in">Three Things Nobody Else Does <span class="gradient">Together</span></h2>
+
+            <div class="three-col anim-in" style="margin-top: 32px;">
+                <div class="card card-accent-cyan">
+                    <div class="card-icon">📖</div>
+                    <h3>It Reads Everything</h3>
+                    <p>SEC filings, earnings transcripts, market data, and news — ingested in real-time. The AI receives <strong>verified numbers</strong>, not web searches.</p>
+                </div>
+                <div class="card card-accent-purple">
+                    <div class="card-icon">⚔️</div>
+                    <h3>It Argues With Itself</h3>
+                    <p>The <strong>Thesis Agent</strong> spins up Bull and Bear AI agents that debate your hypothesis adversarially. A Judge synthesizes the verdict.</p>
+                </div>
+                <div class="card card-accent-green">
+                    <div class="card-icon">🎯</div>
+                    <h3>It Knows You</h3>
+                    <p>Your risk tolerance, time horizon, and financial goals are structurally embedded in every analysis. <strong>Fiduciary-grade personalization.</strong></p>
+                </div>
+            </div>
+
+            <p class="small-text anim-in" style="margin-top: 20px; font-size: 14px; color: var(--accent-green);">
+                ✅ All three capabilities are built, shipped, and running in production.
+            </p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 4: THE THESIS AGENT -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="3">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">04 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">Hero Feature</div>
+            <h2 class="anim-in">The <span class="gradient">Thesis Agent</span></h2>
+            <p class="subtitle anim-in" style="font-size: 16px;">
+                Counter-bias engineering. Adversarial multi-agent debate designed to falsify your investment hypothesis before you risk capital.
+            </p>
+
+            <div class="flow anim-in">
+                <div class="flow-box flow-neutral">📋 Fact Dossier</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box flow-bull">🐂 Bull Agent</div>
+                <div class="flow-arrow" style="opacity: 0; width: 0;">→</div>
+                <div class="flow-box flow-bear">🐻 Bear Agent</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box flow-judge">⚖️ Judge Agent</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box flow-verdict">✅ Verdict</div>
+            </div>
+
+            <div class="two-col anim-in" style="margin-top: 30px; max-width: 900px;">
+                <div class="card" style="border-left: 3px solid var(--accent-cyan);">
+                    <h3 style="color: var(--accent-cyan);">🐂 Bull Agent</h3>
+                    <p>"Revenue growth of 94% YoY with expanding margins. Data center backlog exceeds $15B. Strong thesis support."</p>
+                </div>
+                <div class="card" style="border-left: 3px solid var(--accent-red);">
+                    <h3 style="color: var(--accent-red);">🐻 Bear Agent</h3>
+                    <p>"P/E of 65x already prices in perfection. Export restrictions to China threaten 22% of revenue. Customer concentration risk."</p>
+                </div>
+            </div>
+
+            <div class="card anim-in" style="margin-top: 16px; max-width: 900px; width: 100%; border-left: 3px solid var(--accent-gold); text-align: center;">
+                <h3 style="color: var(--accent-gold);">⚖️ Judge Verdict: THESIS AT RISK</h3>
+                <p>"Growth thesis intact but priced in. Downside risk from China exposure material. Confidence: 62%"</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 5: MARKET & TRACTION -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="4">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">05 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">Market & Traction</div>
+            <h2 class="anim-in"><span class="gradient">$1B+</span> Addressable Market</h2>
+
+            <div class="three-col anim-in">
+                <div class="card card-accent-cyan" style="text-align: center;">
+                    <div class="stat-num" style="font-size: 32px; background: var(--gradient-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">13–19M</div>
+                    <h3>Active Retail Researchers</h3>
+                    <p>10–15% of 130M global brokerage accounts who pay for research tools</p>
+                </div>
+                <div class="card card-accent-purple" style="text-align: center;">
+                    <div class="stat-num" style="font-size: 32px; background: var(--gradient-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">30,000+</div>
+                    <h3>US RIA Firms</h3>
+                    <p>Legally required to document fiduciary due diligence. Compliance pain point.</p>
+                </div>
+                <div class="card card-accent-green" style="text-align: center;">
+                    <div class="stat-num" style="font-size: 32px; background: var(--gradient-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Growing</div>
+                    <h3>AI Agent Ecosystem</h3>
+                    <p>Trading bots and AI platforms need structured financial reasoning APIs</p>
+                </div>
+            </div>
+
+            <div class="card anim-in" style="margin-top: 24px; max-width: 1100px; width: 100%; border: 1px solid rgba(34,197,94,0.3); background: rgba(34,197,94,0.04); display: flex; gap: 48px; justify-content: center; flex-wrap: wrap; padding: 20px 32px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--accent-green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Status</div>
+                    <div style="font-size: 16px; font-weight: 700; margin-top: 4px;">Live in Production</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--accent-green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Scoring Engine</div>
+                    <div style="font-size: 16px; font-weight: 700; margin-top: 4px;">18/18 Tests Passing</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--accent-green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Infrastructure</div>
+                    <div style="font-size: 16px; font-weight: 700; margin-top: 4px;">Google Cloud Run</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--accent-green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">AI Agents</div>
+                    <div style="font-size: 16px; font-weight: 700; margin-top: 4px;">Multi-Agent Debate ✅</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 6: COMPETITIVE MOAT -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="5">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">06 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">Defensibility</div>
+            <h2 class="anim-in">Why Not <span class="gradient">ChatGPT</span>?</h2>
+            <p class="subtitle anim-in" style="font-size: 16px; margin-bottom: 10px;">
+                General LLMs fail at finance for three structural reasons. Vinsight is purpose-built to solve each one.
+            </p>
+
+            <div class="three-col anim-in">
+                <div class="card card-accent-cyan">
+                    <div class="moat-number cyan">1</div>
+                    <h3>Sycophancy → Adversarial Debate</h3>
+                    <p>Ask ChatGPT "Why is TSLA a good buy?" and it agrees. Our architecture <strong>forces</strong> a Bear Agent to attack your thesis. The structure prevents bias, not the prompt.</p>
+                </div>
+                <div class="card card-accent-purple">
+                    <div class="moat-number purple">2</div>
+                    <h3>Hallucination → Deterministic Math</h3>
+                    <p>Our scoring engine is <strong>Python-computed</strong>. The AI provides narrative only — score authority is locked to deterministic code with ±10pt bounded adjustment.</p>
+                </div>
+                <div class="card card-accent-green">
+                    <div class="moat-number green">3</div>
+                    <h3>Generic NLP → Domain FinBERT</h3>
+                    <p><strong>92% accuracy</strong> on financial text vs 65% for generic models. Understands that "increased debt" is negative and "growth" in context of revenue is positive.</p>
+                </div>
+            </div>
+
+            <div class="card anim-in" style="margin-top: 24px; max-width: 1100px; width: 100%; text-align: center; background: rgba(168,85,247,0.04); border-color: rgba(168,85,247,0.2);">
+                <h3 style="font-size: 15px; margin-bottom: 4px;">Three Compounding Moats</h3>
+                <p style="font-size: 14px;">
+                    <span style="color: var(--accent-cyan);">Behavioral Intelligence</span> (user psychology dataset) · 
+                    <span style="color: var(--accent-purple);">Agent Workflow Network Effects</span> (shared templates) · 
+                    <span style="color: var(--accent-green);">Fact-Grounded Data</span> (structured SEC intelligence)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 7: BUSINESS MODEL -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="6">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">07 / 09</div>
+        <div class="center-content">
+            <div class="anim-in tag">Business Model</div>
+            <h2 class="anim-in">Revenue Scales With <span class="gradient">Value Delivered</span></h2>
+            <p class="subtitle anim-in" style="font-size: 15px; max-width: 600px;">
+                Financial research is episodic. Our hybrid model aligns revenue with usage, not arbitrary monthly cycles.
+            </p>
+
+            <div class="anim-in" style="width: 100%; max-width: 900px; margin-top: 24px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden;">
+                <div class="tier-row header">
+                    <div>Tier</div>
+                    <div>Price</div>
+                    <div>Includes</div>
+                </div>
+                <div class="tier-row">
+                    <div class="tier-name">Free</div>
+                    <div class="tier-price">$0</div>
+                    <div class="tier-desc">Basic analysis, 1 Thesis Agent, 100 starter credits</div>
+                </div>
+                <div class="tier-row">
+                    <div class="tier-name" style="color: var(--accent-cyan);">Pro</div>
+                    <div class="tier-price">$15–25/mo</div>
+                    <div class="tier-desc">Unlimited Thesis Agents, Monte Carlo, behavioral insights, 500 credits/mo</div>
+                </div>
+                <div class="tier-row">
+                    <div class="tier-name" style="color: var(--accent-purple);">API</div>
+                    <div class="tier-price">Per 1K calls</div>
+                    <div class="tier-desc">Scoring engine, FinBERT sentiment, and agent endpoints for developers & bots</div>
+                </div>
+                <div class="tier-row" style="border-bottom: none;">
+                    <div class="tier-name" style="color: var(--accent-gold);">Enterprise</div>
+                    <div class="tier-price">$500+/mo</div>
+                    <div class="tier-desc">Bulk credits for RIAs. Automated compliance reports & fiduciary documentation</div>
+                </div>
+            </div>
+
+            <div class="stat-row anim-in" style="margin-top: 28px;">
+                <div class="stat">
+                    <div class="stat-num">70%+</div>
+                    <div class="stat-label">Target Gross Margin</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num">60%</div>
+                    <div class="stat-label">Token Cost Savings<br>(Fact Box Optimization)</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num">&lt;$0.15</div>
+                    <div class="stat-label">LLM Cost Per Full Analysis</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num">10x+</div>
+                    <div class="stat-label">Target LTV:CAC<br>(Organic Acquisition)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 8: GTM & THE ASK -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="7">
+        <div class="brand-top">VINSIGHT</div>
+        <div class="slide-number">08 / 09</div>
+        <div class="left-content">
+            <div class="anim-in tag">Go-To-Market & The Ask</div>
+            <h2 class="anim-in">Raising <span class="gradient">$1.5M Seed</span></h2>
+
+            <div class="two-col anim-in" style="margin-top: 20px;">
+                <div>
+                    <h3 style="font-size: 16px; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px;">GTM Phases</h3>
+                    <div class="card card-accent-cyan" style="margin-bottom: 12px;">
+                        <h3 style="font-size: 14px;">Phase 1: Content-Led SEO</h3>
+                        <p>AI-generated stock research as organic signup magnets. Target: <strong>10K signups</strong> in 6 months at <strong>&lt;$5 CAC</strong>.</p>
+                    </div>
+                    <div class="card card-accent-purple" style="margin-bottom: 12px;">
+                        <h3 style="font-size: 14px;">Phase 2: Finance Creators</h3>
+                        <p>Pro accounts for finfluencers. Thesis Agent demonstrated live on camera — <strong>authentic product placement</strong>.</p>
+                    </div>
+                    <div class="card card-accent-green" style="margin-bottom: 12px;">
+                        <h3 style="font-size: 14px;">Phase 3: Enterprise (RIAs)</h3>
+                        <p>Direct sales to advisory firms. <strong>$500+/mo bulk credits</strong> for automated compliance documentation.</p>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="font-size: 16px; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px;">Use of Funds</h3>
+                    <div class="fund-bar-container">
+                        <div class="fund-bar-row">
+                            <div class="fund-bar-label">Engineering</div>
+                            <div class="fund-bar-track">
+                                <div class="fund-bar-fill" style="width: 50%; background: var(--gradient-brand);">50%</div>
+                            </div>
+                        </div>
+                        <div class="fund-bar-row">
+                            <div class="fund-bar-label">Infrastructure</div>
+                            <div class="fund-bar-track">
+                                <div class="fund-bar-fill" style="width: 25%; background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));">25%</div>
+                            </div>
+                        </div>
+                        <div class="fund-bar-row">
+                            <div class="fund-bar-label">GTM</div>
+                            <div class="fund-bar-track">
+                                <div class="fund-bar-fill" style="width: 25%; background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));">25%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 16px; border-color: rgba(0,212,255,0.2); background: rgba(0,212,255,0.04);">
+                        <h3 style="font-size: 14px;">Key Hires</h3>
+                        <ul class="bullet-list" style="margin-top: 8px;">
+                            <li>Senior Python Backend Engineer</li>
+                            <li>ML Engineer (FinBERT / RAG tuning)</li>
+                            <li>Frontend Specialist (data viz)</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="margin-top: 12px; text-align: center; border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.04);">
+                        <div style="font-size: 28px; font-weight: 800; color: var(--accent-green);">18+ Months</div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">Runway to profitability on Pro tier</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SLIDE 9: THE CLOSE -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div class="slide" data-slide="8">
+        <div class="title-slide-bg"></div>
+        <div class="center-content">
+            <div class="anim-in tag">The Vision</div>
+            <h1 class="anim-in" style="font-size: 48px;">
+                <span class="gradient">Vinsight</span>
+            </h1>
+
+            <div class="big-quote anim-in">
+                "The endgame is not a better stock screener.<br>
+                It is the <span class="em">financial reasoning API</span> that powers the<br>
+                next generation of autonomous financial systems."
+            </div>
+
+            <div class="stat-row anim-in" style="margin-top: 40px;">
+                <div class="stat">
+                    <div class="stat-num" style="font-size: 32px;">📖</div>
+                    <div class="stat-label" style="font-size: 14px; color: var(--text-primary);">Reads Everything</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num" style="font-size: 32px;">⚔️</div>
+                    <div class="stat-label" style="font-size: 14px; color: var(--text-primary);">Argues With Itself</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-num" style="font-size: 32px;">🎯</div>
+                    <div class="stat-label" style="font-size: 14px; color: var(--text-primary);">Knows The Investor</div>
+                </div>
+            </div>
+
+            <div class="website-link anim-in" style="margin-top: 32px; font-size: 18px;">
+                vinsight.page
+            </div>
+            <p class="anim-in" style="font-size: 14px; color: var(--text-dim); margin-top: 12px;">
+                Thank you. Questions welcome.
+            </p>
+        </div>
+    </div>
+
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+    <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">← Previous</button>
+    <div class="nav-dots" id="navDots"></div>
+    <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+</div>
+
+<script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const dotsContainer = document.getElementById('navDots');
+
+    // Create dots
+    for (let i = 0; i < totalSlides; i++) {
+        const dot = document.createElement('button');
+        dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+        dot.onclick = () => goToSlide(i);
+        dotsContainer.appendChild(dot);
+    }
+
+    function goToSlide(n) {
+        if (n === currentSlide) return;
+
+        slides[currentSlide].classList.remove('active');
+        slides[currentSlide].classList.add(n > currentSlide ? 'exit-left' : '');
+        
+        setTimeout(() => {
+            slides[currentSlide].classList.remove('exit-left');
+        }, 600);
+
+        currentSlide = n;
+        slides[currentSlide].classList.add('active');
+        
+        updateDots();
+        updateButtons();
+    }
+
+    function changeSlide(dir) {
+        const next = currentSlide + dir;
+        if (next < 0 || next >= totalSlides) return;
+        goToSlide(next);
+    }
+
+    function updateDots() {
+        document.querySelectorAll('.nav-dot').forEach((dot, i) => {
+            dot.classList.toggle('active', i === currentSlide);
+        });
+    }
+
+    function updateButtons() {
+        document.getElementById('prevBtn').disabled = currentSlide === 0;
+        document.getElementById('nextBtn').disabled = currentSlide === totalSlides - 1;
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            changeSlide(1);
+        }
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            changeSlide(-1);
+        }
+    });
+
+    // Touch support
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => {
+        const diff = touchStartX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 50) changeSlide(diff > 0 ? 1 : -1);
+    });
+
+    updateButtons();
+</script>
+
+</body>
+</html>
