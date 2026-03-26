@@ -8,8 +8,11 @@ VinSight is a comprehensive financial research tool that combines real-time stoc
 
 ---
 
-## 🚀 Key Features (v9.8.0)
+## 🚀 Key Features (v13.0.0)
 
+- **v13 Three-Axis Scoring Engine**: Quality (0-100), Value (0-100), Timing (0-100) scored independently and combined via persona-weighted conviction (`Q×Wq + V×Wv + T×Wt`). Includes RIM valuation, WACC estimation, kill switches, and a strictly enforced 50% Fiduciary Data Refusal to intercept empty metrics. See [`docs/SCORING_ENGINE.md`](docs/SCORING_ENGINE.md).
+- **AI Narrative Layer (v13.0)**: Multi-provider chain (Anthropic → Groq → OpenRouter → DeepSeek → Gemini) with 180s reasoning windows, three-axis context injection, persona lens, and ±10 pt contextual adjustments. Detailed API starvation logging enables transparent offline evaluating.
+- **Backtesting Engine**: Empirical validation of scoring signal — Elite tier (80-100) achieves 72% hit rate at 3mo, 100% at 12mo, +7.4% excess return vs SPY.
 - **Institutional Portfolio Dashboard**: Real-time aggregate metrics (Net Worth, P&L, Day Change) with sector allocation charts and high-density holdings tables.
 - **Smart CSV Importer**: Seamlessly import holdings from Robinhood or generic CSV exports with instant market data enrichment.
 - **Institutional Conviction Index**: Triple-factor signal synthesis (Algo + Smart Money + Sentiment) for decisive trading verdicts.
@@ -49,6 +52,7 @@ The project documentation is organized for clarity:
 - **[Full Feature List](docs/FEATURES.md)**: Detailed catalog of all application features.
 - **[Architecture Overview](docs/ARCHITECTURE.md)**: Technical stack, system diagrams, and data flow.
 - **[Scoring Engine Logic](docs/SCORING_ENGINE.md)**: Deep dive into the v9.0 Dynamic Benchmark Model.
+- **[V12 Engine Reference](docs/V12_ENGINE.md)**: V12 Defensive Layer, RIM Valuation, WACC estimation, and kill switch documentation.
 - **[Security & Compliance](docs/SECURITY.md)**: Security audits and rotation protocols.
 - **[Maintenance Log](docs/MAINTENANCE_LOG.md)**: Bug fix history and performance RCAs.
 - **[Setup & Deployment](docs/SETUP.md)**: Detailed environment and Google Cloud setup.

@@ -7,8 +7,9 @@ from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 from openai import OpenAI
 from groq import Groq
+import anthropic
 from pydantic import BaseModel, Field
-from services.vinsight_scorer import StockData, ScoreResult, VinSightScorer
+from services.vinsight_scorer import StockData, ScoreResult, ScoreResultV13, VinSightScorer, CONVICTION_WEIGHTS
 from services.grounding_validator import GroundingValidator
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class SummaryDetails(BaseModel):
     bear_case: str
     fundamental_analysis: str
     technical_analysis: str
+    persona_lens: str = Field(default="")  # v13: Why this persona scores this stock this way
 
 class AIResponseSchema(BaseModel):
     thought_process: str
@@ -128,15 +130,26 @@ class ReasoningScorer:
             self.gemini_model = None
         logger.info(f"Gemini configured: {self.gemini_model is not None}")
 
+        # 5. Anthropic Setup (Claude 3.5/3.7 Sonnet)
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if self.anthropic_api_key:
+            self.anthropic = anthropic.Anthropic(
+                api_key=self.anthropic_api_key,
+                timeout=30.0
+            )
+        else:
+            self.anthropic = None
+        logger.info(f"Anthropic configured: {self.anthropic is not None}")
 
-        # 5. Provider Config — Priority: groq > openrouter > deepseek > gemini
-        if self.groq: default_provider = "groq"
+
+        # Priority: anthropic > groq > openrouter > deepseek > gemini
+        if self.anthropic: default_provider = "anthropic"
+        elif self.groq: default_provider = "groq"
         elif self.openrouter: default_provider = "openrouter"
         elif self.deepseek: default_provider = "deepseek"
         else: default_provider = "gemini"
         # self.provider = os.getenv("AI_PROVIDER", default_provider).lower()
-        self.provider = default_provider # FORCE DEFAULT LOGIC (User Request: Llama 3.3) 
-        
+        self.provider = default_provider # FORCE DEFAULT LOGIC (Anthropic/Claude 3.5/3.7 if available)        
         self.fallback_scorer = VinSightScorer() # The v9.0 Math Engine
         self.grounding_validator = GroundingValidator(tolerance_pct=0.05) # Phase 2 Validator
 
@@ -152,23 +165,28 @@ class ReasoningScorer:
         # 1. Resolve provider availability
         provider = self.provider
         available = {
+            "anthropic": self.anthropic is not None,
             "openrouter": self.openrouter is not None,
             "deepseek": self.deepseek is not None,
             "groq": self.groq is not None,
             "gemini": self.gemini_model is not None
         }
         if not available.get(provider, False):
-            # Find first available provider (Priority: Groq -> OpenRouter -> DeepSeek -> Gemini)
-            provider = next((p for p in ["groq", "openrouter", "deepseek", "gemini"] if available.get(p)), None)
+            # Find first available provider (Priority: Anthropic -> Groq -> OpenRouter -> DeepSeek -> Gemini)
+            provider = next((p for p in ["anthropic", "groq", "openrouter", "deepseek", "gemini"] if available.get(p)), None)
         if not provider:
             return self._fallback_to_formula(stock)
 
         # 2. Run Algo Scorer First (The Objective Baseline)
         try:
             algo_result = self.fallback_scorer.evaluate(stock)
+            # v13: Fetch Guardian status first so it feeds into conviction modifiers
+            from services.guardian_client import get_guardian_status
+            guardian_status = get_guardian_status(stock.ticker)
+            v13_result = self.fallback_scorer.evaluate_v13(stock, persona, guardian_status)
         except Exception as e:
             logger.error(f"Algo Scorer Pre-calculation failed: {e}")
-            return self._fallback_to_formula(stock)
+            return self._fallback_to_formula(stock, persona)
 
         # 3. Prepare AI Context
         try:
@@ -176,18 +194,17 @@ class ReasoningScorer:
             # to feed the dual-period Intelligence Agent 
             news_data = stock.sentiment.news_data if hasattr(stock.sentiment, 'news_data') else {}
             
-            # Phase 3 Agent Collaboration: Fetch Guardian Thesis Status
-            from services.guardian_client import get_guardian_status
-            guardian_status = get_guardian_status(stock.ticker)
+            
+            # Guardian status already fetched above for v13
             
             # Phase 4 Scoring Memory: Fetch last 3 scores to track trajectory
             from services.score_memory import get_history
             score_history = get_history(stock.ticker, limit=3)
             
-            context = self._build_context(stock, persona, earnings_analysis, news_data, algo_result, guardian_status, score_history, user_profile)
+            context = self._build_context(stock, persona, earnings_analysis, news_data, algo_result, guardian_status, score_history, user_profile, v13_result)
         except Exception as e:
             logger.error(f"Context build failed: {e}")
-            return self._fallback_to_formula(stock)
+            return self._fallback_to_formula(stock, persona)
 
         # 4. Dispatch to LLM with multi-provider fallback chain
         response = None
@@ -195,6 +212,7 @@ class ReasoningScorer:
         
         # All providers with their call functions and labels
         all_providers = [
+            ("anthropic", self._call_anthropic, "Claude 3.5 Sonnet"),
             ("openrouter", self._call_openrouter, "DeepSeek R1 (OpenRouter)"),
             ("groq", self._call_groq, "Llama 3.3 70B (Groq)"),
             ("deepseek", self._call_deepseek, "DeepSeek R1"),
@@ -222,12 +240,12 @@ class ReasoningScorer:
 
         # 5. Parse and Merge
         try:
-            return self._parse_response(response, stock, persona, source_label, algo_result)
+            return self._parse_response(response, stock, persona, source_label, algo_result, v13_result)
         except Exception as e:
             logger.error(f"Response parsing failed: {e}", exc_info=True)
-            return self._fallback_to_formula(stock)
+            return self._fallback_to_formula(stock, persona)
 
-    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict], news_data: Optional[Dict] = None, algo_result = None, guardian_status: str = "INTACT", score_history: list = None, user_profile: Optional[Dict] = None) -> Dict:
+    def _build_context(self, stock: StockData, persona: str, earnings_analysis: Optional[Dict], news_data: Optional[Dict] = None, algo_result = None, guardian_status: str = "INTACT", score_history: list = None, user_profile: Optional[Dict] = None, v13_result: Optional[ScoreResultV13] = None) -> Dict:
         """Construct the data payload for the AI."""
         benchmarks = self._get_benchmarks(stock.fundamentals.sector_name)
         persona_cfg = PERSONAS.get(persona, PERSONAS["CFA"])
@@ -326,18 +344,47 @@ class ReasoningScorer:
             "Bull Market": stock.market_bull_regime
         }
 
-        # v11.1: Inject Python-computed component scores for LLM transparency
+        # v11.1 & V12: Inject Python-computed component scores and absolute metrics for LLM transparency
         components = self.fallback_scorer._compute_components(stock)
         persona_base = self.fallback_scorer._apply_persona_weights(components, persona)
         penalties_total, penalties_log = self.fallback_scorer._compute_penalties(stock, persona)
+        
+        # V12 Context Extraction
+        v12_context = {}
+        if algo_result:
+            v12_context = {
+                "RIM Intrinsic Value": algo_result.breakdown.get('RIM Intrinsic Value'),
+                "RIM Margin of Safety": algo_result.breakdown.get('RIM Margin of Safety'),
+                "Data Confidence": algo_result.breakdown.get('Data Confidence', 'High'),
+                "Fragility Penalty": algo_result.breakdown.get('Fragility Penalty', 0.0),
+                "Kill Switches Triggered": [log for log in algo_result.verdict_narrative.split('\n') if 'KILL SWITCH' in log or 'VETO' in log or 'CRITICAL' in log or 'FRAGILITY' in log]
+            }
+
         python_components = {
             "components": components,
             "persona": persona,
             "base_score": persona_base,
             "penalties": penalties_total,
             "penalty_details": [p["detail"] for p in penalties_log],
-            "penalized_score": round(max(0, persona_base - penalties_total), 1)
+            "penalized_score": round(max(0, persona_base - penalties_total), 1),
+            "v12_engine_metrics": v12_context
         }
+
+        # v13: Three-axis context for LLM
+        v13_context = {}
+        if v13_result:
+            v13_context = {
+                "quality_axis": v13_result.quality_axis,
+                "value_axis": v13_result.value_axis,
+                "timing_axis": v13_result.timing_axis,
+                "conviction_score": v13_result.conviction_score,
+                "conviction_weights": v13_result.conviction_weights,
+                "persona": v13_result.persona,
+                "rim_margin_of_safety": v13_result.rim_result.get('margin_of_safety') if v13_result.rim_result else None,
+                "rim_intrinsic_value": v13_result.rim_result.get('intrinsic_value') if v13_result.rim_result else None,
+                "penalties_applied": [p['detail'] for p in v13_result.penalties_applied] if v13_result.penalties_applied else [],
+                "modifications": v13_result.modifications,
+            }
 
         return {
             "ticker": stock.ticker,
@@ -351,7 +398,8 @@ class ReasoningScorer:
             "market_regime": market_regime,
             "guardian_status": guardian_status,
             "score_history": score_history or [],
-            "python_components": python_components,  # NEW: v11.1
+            "python_components": python_components,  # NEW: v11.1 & V12
+            "v13_scoring": v13_context,  # NEW: v13 Three-Axis
             "user_profile": user_profile
         }
 
@@ -392,8 +440,8 @@ class ReasoningScorer:
 You are a expert financial mentor for a Retail Investor.
 Your name is VinSight AI. Analyze {context['ticker']} ({context['sector']}).
 
-YOUR ROLE (v11.1):
-The Python scoring engine has ALREADY computed the score using quantitative data.
+YOUR ROLE (v12.0):
+The Python scoring engine has ALREADY computed the score using quantitative data (including a Residual Income Model and Data Fragility layer).
 Your job is to provide the NARRATIVE ANALYSIS (bull/bear case, verdict) and, if qualitative
 factors justify it, a bounded contextual adjustment (±10 points max).
 
@@ -410,8 +458,9 @@ STYLE: {persona_style}
 FOCUS: {context['persona']['focus']}
 {sensitivity_rule}{guardian_directive}
 
-PYTHON ENGINE RESULTS:
+PYTHON ENGINE RESULTS (INCLUDING V12 RIM & KILL SWITCHES):
 {python_components_json}
+*CRITICAL:* If `v12_engine_metrics` shows Triggered Kill Switches or Data Fragility Penalties, you MUST prominently explain why in your Bear Case. If RIM Margin of Safety is high, highlight the absolute valuation discount in the Bull Case.
 
 Persona: {p_name} (Weights: {weight_str})
 
@@ -442,7 +491,7 @@ QUALITATIVE CONTEXT:
 INSTRUCTIONS:
 1. **Thought Process**: Write a 300-400 word analysis using paragraphs.
 2. **Retail Reality / Goal Alignment**: Answer "Can I sleep well owning this?" Specifically call out if it aligns or misaligns with the user's explicit goals/horizon.
-3. **Forward Looking**: Focus on what's next (Guidance, Catalysts).
+3. **V12 Engine Explanation**: Explicitly reference the WACC, RIM Valuation, Margin of Safety, or Accounting Fragility Flags from the `v12_engine_metrics` if they are present.
 4. **Contextual Adjustment**: If earnings quality, competitive dynamics, management guidance,
    news catalysts, OR *misalignment with the user's specific goals* justifies adjusting the Python score, specify contextual_adjustment (-10 to +10)
    with detailed reasoning. Only adjust if qualitative signals warrant it. Most stocks need 0.
@@ -474,6 +523,18 @@ You MUST respond with a single valid JSON object. No other text.
   "contextual_adjustment": <int -10 to +10, default 0>,
   "adjustment_reasoning": "<string: Why you adjusted. Empty if adjustment is 0.>"
 }}
+
+THREE-AXIS SCORING ENGINE (v13):
+{json.dumps(context.get('v13_scoring', {}), indent=2)}
+*CRITICAL:* The Python engine has computed THREE independent axes:
+- Quality ({context.get('v13_scoring', {}).get('quality_axis', 'N/A')}): Business fundamentals (ROE, margins, debt, EPS stability). No valuation here.
+- Value ({context.get('v13_scoring', {}).get('value_axis', 'N/A')}): PEG, P/E, FCF Yield, RIM intrinsic value.
+- Timing ({context.get('v13_scoring', {}).get('timing_axis', 'N/A')}): Price vs moving averages, RSI, volume, beta.
+Conviction = weighted blend ({json.dumps(context.get('v13_scoring', {}).get('conviction_weights', {}))}).
+If axes diverge (e.g., high Quality but low Value), you MUST explain why in your narrative.
+
+PERSONA LENS:
+Answer this in the `persona_lens` field: In 1-2 sentences, explain why the {context['persona']['description']} philosophy rates this stock at {context.get('v13_scoring', {}).get('conviction_score', 'N/A')}/100. What would a different persona see differently?
 """
 
     def _extract_json(self, text: str) -> Dict:
@@ -560,7 +621,21 @@ You MUST respond with a single valid JSON object. No other text.
         )
         return self._extract_json(completion.choices[0].message.content)
 
-    def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any) -> Dict:
+    def _call_anthropic(self, context: Dict) -> Dict:
+        """Call Anthropic API (Claude 3.5/3.7 Sonnet)."""
+        system_prompt = self._build_system_prompt(context)
+        message = self.anthropic.messages.create(
+            model="claude-3-5-sonnet-latest",
+            max_tokens=2000,
+            temperature=0.1,
+            system="You are a financial analyst. Output valid JSON only.",
+            messages=[
+                {"role": "user", "content": system_prompt}
+            ]
+        )
+        return self._extract_json(message.content[0].text)
+
+    def _parse_response(self, llm_response: Dict, stock: StockData, persona: str, source_label: str, algo_result: Any, v13_result: Optional[ScoreResultV13] = None) -> Dict:
         """v11.1: Python computes score. LLM provides narrative + bounded ±10 adjustment."""
         
         # 1. Pydantic Validation
@@ -580,10 +655,17 @@ You MUST respond with a single valid JSON object. No other text.
         # 4. LLM CONTEXTUAL ADJUSTMENT (±10, needs reasoning)
         adjustment = parsed_data.contextual_adjustment
         adjustment_reasoning = parsed_data.adjustment_reasoning
-        if adjustment_reasoning and len(adjustment_reasoning) > 20:
-            final_score = round(max(0, min(100, penalized_score + adjustment)))
+        
+        # v13: Use the three-axis conviction as the authoritative score
+        if v13_result:
+            base_conviction = v13_result.conviction_score
         else:
-            final_score = round(penalized_score)
+            base_conviction = penalized_score
+        
+        if adjustment_reasoning and len(adjustment_reasoning) > 20:
+            final_score = round(max(0, min(100, base_conviction + adjustment)))
+        else:
+            final_score = round(base_conviction)
             adjustment = 0  # No reasoning = no adjustment
         
         # REMOVED: confidence discount (was cosmetic 0.8-1.0 multiplier)
@@ -619,26 +701,34 @@ You MUST respond with a single valid JSON object. No other text.
             "bull_case": parsed_data.summary.bull_case,
             "bear_case": parsed_data.summary.bear_case,
             "fundamental_analysis": parsed_data.summary.fundamental_analysis,
-            "technical_analysis": parsed_data.summary.technical_analysis
+            "technical_analysis": parsed_data.summary.technical_analysis,
+            "persona_lens": parsed_data.summary.persona_lens  # v13: persona-specific narrative
         }
         
         structured_summary["verdict"] = f"Rated {final_score}/100. {structured_summary['verdict']}"
         
         if hallucination_count > 2:
-            logger.warning(f"Grounding Failure: Detected {hallucination_count} hallucinated numbers.")
-            structured_summary["bull_case"] = "AI narrative suppressed due to data grounding mismatch."
-            structured_summary["bear_case"] = "Please refer to the raw mathematical scoring breakdowns."
-            structured_summary["fundamental_analysis"] = ""
-            structured_summary["technical_analysis"] = ""
+            logger.warning(f"Grounding Failure in {persona} analysis for {stock.ticker}: Detected {hallucination_count} hallucinated numbers.")
+            suppression_msg = "AI narrative suppressed due to data grounding mismatch to ensure accuracy."
+            structured_summary["bull_case"] = suppression_msg
+            structured_summary["bear_case"] = "Please refer to the raw mathematical scoring breakdowns for this asset."
+            structured_summary["fundamental_analysis"] = "Narrative suppressed; see quantitative metrics above."
+            structured_summary["technical_analysis"] = "Narrative suppressed; see technical indicators above."
         
         summary_text = f"VERDICT: {structured_summary['verdict']}\n\nBULL: {structured_summary['bull_case']}\n\nBEAR: {structured_summary['bear_case']}"
 
         rating = self._score_to_rating(final_score)
         
         # 8. Build response with backward-compatible shape
-        # raw_breakdown: Use Python components (0-10 scale × 10 for display)
-        quality_score = ((components.get('valuation', 5) + components.get('profitability', 5) + components.get('health', 5) + components.get('growth', 5)) / 4) * 10
-        timing_score = components.get('technicals', 5) * 10
+        # v13: Use three-axis scores if available
+        if v13_result:
+            quality_score = v13_result.quality_axis
+            value_score = v13_result.value_axis
+            timing_score = v13_result.timing_axis
+        else:
+            quality_score = ((components.get('valuation', 5) + components.get('profitability', 5) + components.get('health', 5) + components.get('growth', 5)) / 4) * 10
+            value_score = 50.0  # Neutral fallback
+            timing_score = components.get('technicals', 5) * 10
 
         meta = {
             "source": f"AI Model: {source_label}",
@@ -646,11 +736,43 @@ You MUST respond with a single valid JSON object. No other text.
             "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST"),
             "primary_driver": parsed_data.primary_driver,
             "thought_process": parsed_data.thought_process,
-            "engine_version": "v11.1"
+            "engine_version": "v13.0"
         }
 
         algo_breakdown = algo_result.breakdown
         details = algo_result.details
+
+        # 9. AI BEHAVIOR & EVALUATION LOGGING (User Request)
+        try:
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, "ai_eval_log.jsonl")
+            
+            # Data Integrity Tracking
+            total_metrics = len(details) if details else 0
+            skipped_metrics = [d['metric'] for d in details if d.get('status') in ('Skipped', 'N/A')]
+            available_metrics = total_metrics - len(skipped_metrics)
+            data_availability_ratio = f"{available_metrics} / {total_metrics}" if total_metrics > 0 else "0 / 0"
+
+            ai_log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "ticker": stock.ticker,
+                "persona": persona,
+                "model": source_label,
+                "data_availability_ratio": data_availability_ratio,
+                "skipped_metrics": skipped_metrics,
+                "base_conviction_score": base_conviction,
+                "final_conviction_score": final_score,
+                "contextual_adjustment": adjustment,
+                "adjustment_reasoning": adjustment_reasoning,
+                "thought_process": parsed_data.thought_process,
+                "persona_lens": parsed_data.summary.persona_lens
+            }
+            
+            with open(log_path, "a") as f:
+                f.write(json.dumps(ai_log_entry) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to write to AI Eval Log: {e}")
 
         return {
             "score": final_score,
@@ -660,18 +782,25 @@ You MUST respond with a single valid JSON object. No other text.
             "structured_summary": structured_summary,
             "raw_breakdown": {
                 "Quality Score": round(quality_score, 1),
+                "Value Score": round(value_score, 1),
                 "Timing Score": round(timing_score, 1)
             },
+            # v13: Three-axis fields for frontend
+            "quality_axis": round(quality_score, 1),
+            "value_axis": round(value_score, 1),
+            "timing_axis": round(timing_score, 1),
+            "conviction_weights": v13_result.conviction_weights if v13_result else CONVICTION_WEIGHTS.get(persona),
             "algo_breakdown": algo_breakdown,
-            "component_scores": components,  # NEW: 5 Python-computed scores (0-10)
+            "component_scores": components,  # v12 5-component scores (backward compat)
             "score_explanation": { 
                 "factors": risk_factors,
                 "opportunities": parsed_data.opportunities
             },
-            "contextual_adjustment": adjustment,  # NEW
-            "adjustment_reasoning": adjustment_reasoning,  # NEW
-            "penalty_details": penalty_logs,  # NEW: structured penalty info
-            "guardian_trigger": guardian_trigger,  # NEW
+            "contextual_adjustment": adjustment,
+            "adjustment_reasoning": adjustment_reasoning,
+            "penalty_details": penalty_logs,
+            "guardian_trigger": guardian_trigger,
+            "missing_data": v13_result.missing_data if v13_result else [],
             "meta": meta,
             "details": details 
         }
@@ -694,23 +823,44 @@ You MUST respond with a single valid JSON object. No other text.
         if "Sell" in rating or "Risk" in rating or "Underperform" in rating: return "red"
         return "yellow"
 
-    def _fallback_to_formula(self, stock: StockData) -> Dict:
-        """Execute the old formula scorer if AI fails or keys are missing."""
+    def _fallback_to_formula(self, stock: StockData, persona: str = "CFA") -> Dict:
+        """Execute the formula scorer if AI fails or keys are missing."""
+        # v13: Use three-axis scoring even in fallback
+        try:
+            v13_result = self.fallback_scorer.evaluate_v13(stock, persona)
+        except Exception:
+            v13_result = None
+        
         result = self.fallback_scorer.evaluate(stock)
         meta = {
             "source": "Formula Fallback (AI OFFLINE)",
-            "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST")
+            "timestamp_pst": datetime.now().strftime("%Y-%m-%d %H:%M:%S PST"),
+            "engine_version": "v13.0"
         }
+        
+        quality_axis = v13_result.quality_axis if v13_result else 50.0
+        value_axis = v13_result.value_axis if v13_result else 50.0
+        timing_axis = v13_result.timing_axis if v13_result else 50.0
+        conviction = v13_result.conviction_score if v13_result else result.total_score
+        
         return {
-            "score": result.total_score,
+            "score": round(conviction),
             "rating": result.rating,
             "justification": result.verdict_narrative,
-            "raw_breakdown": result.breakdown,
+            "raw_breakdown": {
+                "Quality Score": round(quality_axis, 1),
+                "Value Score": round(value_axis, 1),
+                "Timing Score": round(timing_axis, 1)
+            },
+            "quality_axis": round(quality_axis, 1),
+            "value_axis": round(value_axis, 1),
+            "timing_axis": round(timing_axis, 1),
+            "conviction_weights": v13_result.conviction_weights if v13_result else CONVICTION_WEIGHTS.get(persona),
             "algo_breakdown": result.breakdown,
             "meta": meta,
             "details": result.details,
             "score_explanation": {
-                 "factors": [],
+                 "factors": v13_result.modifications if v13_result else [],
                  "opportunities": []
             }
         }

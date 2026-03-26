@@ -1,29 +1,59 @@
-# VinSight Scoring Engine v11.1
+# VinSight Scoring Engine v13.0
 
-> **Authority**: Python is the sole numerical score authority. The LLM provides narrative analysis and a bounded ±10 contextual adjustment.
+> **Authority**: Python is the sole numerical score authority. Three independent axes (Quality, Value, Timing) are scored 0-100 and combined via persona-weighted conviction. The LLM provides narrative analysis and a bounded ±10 contextual adjustment.
 
 ## Architecture
 
 ```
-StockData ──► _compute_components() ──► 5 scores (0-10)
-                                            │
-                                  _apply_persona_weights()
-                                            │
-                                     Base Score (0-100)
-                                            │
-                                  _compute_penalties()
-                                            │
-                                  Penalized Score (0-100)
-                                            │
-                              ┌─────────────┴─────────────┐
-                              │   LLM (Groq/OpenRouter)   │
-                              │  Narrative + ±10 adjust   │
-                              └─────────────┬─────────────┘
-                                            │
-                                     Final Score (0-100)
+StockData ──► evaluate_v13(persona, guardian_status)
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+     Quality(0-100) Value(0-100) Timing(0-100)
+     ROE, Margins   PEG, P/E    SMA, RSI
+     D/E, EPS Stab  FCF Yield   Volume, Mom
+     ROIC, Altman Z RIM MoS
+          │          │          │
+          └──────────┼──────────┘
+                     ▼
+           Conviction = Q×Wq + V×Wv + T×Wt
+                     │
+          ┌──────────┴──────────┐
+          │  Guardian Modifiers │
+          │ BROKEN→cap(40)     │
+          │ AT_RISK→-10pts     │
+          └──────────┬──────────┘
+                     │
+          ┌──────────┴──────────┐
+          │   LLM (Groq/etc)   │
+          │  Narrative + ±10   │
+          └──────────┬──────────┘
+                     │
+               Final Score (0-100)
 ```
 
-## 1. Components (0-10 each)
+## 1. Three-Axis Decomposition (v13 NEW)
+
+| Axis | Metrics | Score Range | Purpose |
+|------|---------|-------------|---------|
+| **Quality** | ROE, Net/Op Margin, D/E, ICR, Altman Z, EPS Stability, ROIC Spread | 0-100 | Business quality without valuation |
+| **Value** | PEG, Forward P/E, FCF Yield, RIM Margin of Safety | 0-100 | Cheapness / valuation attractiveness |
+| **Timing** | Price vs SMA50/200, RSI, Relative Volume, Momentum | 0-100 | Technical entry signal |
+
+### Persona Conviction Weights
+
+| Persona | Quality (Wq) | Value (Wv) | Timing (Wt) |
+|---------|-------------|------------|-------------|
+| **CFA** | 45% | 30% | 25% |
+| **Momentum** | 10% | 10% | 80% |
+| **Value** | 25% | 50% | 25% |
+| **Growth** | 45% | 25% | 30% |
+| **Income** | 50% | 30% | 20% |
+
+**Formula**: `conviction = (quality × Wq) + (value × Wv) + (timing × Wt)`
+
+## 2. Legacy Components (0-10 each, still used within axes)
+
 
 | Component | Metrics | Ideal → 10 | Zero → 0 |
 |-----------|---------|------------|----------|
@@ -33,7 +63,9 @@ StockData ──► _compute_components() ──► 5 scores (0-10)
 | **Growth** | Rev Growth 3Y, EPS Surprise, Earnings QoQ | RevG ≥ 20%, EPS ≥ 5%, EarG ≥ 15% | RevG ≤ -10%, EPS ≤ -5%, EarG ≤ -15% |
 | **Technicals** | Price/SMA200, Price/SMA50, RSI, Rel Volume, Dist to High | Above SMAs, RSI 40-60, High Vol | Below SMAs, RSI extreme, Low Vol |
 
-**None handling**: `_linear_score(None)` → `None`. `_score_component` averages only non-None values. All-None → neutral 5.0.
+**None handling (V13 Refactor)**: `_linear_score(None)` intercepts missing metric data, returning `points = None` and `status = 'Skipped'`. The metric's maximum points sink natively and never penalize the denominator.
+
+**The 50% Fiduciary Refusal Rule**: An explicit data integrity threshold. If an entire mathematical Axis (Quality, Value, Timing) is starved of more than 50% of its data points from APIs (e.g. `available_pts < 50.0`), the algorithm explicitly aborts the score aggregation and neutralizes the entire axis to `50.0`. This prevents edge-case microcaps and missing IPO data from generating bizarre zero-denominator inflations, ensuring a heavily documented, predictable flat fallback.
 
 ## 2. Persona Weights
 
@@ -87,24 +119,32 @@ The LLM receives the full Python component breakdown in its prompt and provides:
 
 **The LLM does NOT determine the score.** Its `contextual_adjustment` is bounded and requires reasoning.
 
-## 5. Response Shape
+## 6. Response Shape
 
 ```json
 {
   "score": 72,
   "rating": "Watchlist Buy",
   "color": "#22c55e",
+  "quality_axis": 85.2,
+  "value_axis": 62.3,
+  "timing_axis": 71.0,
+  "conviction_weights": { "Q": 0.45, "V": 0.30, "T": 0.25 },
   "justification": "VERDICT: ... BULL: ... BEAR: ...",
-  "structured_summary": { "verdict", "bull_case", "bear_case", "fundamental_analysis", "technical_analysis" },
-  "raw_breakdown": { "Quality Score": 65.2, "Timing Score": 70.0 },
+  "structured_summary": {
+    "verdict": "...", "bull_case": "...", "bear_case": "...",
+    "fundamental_analysis": "...", "technical_analysis": "...",
+    "persona_lens": "The CFA philosophy rates this stock 72/100 because..."
+  },
+  "raw_breakdown": { "Quality Score": 85.2, "Value Score": 62.3, "Timing Score": 71.0 },
   "component_scores": { "valuation": 6.5, "profitability": 7.2, "health": 8.1, "growth": 5.8, "technicals": 7.0 },
-  "algo_breakdown": { "Quality Score": 62, "Timing Score": 68 },
+  "algo_breakdown": { "Quality Score": 85, "Value Score": 62, "Timing Score": 71 },
   "score_explanation": { "factors": [...], "opportunities": [...] },
   "contextual_adjustment": 3,
   "adjustment_reasoning": "Strong earnings guidance and AI demand catalysts justify upward adjustment.",
   "penalty_details": [{ "type": "Overvaluation", "severity": 4.2, "detail": "..." }],
   "guardian_trigger": false,
-  "meta": { "source", "persona", "timestamp_pst", "primary_driver", "thought_process", "engine_version": "v11.1" },
+  "meta": { "source": "...", "persona": "CFA", "timestamp_pst": "...", "primary_driver": "...", "thought_process": "...", "engine_version": "v13.0" },
   "details": [...]
 }
 ```

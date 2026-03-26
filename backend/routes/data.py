@@ -175,19 +175,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         institutional = data_bundle.get('institutional', {})
         advanced_metrics = data_bundle.get('advanced', {})
         
-        # Parallel fetch for Earnings (Requires DB, so stays separate but lightweight)
-        # We use a quick check for cached earnings status to avoid blocking
+        # Parallel fetch for Earnings removed to prevent SQLite constraint failures.
+        # The frontend exclusively handles earnings analysis triggering via the /earnings endpoint.
         earnings_analysis = None
-        db_gen = get_db()
-        db_session = next(db_gen)
-        try:
-            logger.info(f"Triggering earnings analysis for {ticker}")
-            earnings_analysis = earnings.analyze_earnings(ticker, db_session)
-        except Exception as e:
-            logger.error(f"Earnings Analysis Failed: {e}")
-            pass # Non-critical if fails
-        finally:
-            db_session.close()
 
         if not history:
              raise HTTPException(status_code=404, detail="No history data found")
@@ -304,6 +294,9 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
         
         # PEG Ratio
         peg = finance.get_peg_ratio(ticker)
+        # Inject calculated PEG into stock_details for UI consumption
+        if peg is not None:
+            fundamentals_info['pegRatio'] = peg
         
         detected_sector = fundamentals_info.get("sector", "Technology")
         
@@ -376,7 +369,21 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
             trailing_annual_dividend_yield=trail_div,
             short_ratio=short_ratio,
             fifty_two_week_change=fifty_two_change,
-            held_percent_insiders=held_insiders
+            held_percent_insiders=held_insiders,
+            # V12 Phase 1 Plumbing
+            nopat=advanced_metrics.get('nopat'),
+            invested_capital=advanced_metrics.get('invested_capital'),
+            operating_cash_flow=advanced_metrics.get('operating_cash_flow'),
+            trailing_eps=advanced_metrics.get('trailing_eps', []),
+            net_income=advanced_metrics.get('net_income'),
+            total_assets=advanced_metrics.get('total_assets'),
+            net_share_issuance_ttm=advanced_metrics.get('net_share_issuance_ttm'),
+            wacc=advanced_metrics.get('wacc', 0.10),
+            market_cap=fundamentals_info.get('marketCap'),
+            # V12 Phase 3 RIM Plumbing
+            forward_roe=advanced_metrics.get('forward_roe'),
+            book_value_per_share=advanced_metrics.get('book_value_per_share'),
+            shares_outstanding=advanced_metrics.get('shares_outstanding')
         )
 
         # --- Technicals ---
@@ -677,6 +684,13 @@ def get_technical_analysis(ticker: str, period: str = "2y", interval: str = "1d"
                 "color": color,
                 "score": score_result.total_score,
                 "justification": ai_summary,
+                "structured_summary": {
+                    "verdict": f"Score: {score_result.total_score}/100 based on quantitative analysis.",
+                    "bull_case": "AI Reasoning model is currently analyzing deep fundamentals and market sentiment...",
+                    "bear_case": "AI Reasoning model is evaluating downside risks and competitive headwinds...",
+                    "fundamental_analysis": "Python Scoring Engine has computed a base fundamental quality of " + str(round(score_result.breakdown.get('Quality Score', 0), 1)) + ".",
+                    "technical_analysis": "Python Scoring Engine has computed a base technical timing score of " + str(round(score_result.breakdown.get('Timing Score', 0), 1)) + "."
+                },
                 "raw_breakdown": score_result.breakdown,
                 "modifications": score_result.modifications,
                 "missing_data": score_result.missing_data,

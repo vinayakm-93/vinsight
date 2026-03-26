@@ -1,5 +1,64 @@
 # Changelog
 
+## [v13.0.0] - Three-Axis Scoring Architecture & Backtesting (2026-03-26)
+
+### 🚀 Major Feature: v13 Three-Axis Scoring Engine
+- **Architecture Redesign**: Split the monolithic score into three independent axes — **Quality** (0-100), **Value** (0-100), and **Timing** (0-100) — with a persona-weighted **Conviction Score** combining all three.
+- **Quality Axis**: ROE, margins, D/E, EPS stability, Altman Z, ROIC spread. No valuation metrics (clean separation from Value).
+- **Value Axis (NEW)**: PEG, Forward P/E, FCF Yield, and **Residual Income Model (RIM)** margin of safety. Moved all valuation from Quality into this axis.
+- **Timing Axis**: Price vs SMA50/200, RSI, relative volume, momentum signals.
+- **Persona Conviction Weights**: Each persona applies different axis weights (e.g., CFA: Q=45%/V=30%/T=25%, Momentum: Q=10%/V=10%/T=80%).
+- **Unified Entry Point**: `evaluate_v13()` in `vinsight_scorer.py` — backward-compatible `evaluate()` preserved.
+
+### 🛡️ Guardian Thesis Integration
+- **Conviction Modifiers**: `BROKEN` thesis → cap conviction at 40. `AT_RISK` → subtract 10pts.
+- **One-Way Flow**: Guardian status fetched *before* scoring in `reasoning_scorer.py` to avoid circular dependencies.
+
+### 📊 Backtesting Engine (Phase 3A)
+- **New File**: `backend/services/backtest.py` — `Backtester` class with `run()`, `analyze()`, `generate_report_text()`.
+- **Methodology**: Scores stocks at monthly historical snapshots using current fundamentals + reconstructed technicals (SMA50, SMA200, RSI, relative volume from historical prices).
+- **Signal Validation**: 10-ticker × 12-month test (120 snapshots) — Elite tier (80-100) achieved **72% hit rate at 3mo**, **100% at 12mo**, **+7.4% excess return**. Avoid tier (0-49): 0% hit rate at 6/12mo, -17.6% excess.
+- **Limitations**: Survivorship bias (only currently-listed stocks), point-in-time fundamentals.
+
+### 🏗️ Data Provider Abstraction
+- **New File**: `backend/services/data_provider.py` — `DataProvider` ABC with `YFinanceProvider` implementation.
+- **Purpose**: Makes scoring engine data-source agnostic for future FMP/Bloomberg integration.
+
+### 🎨 Three-Axis UI
+- **Three Axis Cards**: Quality (emerald), Value (violet), Timing (blue) — each showing score, progress bar, and persona weight label.
+- **Formula Transparency Bar**: `Conviction = Q(78)×45% + V(65)×30% + T(71)×25%` rendered inline.
+- **Persona Lens Callout**: Purple badge showing why the selected persona rates the stock as it does.
+- **Algo Breakdown**: Added **Valuation & Cheapness** as a third collapsible section between Quality and Timing.
+- **Engine Label**: Updated from v12.0 to **v13.0**.
+
+### 🧠 AI Pipeline Updates
+- **Three-Axis Context**: LLM prompt now receives Quality, Value, Timing scores + weights for transparent narrative generation.
+- **`persona_lens` Field**: New Pydantic field in `SummaryDetails` — LLM explains why the persona rates the stock at X/100.
+- **v13 as Authority**: `reasoning_scorer.py` uses `v13_result` as the authoritative score source.
+
+---
+
+## [v12.0.0] - The v12 Engine & Dynamic Optimization (2026-03-23)
+
+### 🚀 Major Feature: The v12 Engine (v12.0)
+- **Advanced Reasoning Architecture**: Fully integrated the ReasoningScorer as the primary intelligence layer, replacing pure mathematical formulas with hybrid AI-driven synthesis.
+- **Deep-Thinking Capabilities**: Leverages DeepSeek R1 and Llama 3.3 70B for institutional-grade bull/bear cases and goal-aligned investment verdicts.
+- **V12 Performance Layer**: Optimized the "Analysis" pipeline to handle 180s reasoning windows, ensuring deep CoT (Chain of Thought) is not truncated.
+- **Goal Alignment**: The AI now incorporates User Profiles (risk appetite, time horizon, specific goals) directly into its scoring logic via a new `contextual_adjustment` layer (±10 points).
+
+### 🛠️ Stability & Resilience
+- **Zero-Stall UI**: Added "AI is reasoning..." narrative placeholders to the initial data load, eliminating the "Analyzing..." flicker and ensuring a smooth user experience.
+- **Adaptive Timeouts**: Increased frontend analyzer timeout to **180,000ms (3 minutes)** and implemented strict internal provider timeouts (30s Anthropic / 15s Groq) to ensure rapid failover.
+- **Null-Safety Guardrails**: Patched `finance.py` coordinated fetcher and institutional parser to handle missing or null API fields, eliminating `NoneType` crashes for stocks with partial data (e.g., AAPL).
+- **Backend Sync**: Synchronized all internal metadata and metadata-headers to `v12.0`.
+
+### 🎨 UI & UX
+- **Refined AI Strategist**: Extracted the "Algorithmic Score Breakdown" into a reusable component, making it available in both the AI tab and the Fundamentals tab.
+- **Unified Versioning**: Standardized "v12.0 Engine" branding across the dashboard and reasoning badges.
+
+---
+
+
 ## [v11.3.0] - AI Thesis Library & Guardian Sync (2026-03-06)
 
 ### 🚀 Major Feature: The AI Thesis Library

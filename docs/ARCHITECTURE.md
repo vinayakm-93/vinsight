@@ -43,10 +43,14 @@ graph TD
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
 ## 3. Core Engine Logic
-- **[VinSight Scoring Engine](./SCORING_ENGINE.md)**: Detailed breakdown of the "Dumb AI, Smart Python" Re-architecture (v11.0).
-- **Persona-Based Deterministic Scoring**:
-    - **Algorithmic Math**: 0-100 baseline scores are calculated deterministically in Python using strict persona-weighted multipliers (Value, Growth, CFA, Momentum).
-    - **Python Guardrails (Kill Switches)**: Extreme fundamental flaws (e.g., negative FCF, debt traps) trigger absolute point penalties injected into the AI context *before* the narrative is generated.
+- **[VinSight Scoring Engine v13](./SCORING_ENGINE.md)**: Three-axis architecture (Quality, Value, Timing) with persona-weighted conviction.
+- **Three-Axis Scoring (v13)**:
+    - **Quality Axis (0-100)**: ROE, margins, D/E, EPS stability, Altman Z, ROIC spread. No valuation metrics.
+    - **Value Axis (0-100)**: PEG, Forward P/E, FCF Yield, RIM Margin of Safety.
+    - **Timing Axis (0-100)**: Price vs SMA50/200, RSI, volume, momentum.
+    - **Conviction**: `Q×Wq + V×Wv + T×Wt` where weights are persona-specific (e.g., CFA: 45/30/25).
+- **Guardian Conviction Modifiers**: BROKEN thesis → cap score at 40. AT_RISK → -10pts.
+- **Python Guardrails (Kill Switches)**: Extreme fundamental flaws trigger absolute point caps injected before the narrative is generated.
 - **Agent Collaboration & Grounding Validation**:
     - **1. Tri-Layer Synthesis**: DeepSeek R1/Llama 3.3 handles qualitative synthesis, anchored to the offline `VinSightScorer` algorithmic baseline score.
     - **1.5 Deep Personalization**: The `ReasoningScorer` dynamically ingests the explicit `UserProfile` (risk tolerance, investment goals, monthly budget, and time horizon) to structurally penalize/reward stocks based on strict fiduciary alignment to the user's goals.

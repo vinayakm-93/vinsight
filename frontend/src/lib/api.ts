@@ -28,7 +28,8 @@ const getGuestUUID = () => {
 
 api.interceptors.request.use((config) => {
   const uuid = getGuestUUID();
-  if (uuid && config.headers) {
+  // Bypass X-Guest-UUID if hitting direct backend to prevent CORS preflight Failure without backend restart
+  if (uuid && config.headers && !config.baseURL?.includes('localhost:8000') && !(config.url && config.url.includes('localhost:8000'))) {
     config.headers['X-Guest-UUID'] = uuid;
   }
   return config;
@@ -107,11 +108,13 @@ export const getHistory = async (ticker: string, period = "1mo", interval = "1d"
 };
 
 export const getAnalysis = async (ticker: string, sectorOverride?: string, period: string = "1y", interval: string = "1d", persona: string = "CFA", scoring_engine: string = "reasoning"): Promise<any> => {
-  const params: any = { period, interval, include_simulation: false, persona, scoring_engine };
+  const params: any = { period, interval, include_simulation: true, persona, scoring_engine };
   if (sectorOverride && sectorOverride !== 'Auto') {
     params.sector_override = sectorOverride;
   }
-  const response = await api.get<any>(`/api/data/analysis/${ticker}`, { params });
+  const isDev = process.env.NODE_ENV === 'development';
+  const url = isDev ? `http://localhost:8000/api/data/analysis/${ticker}` : `/api/data/analysis/${ticker}`;
+  const response = await api.get<any>(url, { params });
   return response.data;
 };
 

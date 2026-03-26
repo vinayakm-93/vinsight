@@ -1,48 +1,50 @@
-# VinSight Project Handover (v9.8 - Portfolio Dashboard)
-**Date:** February 16, 2026
-**Status:** **Stable** (New Portfolio Visualization & Management)
+# VinSight Project Handover (v12.0 - v12 Engine)
+**Date:** March 23, 2026
+**Status:** **Stable** (Advanced AI Reasoning & Stability Patched)
 **Target Audience:** Engineering Team / Next Agent
 
 ---
 
 ## 1. Executive Summary
-This release focuses on **determinism and clarity**. We eliminated scoring variance by enforcing strict persona weights and low temperatures, and refined the UI to make the "Verdict" center stage.
-- **Consistency**: Scores are now reproducible and strictly adhere to persona biases (CFA vs Momentum).
-- **UI Clarity**: Verdicts are immediately visible at the top; Bull/Bear cards are self-contained with risk/opportunity lists.
+This release (v12.0) introduces the **v12 Engine**, a hybrid intelligence architecture that suppresses mathematical variance in favor of grounded AI reasoning. We resolved critical timeout issues by aligning frontend expectations with backend LLM latency.
+
+- **V12 Reasoning**: The `ReasoningScorer` is now the primary authority. It incorporates User Profiles (Goals/Horizon) into a qualitative adjustment layer.
+- **Stability**: Fixed `NoneType` crashes in the data coordinator and implemented strict provider-level timeouts (30s) to prevent hangs.
+- **Zero-Stall UX**: Initial "Phase 1" responses now include narrative placeholders to prevent the UI from flickering or stalling on "Analyzing...".
 
 ---
 
-### Portfolio View & Dashboard (v9.8.0)
-- **Portfolio Dashboard**: Implemented sortable holdings table, sector donut chart, and real-time stats bar (Total Value, P&L, Day Change).
-- **CSV Importer**: Robust parser for generic and Robinhood CSVs with instant market hydration.
-- **AI Portfolio Manager**: DeepSeek R1-powered 6-point audit for active portfolios.
-- **Reliability**: Fixed 500 error in AI summary pipeline and improved watchlist performance.
+## 2. Key Technical Changes
+- **Timeouts**: Increased to **180s** (3 minutes) in the frontend. Reasoning models (DeepSeek R1) are given maximum headroom.
+- **Data Coordination**: `finance.py` now robustly handles Yahoo Finance null/empty fields using `(obj or {}).get()` patterns.
+- **Modularity**: Extracted the "Algorithmic Score Breakdown" into a reusable UI component.
 
 ---
 
 ## 3. Current State
 - **System**: Stable.
-- **Performance**: DeepSeek R1 now has 3 minutes to reason.
-- **Quality**: significantly improved scoring reliability and explanation quality.
+- **Performance**: 180s reasoning window ensures accurate deep-thought processing.
+- **Reliability**: Proactive narrative fallbacks ensure the UI is always readable, even during background generation.
 
 ---
 
 ## 4. Next Session Instructions (Context Prompt)
 *Copy and paste this into the next chat to retain context:*
 
-> **SYSTEM CONTEXT RESTORE: VinSight v9.8.0 (Portfolio Intelligence)**
+> **SYSTEM CONTEXT RESTORE: VinSight v12.0.0 (v12 Reasoning Engine)**
 >
 > **Current Architecture:**
-> -   **Portfolio Engine**: Backend supports multi-portfolio CRUD and specialized CSV parsing (Generic/Robinhood).
-> -   **Dashboard**: Context-aware UI. Displays **AI Strategist** (Watchlists) or **AI Portfolio Manager** (Portfolios).
-> -   **Scoring Logic**: `reasoning_scorer.py` uses STRICT persona weights and `temperature=0.1`.
-> -   **AI Models**: 180s Timeout for DeepSeek R1 (Strategist/Portfolio Manager). Gemini 2.0 fallback.
+> -   **Scoring Engine**: `v12.0` Reasoning Engine. Python computes the base; LLM provides narrative + goal-aligned adjustments (±10).
+> -   **Response Schema**: Includes `structured_summary` (verdict, bull, bear, fundamental, technical) for all responses.
+> -   **Network thresholds**: 180s Frontend timeout. 30s/15s internal LLM failover timeouts.
+> -   **Data Safety**: Coordinated fetcher is null-safe against Yahoo Finance partial responses.
 >
 > **Rules:**
-> 1.  **Context Hygiene**: Ensure UI correctly state-toggles between Watchlist and Portfolio modes.
-> 2.  **Model Discipline**: Keep temperature low (0.1) for all AI scoring/analysis tasks.
-> 3.  **Data Hydration**: Always prefer batch pricing/enrichment to avoid API waterfalls.
+> 1.  **Narrative Integrity**: Always maintain the `structured_summary` shape in API responses.
+> 2.  **Performance Check**: Ensure LLM providers don't exceed the 30s per-hop threshold.
+> 3.  **UI Consistency**: Use `renderAlgoBreakdown` for scoring transparency across tabs.
 
 ---
 **Handover Signature:**
-*Antigravity Agent (Session Final)*
+*VinSight AI / Antigravity Agent (v12.0 Final)*
+
