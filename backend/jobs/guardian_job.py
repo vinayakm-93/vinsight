@@ -26,39 +26,60 @@ async def run_guardian_scan():
     """
     Main entry point for the Cloud Scheduler job.
     """
-    logger.info("Starting Portfolio Guardian Scan...")
+    logger.info("Starting Portfolio Guardian Scan with Async Batching...")
+    # 1. Fetch Active Theses IDs
     db = SessionLocal()
-    
     try:
-        # 1. Fetch Active Theses
         theses = db.query(GuardianThesis).filter(GuardianThesis.is_active == True).all()
         logger.info(f"Found {len(theses)} active theses to monitor.")
         
-        for i, thesis in enumerate(theses):
-            await process_thesis(db, thesis)
-            # Rate Limiter: 5-second cooldown between theses to avoid hammering LLM/web APIs
-            if i < len(theses) - 1:
-                logger.info("⏳ Rate limiter: waiting 5 seconds before next thesis...")
-                time.sleep(5)
-            
-    except Exception as e:
-        logger.error(f"Guardian job failed: {e}")
+        # We only pass IDs to threads so each thread can open its own DB session (Thread-safe)
+        thesis_tasks = [{"id": t.id, "scan_id": None} for t in theses]
     finally:
         db.close()
-        logger.info("Guardian Scan Completed.")
+        
+    if not thesis_tasks:
+        logger.info("Guardian Scan Completed. No active theses.")
+        return
 
-async def process_thesis(db: Session, thesis: GuardianThesis, scan_id: str = None):
-    symbol = thesis.symbol
-    logger.info(f"Checking {symbol} (User ID: {thesis.user_id})...")
+    # 2. Async Filter Batching
+    # We use ThreadPoolExecutor because detect_events blocks on yfinance/network calls
+    from concurrent.futures import ThreadPoolExecutor
+    loop = asyncio.get_event_loop()
+    
+    # Process 5 concurrent requests at a time to stay under Yahoo/Finnhub rate limits
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        tasks = [
+            loop.run_in_executor(pool, process_thesis_sync, task["id"], task["scan_id"]) 
+            for task in thesis_tasks
+        ]
+        # Wait for all to finish
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+    logger.info("Guardian Scan Completed.")
+
+
+def process_thesis_sync(thesis_id: int, scan_id: str = None):
+    """
+    Synchronous wrapper for processing a single thesis in an isolated thread.
+    Opens and closes a fresh DB session avoiding SQLite locked errors.
+    """
+    # Create thread-local session
+    db = SessionLocal()
+    import hashlib
     
     try:
+        thesis = db.query(GuardianThesis).get(thesis_id)
+        if not thesis:
+            return
+            
+        symbol = thesis.symbol
+        logger.info(f"Checking {symbol} (User ID: {thesis.user_id})...")
+        
         # Stage 1: Event Detection (Fast Filter)
-        # For MANUAL scans (scan_id set), bypass the fast filter entirely so the
-        # full 3-turn agent always runs regardless of market conditions.
         if scan_id:
             logger.info(f"⚡ Manual scan for {symbol} — bypassing detect_events fast filter.")
-            detection = {'triggered': True, 'events': ['Manual scan requested by user'], 'current_price': None}
-            # Try to get current price for record update even in bypass mode
+            detection = {'triggered': True, 'events': ['Manual scan requested by user'], 'event_keys': ['manual_scan'], 'current_price': None}
             try:
                 info = guardian.detect_events(symbol, last_known_price=None)
                 if info.get('current_price'):
@@ -68,32 +89,56 @@ async def process_thesis(db: Session, thesis: GuardianThesis, scan_id: str = Non
         else:
             detection = guardian.detect_events(symbol, last_known_price=thesis.last_price)
         
-        if not detection['triggered']:
+        # If no events triggered, update heartbeat and bail
+        if not detection.get('triggered', False):
             logger.info(f"✅ No significant events for {symbol}. Keeping thesis INTACT.")
-            # Update check stats
             thesis.last_checked_at = datetime.utcnow()
             thesis.check_count += 1
             if detection.get('current_price'):
                 thesis.last_price = detection['current_price']
             db.commit()
-            # Signal the frontend polling loop that this scan finished cleanly
+            
             if scan_id and scan_id in guardian_agent.active_scan_logs:
                 guardian_agent.active_scan_logs[scan_id].append({
                     "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
                     "stage": "COMPLETE",
-                    "content": f"No significant market events detected for {symbol}. Thesis remains INTACT. No deep-dive required."
+                    "content": f"No significant market events detected for {symbol}. Thesis remains INTACT."
                 })
             return
 
-        # Events Detected!
-        events = detection['events']
-        logger.info(f"⚠️ Events detected for {symbol}: {events}")
+        # --- STATEFULNESS EVENT DEDUPLICATION ---
+        events = detection.get('events', [])
+        event_keys = detection.get('event_keys', [])
+        
+        # Create deterministic signature of current event categories
+        if event_keys:
+            event_keys.sort()
+        current_state_signature = hashlib.md5(json.dumps(event_keys).encode()).hexdigest()
+        
+        if not scan_id and thesis.last_trigger_state == current_state_signature and event_keys:
+            logger.info(f"✅ Deduplication: Events for {symbol} ({event_keys}) identical to last run. Suppressing redundant LLM evaluation.")
+            thesis.last_checked_at = datetime.utcnow()
+            thesis.check_count += 1
+            if detection.get('current_price'):
+                thesis.last_price = detection['current_price']
+            db.commit()
+            return
+            
+        logger.info(f"⚠️ NEW Events detected for {symbol}: {events}")
         
         # Stage 2: Gather Evidence
         evidence = guardian.gather_evidence(symbol)
         
         # Stage 3: Agent Evaluation
-        risk_eval = guardian_agent.evaluate_risk_agentic(symbol, thesis.thesis, events, evidence, scan_id=scan_id)
+        try:
+            risk_eval = guardian_agent.evaluate_risk_agentic(symbol, thesis.thesis, events, evidence, scan_id=scan_id)
+        except Exception as e:
+            # RATE LIMIT SAFETY NET
+            if "429" in str(e) or "quota" in str(e).lower():
+                logger.warning(f"🚨 LLM Rate Limit Hit for {symbol}. Moving to delayed retry, skipped alert.")
+                return
+            logger.error(f"Error during agentic evaluation for {symbol}: {e}")
+            risk_eval = {"thesis_status": "AT_RISK", "confidence": 0.0, "reasoning": f"AI evaluation failed: {e}", "recommended_action": "HOLD"}
         
         status = risk_eval.get('thesis_status', 'AT_RISK')
         confidence = risk_eval.get('confidence', 0.0)
@@ -102,8 +147,6 @@ async def process_thesis(db: Session, thesis: GuardianThesis, scan_id: str = Non
 
         # Stage 4: Act (Save Alert & Notify)
         if status in ['AT_RISK', 'BROKEN'] or (status == 'INTACT' and confidence < 0.7):
-            # Create Alert
-            # Full reasoning goes to email, capped version goes to DB
             full_reasoning = risk_eval.get('reasoning_full') or risk_eval.get('reasoning', '')
             capped_reasoning = risk_eval.get('reasoning', '')[:100]
             
@@ -130,17 +173,23 @@ async def process_thesis(db: Session, thesis: GuardianThesis, scan_id: str = Non
                     logger.info(f"Skipping email alert for manual scan {scan_id} (symbol: {symbol})")
                 else:
                     try:
-                        # Pass full reasoning to email (not the DB-capped version)
-                        alert.reasoning = full_reasoning  # Temporarily set full for email template
-                        await mail.send_guardian_alert_email(user.email, alert)
-                        alert.reasoning = capped_reasoning  # Reset to capped for DB
-                        alert.email_sent = True
+                        # Required to send email via sync blocking thread (create a mini event loop if mail is async)
+                        import asyncio as sync_asyncio
+                        
+                        async def send_mail():
+                            alert.reasoning = full_reasoning
+                            await mail.send_guardian_alert_email(user.email, alert)
+                            alert.reasoning = capped_reasoning
+                            alert.email_sent = True
+                            
+                        sync_asyncio.run(send_mail())
                         db.commit()
                         logger.info(f"Generated alert {alert.id} for user {user.email}")
                     except Exception as e:
                         logger.error(f"Failed to send email: {e}")
             
-        # Update Thesis State
+        # Success - update trigger state to prevent duplicate reporting tomorrow
+        thesis.last_trigger_state = current_state_signature
         thesis.last_checked_at = datetime.utcnow()
         thesis.check_count += 1
         if detection.get('current_price'):
@@ -148,8 +197,10 @@ async def process_thesis(db: Session, thesis: GuardianThesis, scan_id: str = Non
         db.commit()
 
     except Exception as e:
-        logger.error(f"Error processing {symbol}: {e}")
+        logger.error(f"Error processing {symbol} (ID: {thesis_id}): {e}")
         db.rollback()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     asyncio.run(run_guardian_scan())

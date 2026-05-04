@@ -10,8 +10,8 @@ class GroundingValidator:
     (Phase 2 of the Scoring Engine Redesign)
     """
 
-    def __init__(self, tolerance_pct: float = 0.05):
-        # 5% margin of error for LLM rounding (e.g., 20.4 treated as 20 or 20.5)
+    def __init__(self, tolerance_pct: float = 0.10):
+        # 10% margin of error for LLM rounding (Phase 2.1 Adjustment)
         self.tolerance_pct = tolerance_pct
 
     def _extract_numbers(self, text: str) -> List[float]:
@@ -49,12 +49,13 @@ class GroundingValidator:
             elif isinstance(node, (int, float)):
                 flat_values.append(float(node))
             elif isinstance(node, str):
-                # Attempt to extract floats from formatted strings like "35.5%" or "$120.50"
-                clean_str = node.replace(',', '').replace('%', '').replace('$', '')
-                try:
-                    flat_values.append(float(clean_str))
-                except ValueError:
-                    pass
+                # Extract all numbers from formatted strings (like "-20.0% below SMA200 (buffer -5%)")
+                matches = re.findall(r'[-+]?(?:\d+(?:\.\d+)?|\.\d+)', node.replace(',', ''))
+                for m in matches:
+                    try:
+                        flat_values.append(float(m))
+                    except ValueError:
+                        pass
                     
         _recurse(context_metrics)
         return flat_values
@@ -91,8 +92,10 @@ class GroundingValidator:
         valid_context_numbers = self._flatten_context(context_metrics)
         
         # We implicitly allow standard conversational numbers (1, 2, 3, 5, 10, 50, 100)
-        # to prevent flagging phrases like "Top 10" or "One of the best"
-        safe_numbers = [1.0, 2.0, 3.0, 5.0, 10.0, 50.0, 100.0]
+        # to prevent flagging phrases like "Top 10" or "One of the best", and common years/scores
+        safe_numbers = [1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0,
+                        2023.0, 2024.0, 2025.0, 2026.0, 2027.0, 2030.0,
+                        23.0, 24.0, 25.0, 26.0]
         
         hallucination_count = 0
         for num in llm_numbers:

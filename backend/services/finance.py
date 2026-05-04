@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 from services.disk_cache import stock_info_cache, price_cache, analysis_cache, holders_cache
 from cachetools import cached, TTLCache
 from services.finnhub_insider import is_available
+from services.wacc_estimator import calculate_wacc
 
 # yf_session removed to allow yfinance to handle its own session (v7.4 fix)
 
@@ -572,6 +573,7 @@ def get_institutional_holders(ticker: str, stock_obj=None):
                 # Clean keys
                 cleaned_holders = []
                 for h in top_holders:
+                    if not h: continue
                     shares = h.get("Shares", 0)
                     pct_out = h.get("% Out", h.get("pctHeld", 0))
                     
@@ -845,14 +847,14 @@ def fetch_coordinated_analysis_data(ticker: str):
                 financial = qs.get('financialData', {})
                 
                 # Manual mapping for common fields
-                flat_info['currentPrice'] = price.get('regularMarketPrice', {}).get('raw')
-                flat_info['previousClose'] = price.get('regularMarketPreviousClose', {}).get('raw')
-                flat_info['marketCap'] = price.get('marketCap', {}).get('raw')
-                flat_info['trailingPE'] = summary.get('trailingPE', {}).get('raw')
-                flat_info['forwardPE'] = financial.get('forwardPE', {}).get('raw')
-                flat_info['dividendYield'] = summary.get('dividendYield', {}).get('raw')
-                flat_info['heldPercentInstitutions'] = summary.get('heldPercentInstitutions', {}).get('raw')
-                flat_info['heldPercentInsiders'] = summary.get('heldPercentInsiders', {}).get('raw')
+                flat_info['currentPrice'] = (price or {}).get('regularMarketPrice', {}).get('raw')
+                flat_info['previousClose'] = (price or {}).get('regularMarketPreviousClose', {}).get('raw')
+                flat_info['marketCap'] = (price or {}).get('marketCap', {}).get('raw')
+                flat_info['trailingPE'] = (summary or {}).get('trailingPE', {}).get('raw')
+                flat_info['forwardPE'] = (financial or {}).get('forwardPE', {}).get('raw')
+                flat_info['dividendYield'] = (summary or {}).get('dividendYield', {}).get('raw')
+                flat_info['heldPercentInstitutions'] = (summary or {}).get('heldPercentInstitutions', {}).get('raw')
+                flat_info['heldPercentInsiders'] = (summary or {}).get('heldPercentInsiders', {}).get('raw')
                 # Add more as needed by Scorer...
                 return flat_info
             return {}
@@ -1040,9 +1042,10 @@ def get_batch_prices(tickers: list):
             # Parse chunk results
             for symbol in chunk:
                 try:
-                    # Handle MultiIndex
-                    if len(chunk) > 1:
-                        if symbol in df.columns.levels[0]: # Check if symbol exists in top level keys
+                    # Handle MultiIndex strictly
+                    import pandas as pd
+                    if isinstance(df.columns, pd.MultiIndex):
+                        if symbol in df.columns.levels[0]:
                             ticker_df = df[symbol]
                         else:
                             continue
@@ -1503,7 +1506,19 @@ def get_advanced_metrics(ticker: str, stock_obj=None) -> dict:
         "altman_z_score": 3.0,
         "revenue_growth_3y_cagr": 0.0, # 3-year CAGR
         "return_on_assets": 0.0,
-        "current_ratio": 0.0
+        "current_ratio": 0.0,
+        "nopat": None,
+        "invested_capital": None,
+        "operating_cash_flow": None,
+        "trailing_eps": [],
+        "net_income": None,
+        "total_assets": None,
+        "net_share_issuance_ttm": None,
+        "wacc": 0.10, # default 10%
+        # Phase 3 RIM fields
+        "book_value_per_share": None,
+        "forward_roe": None,
+        "shares_outstanding": None,
     }
     
     try:
@@ -1511,14 +1526,79 @@ def get_advanced_metrics(ticker: str, stock_obj=None) -> dict:
         
         # 1. Info extraction
         info = stock.info
+        if not info:
+            logger.warning(f"yfinance info extraction failed for {ticker}")
+            info = {}
+        
         metrics['return_on_assets'] = info.get('returnOnAssets', 0.0) or 0.0
         metrics['current_ratio'] = info.get('currentRatio', 0.0) or 0.0
+        metrics['net_income'] = info.get("netIncomeToCommon")
+        metrics['wacc'] = calculate_wacc(ticker)
+        
+        # Phase 3 RIM: Book Value Per Share & Forward ROE
+        bvps = info.get('bookValue')
+        if bvps is not None:
+            metrics['book_value_per_share'] = float(bvps)
+        
+        shares_out = info.get('sharesOutstanding')
+        if shares_out is not None:
+            metrics['shares_outstanding'] = float(shares_out)
+        
+        # Forward ROE approximation: Forward EPS / BVPS
+        forward_eps = info.get('forwardEps')
+        if forward_eps is not None and bvps is not None and bvps > 0:
+            metrics['forward_roe'] = float(forward_eps) / float(bvps)
         
         # Debt/EBITDA
         total_debt = info.get('totalDebt')
         ebitda = info.get('ebitda')
         if total_debt and ebitda and ebitda > 0:
             metrics['debt_to_ebitda'] = total_debt / ebitda
+            
+        # Extract V12 Advanced Metrics
+        is_df = stock.financials
+        bs_df = stock.balance_sheet
+        cf_df = stock.cashflow
+        
+        if not is_df.empty:
+            if "Operating Income" in is_df.index and "Tax Provision" in is_df.index and "Pretax Income" in is_df.index:
+                op_inc = is_df.loc["Operating Income"].iloc[0]
+                tax = is_df.loc["Tax Provision"].iloc[0]
+                pretax = is_df.loc["Pretax Income"].iloc[0]
+                if pretax != 0 and not pd.isna(pretax) and not pd.isna(tax):
+                    tax_rate = tax / pretax
+                else:
+                    tax_rate = 0.21
+                if not pd.isna(op_inc):
+                    metrics["nopat"] = float(op_inc * (1 - tax_rate))
+            
+            if "Diluted EPS" in is_df.index:
+                metrics["trailing_eps"] = [float(x) for x in is_df.loc["Diluted EPS"].dropna().tolist()]
+        
+        if not bs_df.empty:
+            if "Total Assets" in bs_df.index:
+                ta = bs_df.loc["Total Assets"].iloc[0]
+                if not pd.isna(ta):
+                    metrics["total_assets"] = float(ta)
+            if "Invested Capital" in bs_df.index:
+                ic = bs_df.loc["Invested Capital"].iloc[0]
+                if not pd.isna(ic):
+                    metrics["invested_capital"] = float(ic)
+
+        if not cf_df.empty:
+            if "Operating Cash Flow" in cf_df.index:
+                ocf = cf_df.loc["Operating Cash Flow"].iloc[0]
+                if not pd.isna(ocf):
+                    metrics["operating_cash_flow"] = float(ocf)
+            if "Net Common Stock Issuance" in cf_df.index:
+                nsi = cf_df.loc["Net Common Stock Issuance"].iloc[0]
+                if not pd.isna(nsi):
+                    metrics["net_share_issuance_ttm"] = float(nsi)
+            elif "Repurchase Of Capital Stock" in cf_df.index:
+                repurchase = cf_df.loc["Repurchase Of Capital Stock"].iloc[0]
+                issuance = cf_df.loc["Common Stock Issuance"].iloc[0] if "Common Stock Issuance" in cf_df.index else 0
+                if not pd.isna(repurchase):
+                    metrics["net_share_issuance_ttm"] = float(issuance + repurchase)
             
         # 2. Quarterly Financials (For Margin Trend & Coverage)
         qf = stock.quarterly_financials
@@ -1610,6 +1690,7 @@ def get_advanced_metrics(ticker: str, stock_obj=None) -> dict:
                  print(f"Z-Score calc error: {ez}")
                  
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error fetching advanced metrics for {ticker}: {e}")
-        
     return metrics

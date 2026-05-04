@@ -22,6 +22,7 @@
 
 ## 3. Thesis Agent (Portfolio Guardian)
 Autonomous watchdog and deep-reasoning research engine.
+-   **Thesis Library**: Dedicated Master-Detail UI to manage, regenerate, edit, and delete AI theses. Includes on-demand `/api/guardian/scan` capabilities.
 -   **Monitoring Logic**: Continuous background scans for price drops, earnings, and sentiment shifts.
 -   **On-Demand**: "Regenerate" option available directly from the Dashboard Watchlist for instant thesis updates. (Note: Deep Agent Execution Trace is accessible exclusively within the Thesis Library).
 -   **Phase 4 Guardrails**:
@@ -32,17 +33,16 @@ Autonomous watchdog and deep-reasoning research engine.
     - **Agentic Loop**: Turn 0 (Fact Collection) -> Plan -> Scrape (DDG/Motley) -> Retrieve SEC (edgartools) -> Synthesize.
     - **Pure Text Caching**: Highly efficient, zero-cost SEC data ingestion pipeline storing pre-summarized 10-K/10-Q text blocks in SQLite.
 
-## 4. VinSight Engine v10.0
-Professional-grade scoring with **Ruthless Objectivity** and Universal Kill Switches.
-- **10-Tier Scoring Rubric**: Granular ratings from `Generational` (90-100) to `Bankruptcy Risk` (0-19).
+## 4. VinSight Engine v13.0
+Professional-grade scoring with **Ruthless Objectivity** and a Three-Axis Framework.
+- **Three-Axis Architecture**: Independent scoring for Quality, Value, and Timing.
+- **Residual Income Model (RIM)**: Intrinsic valuation and Margin of Safety built into the Value axis.
+- **Persona Conviction Weights**: Distinct weighting profiles for CFA, Momentum, Value, etc.
 - **Universal Kill Switches**: Explicit penalty badges for Solvent Risk (-20pts), Valuation Caps (-15pts), and more.
-- **Confidence Calibration**: Scores are automatically discounted if AI confidence < 50%.
-- **Persona Scoring**: Sensitivity tuned for Value, Growth, Momentum, and CFA styles.
-- **Institutional Conviction Index**: Mathematically blends Algo Ground Truth (40%), Smart Money (30%), and AI Sentiment (30%).
-- **Algorithms**: `ReasoningScorer` (v10.0) acts as the primary engine with `vinsight_scorer` (v9.0) as the mathematical fallback.
+- **Algorithms**: `ReasoningScorer` acts as the primary engine with `vinsight_scorer` (v13.0) as the mathematical fallback.
 - **[Read Full Scoring Logic](./SCORING_ENGINE.md)**
 
-## 4. Advanced Projections
+## 5. Advanced Projections
 - **Monte Carlo Scenarios**: Bull (P90), Base (P50), and Bear (P10) price targets.
 - **Risk Assessment**: Value at Risk (VaR), Annualized Volatility, and Probability of hitting +25%/-25%.
 - **Analyst Consensus**: Yahoo Finance target prices and recommendation trends.
@@ -57,7 +57,7 @@ Professional-grade scoring with **Ruthless Objectivity** and Universal Kill Swit
 - **Secure Auth**: JWT-based login with email verification and hashed passwords.
 - **[Read Security Documentation](./SECURITY.md)**
 
-## 7. Portfolio Intelligence (v9.8.0)
+## 8. Portfolio Intelligence (v9.8.0)
 Advanced tools for tracking and auditing actual investment holdings.
 - **Individual Portfolio Dashboard**:
     - **Dynamic Stats Bar**: Real-time aggregate metrics for Net Worth, Total Unrealized P&L, Day Change, and Cost Basis.
@@ -70,7 +70,11 @@ Advanced tools for tracking and auditing actual investment holdings.
     - **DeepSeek R1 Audit**: 6-point institutional-grade analysis for focused portfolio health checks.
     - **Contextual Awareness**: Automatically replaces the "AI Strategist" when a portfolio is selected.
 
-## 8. Investor Profile & Deep Personalization (v11.x)
-- **Comprehensive User Profile**: Tracks Time Horizon, Risk Appetite, Monthly Investment Budget, and Specific Financial Goals (Target Date and Target Amount).
-- **Personalized AI Strategist**: Directly integrates the User Profile into the `ReasoningScorer` to algorithmically reward/penalize stocks that strongly align or conflict with the user's explicit goals.
-- **Fiduciary-Bounded Thesis Agent**: The Guardian Agent's "Bear Attack" now actively maps stock risks directly to the user's specific targets, generating hyper-personalized alerts.
+## 9. Investor Profile & Deep Personalization (v12.0)
+- **Comprehensive User Profile**: Tracks Time Horizon, Risk Appetite, Monthly Investment Budget, and Specific Financial Goals.
+- **Personalized AI Strategist**: Directly integrates the User Profile into the `ReasoningScorer` to algorithmically reward/penalize stocks (±10 points) that strongly align or conflict with the user's explicit goals.
+- **Fiduciary-Bounded Thesis Agent**: The Guardian Agent's "Bear Attack" now actively maps stock risks directly to the user's specific targets.
+
+## 10. Backtesting Engine (v13.0)
+- **Historical Validation**: Tests the v13 scoring model against point-in-time snapshots to validate predictive power.
+- **Signal Tracking**: Elite tier (80-100 scores) empirically hits 72% win-rate at 3 months and 100% win-rate at 12 months with massive excess returns over the S&P 500.

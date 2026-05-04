@@ -1,66 +1,103 @@
-# VinSight 📈
-> **AI-Powered Stock Market Analysis Platform**
+# VinSight 📈 | Autonomous AI Financial Analyst
 
+<div align="center">
+  
 ![License: Source Available](https://img.shields.io/badge/License-Source%20Available-blue)
 ![Status: Production](https://img.shields.io/badge/Status-Production-green)
+![Version](https://img.shields.io/badge/Version-v13.0-orange)
+![Tech Stack](https://img.shields.io/badge/Tech-Next.js%20%7C%20Python%20%7C%20DeepSeek%20%7C%20Llama%203.3-black)
 
-VinSight is a comprehensive financial research tool that combines real-time stock data with AI-driven sentiment analysis to provide institutional-grade insights for the retail investor.
+**Institutional-grade quantitative scoring meets multi-agent AI debate.**  
+VinSight strips away corporate PR spin to give retail investors ruthless, empirical truth.
+
+![VinSight Dashboard Demo](docs/assets/vinsight_demo.webp)
+
+</div>
 
 ---
 
-## 🚀 Key Features (v13.0.0)
+## 🛑 The Problem: Information Asymmetry
+Retail investors operate at a massive disadvantage. They are bombarded with corporate PR spin, overwhelmed by dense 10-K SEC filings, and lack access to the rigorous quantitative models used by hedge funds. Standard AI tools fail here—they suffer from confirmation bias and hallucinate financial math.
 
-- **v13 Three-Axis Scoring Engine**: Quality (0-100), Value (0-100), Timing (0-100) scored independently and combined via persona-weighted conviction (`Q×Wq + V×Wv + T×Wt`). Includes RIM valuation, WACC estimation, kill switches, and a strictly enforced 50% Fiduciary Data Refusal to intercept empty metrics. See [`docs/SCORING_ENGINE.md`](docs/SCORING_ENGINE.md).
-- **AI Narrative Layer (v13.0)**: Multi-provider chain (Anthropic → Groq → OpenRouter → DeepSeek → Gemini) with 180s reasoning windows, three-axis context injection, persona lens, and ±10 pt contextual adjustments. Detailed API starvation logging enables transparent offline evaluating.
-- **Backtesting Engine**: Empirical validation of scoring signal — Elite tier (80-100) achieves 72% hit rate at 3mo, 100% at 12mo, +7.4% excess return vs SPY.
-- **Institutional Portfolio Dashboard**: Real-time aggregate metrics (Net Worth, P&L, Day Change) with sector allocation charts and high-density holdings tables.
-- **Smart CSV Importer**: Seamlessly import holdings from Robinhood or generic CSV exports with instant market data enrichment.
-- **Institutional Conviction Index**: Triple-factor signal synthesis (Algo + Smart Money + Sentiment) for decisive trading verdicts.
-- **Pure Text SEC RAG**: On-Demand, zero-cost pipeline that scrapes, summarizes, and caches 10-K/10-Q risk factors directly into the Thesis Agent's context window.
-- **Progressive Hydration Dashboard**: Ultra-fast initial rendering (Formula Engine) with background LLM hydration for deep reasoning.
-- **Thesis Guardian (Agentic Debate Model)**: Evaluates portfolio risks by spinning up parallel Bull and Bear AI agents that independently search the web, debate thesis weaknesses, and present findings to a Judge LLM (capped at 2 escalation turns) to flag broken theses.
-- **Deep Market & Sentiment Triggers**: Proactively triggers the Guardian using Macro Regime checking (S&P 500 SMA) and Llama 3.3 Sentiment crash detections.
-- **Monte Carlo Projections**: 10,000+ simulated price paths with Risk Analytics (VaR, Volatility).
-- **Insider Intelligence**: Discretionary trade filtering and coordinated "Cluster Selling" detection.
-- **Global Health Bar**: Real-time market pulse ticker for top indices (S&P 500, Nasdaq, BTC).
-- **Confirmed Alerts**: Real-time price triggers delivered via authenticated SMTP.
+## 💡 The Solution: VinSight v13
+VinSight is an **Agentic Financial Ecosystem**. It doesn't just fetch stock prices; it actively debates them. By combining a deterministic **Three-Axis Quant Engine** with a **Multi-Agent Debate Scaffolding** powered by DeepSeek R1, VinSight acts as an uncompromised, fiduciary co-pilot.
 
-## 🏁 Quick Start
+---
+
+## 🚀 Core Pillars
+
+### 🧠 1. The Intelligence Layer (Agent Scaffolding)
+VinSight eliminates AI confirmation bias through structured adversarial debate.
+*   **The Guardian Agent (Debate Model)**: Before a thesis is generated, VinSight spawns parallel **Bull** and **Bear** AI agents. They independently search the web, debate thesis weaknesses, and present findings to a Judge LLM (DeepSeek R1). 
+*   **Spin Detection**: A proprietary bearish-keyword heuristic mathematically flags and penalizes corporate PR "spin," successfully dropping the platform's positive sentiment bias from 89% to 33%.
+*   **Zero-Cost SEC RAG**: We bypass expensive vector databases. Using Gemini 2.0 Flash, VinSight pre-summarizes 10-K/10-Q risk factors into pure text blocks cached in SQLite, guaranteeing 100% recall of corporate risks without hallucination.
+
+### 📐 2. The Quant Engine (Ruthless Objectivity)
+Python math is the sole authority for scoring; the LLM merely provides narrative.
+*   **Three-Axis Framework**: Stocks are evaluated independently on **Quality** (Health), **Value** (Cheapness), and **Timing** (Momentum), ensuring a high-quality but overvalued stock isn't blindly recommended.
+*   **Residual Income Model (RIM)**: Intrinsic valuation is calculated using RIM and WACC estimations to determine a true **Margin of Safety**.
+*   **Persona Conviction Matrix**: The final 0-100 score is dynamically weighted based on user profiles (CFA, Momentum, Value, Growth).
+*   **Fiduciary Data Refusal (The 50% Rule)**: If upstream APIs are starved of data (e.g., recent IPOs), the engine aborts the calculation and explicitly neutralizes the score to prevent bizarre edge-case inflations.
+
+### 📊 3. Empirical Validation (Backtested Results)
+VinSight isn't just theoretical. The v13 engine has been rigorously backtested over 12-month historical point-in-time snapshots to validate predictive power.
+*   🏆 **Elite Tier (80-100 Score)**: Empirically achieves a **72% win-rate at 3 months** and a **100% win-rate at 12 months**.
+*   📈 **Alpha Generation**: Delivers **+7.4% excess return** over the S&P 500 benchmark.
+*   🛑 **Avoid Tier (0-49 Score)**: Achieves a 0% hit rate at 12 months, validating the continuous outlier penalty logic.
+
+---
+
+## 🏗️ Technical Architecture
+VinSight is built for speed and resilience, utilizing progressive hydration to instantly render quantitative math while background agents process deep reasoning.
+
+| Component | Technology Stack | Purpose |
+| :--- | :--- | :--- |
+| **Frontend** | Next.js 14, Tailwind CSS, Lightweight-Charts | High-performance progressive hydration dashboard |
+| **Backend** | Python 3.10+, FastAPI | High-concurrency quantitative engine & orchestration |
+| **Data Layer** | SQLite, PostgreSQL, Secret Manager | Pure Text RAG context caching & User profiles |
+| **LLM Routing** | Llama 3.3 (Groq), DeepSeek R1, Gemini 2.0 | Multi-provider cognitive routing based on latency/reasoning needs |
+| **Infrastructure** | Google Cloud Run, Cloud Scheduler | Serverless scaling and background Guardian jobs |
+
+👉 **Deep Dive:** Read the [Technical System Design (v13.0)](docs/SYSTEM_DESIGN.md) document for a complete architectural breakdown.
+
+---
+
+## 🏁 Developer Quick Start
 
 ### 1. Prerequisites
 - Python 3.10+, Node.js 20+
 - API Keys: [Groq](https://console.groq.com), [Google AI](https://aistudio.google.com), [Alpha Vantage](https://www.alphavantage.co), [Serper](https://serper.dev)
 
-### 2. Setup
+### 2. Local Setup
 ```bash
-# Clone the repo
+# Clone the repository
 git clone https://github.com/vinayakm-93/vinsight.git && cd vinsight
 
-# Backend Setup
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt && python main.py
+# Terminal 1: Start Backend Engine
+cd backend 
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python main.py
 
-# Frontend Setup (New Terminal)
-cd frontend && npm install && npm run dev
+# Terminal 2: Start Frontend Dashboard
+cd frontend 
+npm install 
+npm run dev
 ```
+*Note: On first run, the AI engine requires 5-10s to hydrate initial SEC contexts.*
 
-## 📚 Documentation
+---
 
-The project documentation is organized for clarity:
+## 📚 Project Documentation
 
-- **[Product Requirements (PRD)](docs/PRD.md)**: Vision, target audience, and core pillars.
-- **[Full Feature List](docs/FEATURES.md)**: Detailed catalog of all application features.
-- **[Architecture Overview](docs/ARCHITECTURE.md)**: Technical stack, system diagrams, and data flow.
-- **[Scoring Engine Logic](docs/SCORING_ENGINE.md)**: Deep dive into the v9.0 Dynamic Benchmark Model.
-- **[V12 Engine Reference](docs/V12_ENGINE.md)**: V12 Defensive Layer, RIM Valuation, WACC estimation, and kill switch documentation.
-- **[Security & Compliance](docs/SECURITY.md)**: Security audits and rotation protocols.
-- **[Maintenance Log](docs/MAINTENANCE_LOG.md)**: Bug fix history and performance RCAs.
-- **[Setup & Deployment](docs/SETUP.md)**: Detailed environment and Google Cloud setup.
-  > **Note**: On Google Cloud Run, the first request may take 5-10s (Cold Start) to initialize the AI engine. A dedicated loading screen handles this interaction.
+- **[Technical System Design](docs/SYSTEM_DESIGN.md)**: Deep dive into Agent Scaffolding, LLM Routing, and the Quant Engine.
+- **[Full Feature Catalog](docs/FEATURES.md)**: Comprehensive list of all dashboard and API features.
+- **[Architecture & Flow](docs/ARCHITECTURE.md)**: Cloud topology and deployment architecture diagrams.
+- **[Scoring Engine Math](docs/SCORING_ENGINE.md)**: The explicit formulas driving the Three-Axis scores and outlier penalties.
+- **[Security & Setup](docs/SETUP.md)**: Environment configuration and OWASP compliance protocols.
+- **[Maintenance Log](docs/ADR/MAINTENANCE_LOG.md)**: Root Cause Analyses and architectural decision records.
 
 ---
 
 ## 📄 License
-© 2024-2026 Vinayak. This project is licensed under a custom **Source Available License**.
-Modification and redistribution are prohibited. See [LICENSE](LICENSE) for details.
-
+© 2024-2026 Vinayak. This project is licensed under a custom **Source Available License**. Modification and redistribution are prohibited. See [LICENSE](LICENSE) for details.

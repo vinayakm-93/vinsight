@@ -18,10 +18,11 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
     """
     Stage 1: Fast Filter.
     Checks for significant events that warrant a full LLM review.
-    Returns a dict with 'triggered': bool and 'events': List[str].
+    Returns a dict with 'triggered': bool, 'events': List[str], and 'event_keys': List[str].
     """
     triggered = False
     events = []
+    event_keys = []
     current_price = None
 
     try:
@@ -29,8 +30,10 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
         try:
             regime = finance.get_market_regime()
             if not regime.get('bull_regime', True):
-                triggered = True
+                # FIXED: Do not set triggered=True for macro headwinds alone to avoid O(N) LLM API credit drain.
+                # Only use it as contextual evidence if another stock-specific event triggers the Guardian Agent.
                 events.append("MACRO HEADWIND: S&P 500 is currently below its 200-day SMA, indicating a broad market distribution regime.")
+                # We do NOT append to event_keys here because macro headwinds alone don't trigger state changes for a stock
         except Exception as e:
             logger.warning(f"Macro regime check failed: {e}")
 
@@ -45,6 +48,7 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
                 if pct_change <= PRICE_DROP_THRESHOLD:
                     triggered = True
                     events.append(f"Price dropped {pct_change*100:.1f}% since last check")
+                    event_keys.append("price_drop")
 
             # Check Daily Change (as a fallback or additional signal)
             daily_change = stock_info.get('regularMarketChangePercent', 0)
@@ -53,6 +57,7 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
                 if not any("Price dropped" in e for e in events):
                     triggered = True
                     events.append(f"Price dropped {daily_change:.1f}% in one session")
+                    if "price_drop" not in event_keys: event_keys.append("price_drop")
 
         # 3. Analyst Downgrades
         analyst_data = finance.get_analyst_targets(symbol)
@@ -61,22 +66,24 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
             if rec_key in ['sell', 'underperform']:
                 triggered = True
                 events.append(f"Analyst consensus is now {rec_key.upper()}")
+                event_keys.append("analyst_sell")
 
         # 4. Sentiment Crash
         sentiment_result = analysis.analyze_sentiment_ondemand(symbol)
         if sentiment_result and sentiment_result.get('quant_score', 0) <= SENTIMENT_CRASH_THRESHOLD:
             triggered = True
             event_str = f"Sentiment score crashed to {sentiment_result.get('quant_score')}."
-            # Append specific bearish context so the agents know what broke
             if sentiment_result.get('key_events'):
                 event_str += f" Reported risks: {sentiment_result['key_events'][:200]}"
             events.append(event_str)
+            event_keys.append("sentiment_crash")
 
         # 5. Earnings Miss
         earnings_surprise = finance.get_earnings_surprise(symbol)
         if earnings_surprise is not None and earnings_surprise <= EARNINGS_MISS_THRESHOLD:
             triggered = True
             events.append(f"Earnings missed estimates by {earnings_surprise*100:.1f}%")
+            event_keys.append("earnings_miss")
 
     except Exception as e:
         logger.error(f"Error checking events for {symbol}: {e}")
@@ -85,6 +92,7 @@ def detect_events(symbol: str, last_known_price: Optional[float] = None) -> Dict
     return {
         "triggered": triggered,
         "events": events,
+        "event_keys": event_keys,
         "current_price": current_price
     }
 

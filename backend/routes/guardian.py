@@ -104,6 +104,8 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
 
     try:
         guardian_summary = f"Monitoring {req.symbol}"
+        thesis_data = None
+        
         if existing:
             existing.is_active = True
         else:
@@ -129,7 +131,7 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
 
         if not inv_thesis:
             # Only generate if we didn't already
-            if not locals().get('thesis_data'):
+            if thesis_data is None:
                 thesis_data = guardian_agent.generate_investment_thesis(req.symbol)
                 guardian_summary = thesis_data.get('one_liner', guardian_summary)
                 existing.thesis = guardian_summary
@@ -153,8 +155,10 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
         return {"message": f"Guardian enabled for {req.symbol}", "thesis": guardian_summary}
 
     except Exception as e:
-        logger.error(f"Error enabling guardian for {req.symbol}: {e}")
-        raise HTTPException(500, "Failed to enable Guardian")
+        import traceback
+        err_msg = traceback.format_exc()
+        logger.error(f"Error enabling guardian for {req.symbol}: {err_msg}")
+        raise HTTPException(500, f"Failed to enable Guardian: {err_msg}")
 
 @router.post("/disable/{symbol}")
 async def disable_guardian(symbol: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

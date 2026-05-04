@@ -104,22 +104,14 @@ Penalties are designed to aggressively punish true outliers while ignoring norma
 | Growth | 0.5 | 0.3 | 0.8 | 1.5 |
 | Income | 1.5 | 0.8 | 0.5 | 1.2 |
 
-## 4. LLM Role
+## 4. LLM Narrative Layer & Contextual Nudges
 
-The LLM receives the full Python component breakdown in its prompt and provides:
+The LLM (DeepSeek R1 / Llama 3.3) receives the full Three-Axis Breakdown (Quality, Value, Timing) and generates a structural narrative:
+- **Thought Process**: 300-400 word deep reasoning chain.
+- **Summary**: Bull Case, Bear Case, and Verdict.
+- **Contextual Adjustment (±10)**: The LLM does NOT determine the base score. It only provides a qualitative nudge (e.g., +3 points for strong AI catalysts) which must be justified.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `thought_process` | string | 300-400 word analysis |
-| `summary.verdict` | string | 1-sentence action |
-| `summary.bull_case` | string | Upside drivers (100-150 words) |
-| `summary.bear_case` | string | Downside risks (100-150 words) |
-| `contextual_adjustment` | int (-10 to +10) | Qualitative score nudge |
-| `adjustment_reasoning` | string | Mandatory explanation (>20 chars or adjustment is zeroed) |
-
-**The LLM does NOT determine the score.** Its `contextual_adjustment` is bounded and requires reasoning.
-
-## 6. Response Shape
+## 5. Response Shape (v13 Schema)
 
 ```json
 {
@@ -137,55 +129,27 @@ The LLM receives the full Python component breakdown in its prompt and provides:
     "persona_lens": "The CFA philosophy rates this stock 72/100 because..."
   },
   "raw_breakdown": { "Quality Score": 85.2, "Value Score": 62.3, "Timing Score": 71.0 },
-  "component_scores": { "valuation": 6.5, "profitability": 7.2, "health": 8.1, "growth": 5.8, "technicals": 7.0 },
   "algo_breakdown": { "Quality Score": 85, "Value Score": 62, "Timing Score": 71 },
-  "score_explanation": { "factors": [...], "opportunities": [...] },
   "contextual_adjustment": 3,
   "adjustment_reasoning": "Strong earnings guidance and AI demand catalysts justify upward adjustment.",
   "penalty_details": [{ "type": "Overvaluation", "severity": 4.2, "detail": "..." }],
   "guardian_trigger": false,
-  "meta": { "source": "...", "persona": "CFA", "timestamp_pst": "...", "primary_driver": "...", "thought_process": "...", "engine_version": "v13.0" },
-  "details": [...]
+  "meta": { "source": "...", "persona": "CFA", "timestamp_pst": "...", "engine_version": "v13.0" }
 }
 ```
 
-## 6. What Was Cleaned / Removed
-
-| Removed | Reason |
-|---------|--------|
-| Confidence score & UI Meter | Cosmetic 0.8-1.0 multiplier with no mathematical signal value. |
-| Strategy Mixer slider | Extraneous piece of UI replaced entirely by the Persona Selector. |
-| Binary kill switches | Step-functions cause chaotic score drops; replaced by continuous Buffer+Gradient penalties. |
-| TextBlob Sentiment | Yielded low-quality sentiment noise; Groq/LLM provides much better contextual analysis. |
-| LLM scoring authority | LLM hallucinated math and weights; Python determinism is now the sole source of truth. |
-| `None → 0` coercion | Missing data artificially crushed scores; it now cleanly skips components without penalizing. |
-
-## 7. What Was Implemented & Fixed
-
-| Feature / Fix | Description |
-|---------------|-------------|
-| **5-Component Deterministic Base** | Python now flawlessly computes Valuation, Profitability, Health, Growth, Technicals as 0-10 scores, multiplied by explicit Persona Weights to generate the raw score. |
-| **Buffer + Gradient Penalties** | Penalties (like having a P/E of 50) don't apply until they cross a significant outlier threshold (the "Buffer"), after which they smoothly ramp up. This prevents tiny market jitter from affecting the score. |
-| **Data Integrity & Fallbacks** | Fixed the massive bug where `None` data wiped out scores. The engine gracefully ignores missing data and averages what remains. |
-| **LLM Grounding Guardrail Fix** | The `GroundingValidator` was falsely suppressing the AI narrative (e.g. for Amazon) because it couldn't see the penalty math. It has been fixed to read the full `StockData` context, stopping the false "hallucination mismatch" warnings. |
-| **F-String Output Bug Fix** | Re-wrote the nested `{{}}` JSON dumps syntax that caused the LLM server to crash entirely due to an unhashable dict error. |
-| **LLM Adjustment (±10)** | The LLM no longer dictates the entire 0-100 score. It provides qualitative narrative analysis, and only has authority to nudge the deterministic python score by a maximum of ±10 points (which requires 20+ chars of reasoning). |
-
-## 7. Files Modified
+## 6. Files Modified (v13 Engine)
 
 | File | Changes |
 |------|---------|
-| `vinsight_scorer.py` | `_linear_score`, `_score_component`, `_compute_components`, `PERSONAS`, `_apply_persona_weights`, `PENALTY_SENSITIVITY`, `_compute_penalties` |
-| `reasoning_scorer.py` | `AIResponseSchema`, `_parse_response`, `_build_system_prompt`, `_build_context` |
-| `analysis.py` | TextBlob removed, fallback returns neutral |
-| `requirements.txt` | `textblob` removed |
-| `Dashboard.tsx` | Confidence meter, strategy slider removed; v11.1 labels |
-| `test_scoring_v11_1.py` | 18 tests: None handling, components, personas, penalties, integration |
+| `backend/services/vinsight_scorer.py` | Contains `evaluate_v13()`, `_compute_quality_axis()`, `_compute_value_axis()`, `_compute_timing_axis()`, and Persona weights. |
+| `backend/services/reasoning_scorer.py` | Fetches Guardian status, injects User Profiles, builds v13 context prompt, and enforces bounding. |
+| `backend/services/backtest.py` | Historical validation of the Three-Axis Model using point-in-time snapshots. |
+| `backend/services/data_provider.py` | Abstract `DataProvider` interface for agnostic data fetching. |
 
-## 8. Running Tests
-
+## 7. Running Tests
 ```bash
-cd backend && python3 -m pytest tests/test_scoring_v11_1.py -v
+cd backend && python3 -m pytest tests/ -v
 ```
 
 Expected: 18/18 passed in <0.1s.

@@ -138,6 +138,7 @@ class GuardianThesis(Base):
     last_checked_at = Column(DateTime, nullable=True)
     last_manual_scan_at = Column(DateTime, nullable=True)
     last_price = Column(Float, nullable=True)
+    last_trigger_state = Column(Text, nullable=True)
     check_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

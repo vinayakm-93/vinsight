@@ -16,7 +16,7 @@ graph TD
     AV[Alpha Vantage API]
     Data[yfinance]
     Mail[SMTP Server]
-    Worker[Cloud Run Job: Market Watcher]
+    Worker[Cloud Run Job: vinsight-guardian]
 
     User -->|HTTP| FE
     FE -->|/api/* requests| Proxy
@@ -38,7 +38,7 @@ graph TD
 | **Frontend** | Next.js 14/15, TypeScript, Tailwind CSS, Framer Motion |
 | **Backend** | Python 3.11, FastAPI, Pydantic, SQLAlchemy |
 | **Database** | Cloud SQL (PostgreSQL 15) & Local SQLite |
-| **AI Models** | Groq (Llama 3.3 70B), Gemini 1.5 Pro, edgartools (SEC) |
+| **AI Models** | DeepSeek R1, Groq (Llama 3.3 70B), Gemini 2.0 Flash, edgartools (SEC) |
 | **Email** | FAST-Mail (SMTP/Gmail) |
 | **Infrastructure** | Google Cloud Run, Cloud Scheduler, Secret Manager |
 
@@ -80,7 +80,7 @@ VinSight exposes its internal analysis tools via an MCP Server, allowing externa
 
 ## 7. Detailed Technical Documentation
 - **[Security & Compliance](./SECURITY.md)**: OWASP compliance, Encryption audits, and Rotation schedules.
-- **[Maintenance & Incident Log](./MAINTENANCE_LOG.md)**: Fix history and Root Cause Analyses.
+- **[Maintenance & Incident Log](./ADR/MAINTENANCE_LOG.md)**: Fix history and Root Cause Analyses.
 - **[Deployment Guide](./DEPLOY.md)**: Instructions for pushing to Google Cloud.
 - **[Setup Guide](./SETUP.md)**: Local development environment configuration.
 

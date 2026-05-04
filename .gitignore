@@ -65,3 +65,15 @@ mcp_kill_switch.lock
 !composer.json
 !aapl_*.json
 !performance_baseline.json
+
+# Local Tests & Artifacts
+test_*.py
+!tests/
+backend/logs/
+cloud-sql-proxy
+db_user.txt
+db_pass.txt
+*.pdf
+*.pptx
+.agents/
+msis522-team-project-template/
