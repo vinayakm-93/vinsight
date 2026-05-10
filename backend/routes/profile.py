@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import User, UserGoal, ProfileEvent, Portfolio
 from services import auth
+import posthog
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +18,28 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 def log_profile_event(db: Session, user_id: int, event: str, field: str = None, value: str = None):
     """Log a minimal telemetry event for profile interactions."""
+    # 1. Log to Database (legacy)
     try:
         db.add(ProfileEvent(user_id=user_id, event=event, field=field, value=str(value)[:200] if value else None))
         db.commit()
     except Exception as e:
-        logger.warning(f"Failed to log profile event: {e}")
+        logger.warning(f"Failed to log profile event to DB: {e}")
+        
+    # 2. Log to PostHog
+    try:
+        properties = {}
+        if field:
+            properties["field"] = field
+        if value:
+            properties["value"] = value
+            
+        posthog.capture(
+            distinct_id=str(user_id),
+            event=event,
+            properties=properties
+        )
+    except Exception as e:
+        logger.warning(f"Failed to log profile event to PostHog: {e}")
 
 
 # --- Schemas ---

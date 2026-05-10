@@ -33,6 +33,9 @@ uvicorn>=0.4.0
 groq
 anthropic
 
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+
 # Tools
 beautifulsoup4
 duckduckgo-search
@@ -43,6 +46,7 @@ cachetools
 jinja2
 fastapi-mail
 pytz
+posthog
 
 # Testing
 pytest

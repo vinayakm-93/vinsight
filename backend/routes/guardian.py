@@ -71,7 +71,7 @@ async def get_theses(current_user: User = Depends(get_current_user), db: Session
     return results
 
 @router.post("/enable")
-async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def enable_guardian(req: ThesisCreate, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Enable Guardian for a stock. Auto-generates thesis if new."""
     
     # 1. Check Limit
@@ -80,7 +80,6 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
         GuardianThesis.is_active == True
     ).all()
     active_count = len(active_theses)
-    active_symbols = [t.symbol for t in active_theses]
     
     # Default limit fallback if column missing (migration safety)
     limit = getattr(current_user, 'guardian_limit', 10)
@@ -103,16 +102,20 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
         )
 
     try:
-        guardian_summary = f"Monitoring {req.symbol}"
-        thesis_data = None
+        guardian_summary = f"Monitoring {req.symbol} (Generation in progress...)"
+        needs_generation = False
         
         if existing:
             existing.is_active = True
+            # Check if InvestmentThesis exists
+            inv_thesis = db.query(InvestmentThesis).filter(
+                InvestmentThesis.user_id == current_user.id,
+                InvestmentThesis.symbol == req.symbol.upper()
+            ).first()
+            if not inv_thesis:
+                needs_generation = True
         else:
-            # Auto-generate full deep-dive thesis
-            thesis_data = guardian_agent.generate_investment_thesis(req.symbol)
-            guardian_summary = thesis_data.get('one_liner', guardian_summary)
-            
+            needs_generation = True
             new_guardian_thesis = GuardianThesis(
                 user_id=current_user.id,
                 symbol=req.symbol,
@@ -123,35 +126,58 @@ async def enable_guardian(req: ThesisCreate, current_user: User = Depends(get_cu
             db.add(new_guardian_thesis)
             existing = new_guardian_thesis
             
-        # Phase 5 Bidirectional Sync: Also check if it exists in the new Thesis Library
-        inv_thesis = db.query(InvestmentThesis).filter(
-            InvestmentThesis.user_id == current_user.id,
-            InvestmentThesis.symbol == req.symbol.upper()
-        ).first()
-
-        if not inv_thesis:
-            # Only generate if we didn't already
-            if thesis_data is None:
-                thesis_data = guardian_agent.generate_investment_thesis(req.symbol)
-                guardian_summary = thesis_data.get('one_liner', guardian_summary)
-                existing.thesis = guardian_summary
-                
-            import json
-            new_investment_thesis = InvestmentThesis(
-                user_id=current_user.id,
-                symbol=req.symbol.upper(),
-                stance=thesis_data.get('stance', 'NEUTRAL'),
-                one_liner=guardian_summary,
-                key_drivers=json.dumps(thesis_data.get('key_drivers', [])),
-                primary_risk=thesis_data.get('primary_risk', 'Market volatility'),
-                confidence_score=thesis_data.get('confidence_score', 5.0),
-                content=thesis_data.get('content', f"# Auto-generated thesis for {req.symbol.upper()}"),
-                sources=json.dumps([]),
-                agent_log="Generated via Guardian Agent Sync"
-            )
-            db.add(new_investment_thesis)
-            
         db.commit()
+        
+        if needs_generation:
+            # Inline background task to generate and save thesis
+            def generate_and_save_bg(u_id: int, sym: str, g_id: int):
+                from database import SessionLocal
+                from services import guardian_agent
+                import json
+                
+                bg_db = SessionLocal()
+                try:
+                    logger.info(f"Background thesis generation started for {sym}")
+                    thesis_data = guardian_agent.generate_investment_thesis(sym)
+                    g_summary = thesis_data.get('one_liner', f"Monitoring {sym}")
+                    
+                    g_thesis = bg_db.query(GuardianThesis).filter(GuardianThesis.id == g_id).first()
+                    if g_thesis:
+                        g_thesis.thesis = g_summary
+                        
+                    inv_thesis = bg_db.query(InvestmentThesis).filter(
+                        InvestmentThesis.user_id == u_id,
+                        InvestmentThesis.symbol == sym.upper()
+                    ).first()
+                    
+                    if not inv_thesis:
+                        new_inv = InvestmentThesis(
+                            user_id=u_id,
+                            symbol=sym.upper(),
+                            stance=thesis_data.get('stance', 'NEUTRAL'),
+                            one_liner=g_summary,
+                            key_drivers=json.dumps(thesis_data.get('key_drivers', [])),
+                            primary_risk=thesis_data.get('primary_risk', 'Market volatility'),
+                            confidence_score=thesis_data.get('confidence_score', 5.0),
+                            content=thesis_data.get('content', f"# Auto-generated thesis for {sym.upper()}"),
+                            sources=json.dumps([]),
+                            agent_log="Generated via Guardian Agent Sync"
+                        )
+                        bg_db.add(new_inv)
+                        
+                    bg_db.commit()
+                    logger.info(f"Background thesis generation complete for {sym}")
+                except Exception as e:
+                    logger.error(f"Background thesis generation failed for {sym}: {e}")
+                    g_thesis = bg_db.query(GuardianThesis).filter(GuardianThesis.id == g_id).first()
+                    if g_thesis:
+                        g_thesis.thesis = f"Analysis failed: {str(e)}"
+                        bg_db.commit()
+                finally:
+                    bg_db.close()
+            
+            background_tasks.add_task(generate_and_save_bg, current_user.id, req.symbol, existing.id)
+
         return {"message": f"Guardian enabled for {req.symbol}", "thesis": guardian_summary}
 
     except Exception as e:

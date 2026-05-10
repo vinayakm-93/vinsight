@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from contextlib import asynccontextmanager
 import os
 import logging
 
@@ -12,15 +13,116 @@ load_dotenv(env_path) # Load environment variables from backend/.env explicitly
 
 from database import init_db
 from rate_limiter import limiter
+import posthog
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Finance Research App", redirect_slashes=True)
+# Environment-based configuration
+ENV = os.getenv("ENV", "development")
+MCP_ENABLED = os.getenv("MCP_ENABLED", "true").lower() == "true"
+
+# Pre-import MCP server for lifespan management
+_mcp_server = None
+_mcp_app = None
+MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+
+if MCP_ENABLED:
+    try:
+        from mcp_tools import mcp as _mcp_server
+        _raw_mcp_app = _mcp_server.streamable_http_app()
+
+        # Wrap with Bearer token auth middleware
+        if MCP_API_KEY:
+            from starlette.requests import Request as StarletteRequest
+            from starlette.responses import JSONResponse as StarletteJSONResponse
+            from mcp_telemetry import track_auth_failure
+            import hmac
+
+            class MCPAuthMiddleware:
+                """ASGI middleware that validates Bearer token on all MCP requests."""
+                def __init__(self, app):
+                    self.app = app
+
+                async def __call__(self, scope, receive, send):
+                    if scope["type"] == "http":
+                        headers = dict(scope.get("headers", []))
+                        auth_header = headers.get(b"authorization", b"").decode()
+
+                        # Constant-time comparison to prevent timing attacks
+                        token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+                        if not token or not hmac.compare_digest(token, MCP_API_KEY):
+                            # Track failed auth attempt
+                            client = scope.get("client", ("unknown", 0))
+                            user_agent = headers.get(b"user-agent", b"unknown").decode()
+                            track_auth_failure(ip=client[0] if client else "unknown", user_agent=user_agent)
+
+                            response = StarletteJSONResponse(
+                                {"error": "Unauthorized", "code": "INVALID_API_KEY"},
+                                status_code=401,
+                            )
+                            await response(scope, receive, send)
+                            return
+
+                    await self.app(scope, receive, send)
+
+            _mcp_app = MCPAuthMiddleware(_raw_mcp_app)
+            logger.info("MCP Server prepared with API key auth")
+        else:
+            _mcp_app = _raw_mcp_app
+            logger.warning("MCP Server prepared WITHOUT auth (no MCP_API_KEY set — dev mode)")
+    except Exception as e:
+        logger.error(f"Failed to import MCP server: {e}")
+        _mcp_server = None
+        _mcp_app = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager.
+    Handles startup (DB, migrations, PostHog, MCP session) and shutdown.
+    """
+    # ── Startup ──
+    init_db()
+    try:
+        from migrate import migrate
+        migrate()
+    except Exception as e:
+        logger.error(f"Migration failed during startup: {e}")
+        
+    # Initialize PostHog
+    posthog_key = os.getenv("POSTHOG_API_KEY")
+    if posthog_key:
+        posthog.project_api_key = posthog_key
+        posthog.host = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")
+        logger.info("PostHog telemetry initialized")
+    else:
+        logger.warning("POSTHOG_API_KEY not found. PostHog telemetry is disabled.")
+
+    logger.info(f"Server started in {ENV} mode with rate limiting enabled")
+
+    # Start MCP session manager (required for Streamable HTTP)
+    if _mcp_server is not None:
+        async with _mcp_server.session_manager.run():
+            logger.info("MCP session manager started")
+            yield
+            logger.info("MCP session manager shutting down")
+    else:
+        yield
+
+    # ── Shutdown ──
+    logger.info("Server shutting down")
+
+
+app = FastAPI(
+    title="Finance Research App",
+    redirect_slashes=True,
+    lifespan=lifespan,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Environment-based CORS configuration
-ENV = os.getenv("ENV", "development")
+# CORS configuration
 if ENV == "production":
     # Production: Restrict to specific allowed origins
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
@@ -40,17 +142,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-Guest-UUID"],
 )
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    try:
-        from migrate import migrate
-        migrate()
-    except Exception as e:
-        logger.error(f"Migration failed during startup: {e}")
-    # MarketWatcher moved to Cloud Run Job
-    logger.info(f"Server started in {ENV} mode with rate limiting enabled")
 
 # --- Custom JSON Encoder for NaN Handling ---
 import simplejson
@@ -72,13 +163,6 @@ class NaNJSONResponse(JSONResponse):
         ).encode("utf-8")
 
 # Register the custom response class globally
-# Note: We must re-instantiate FastAPI to set the default response class if we want it global,
-# OR we can just use the middleware / exception handlers.
-# But since we already instantiated 'app' above, we can just patch it or swap it.
-# Simplest for this existing file structure:
-# We already defined 'app' earlier. Let's just create a new one with the custom class 
-# and re-attach dependencies if we were writing from scratch.
-# But to be safe with existing imports:
 app.router.default_response_class = NaNJSONResponse
 
 @app.get("/")
@@ -87,6 +171,12 @@ def read_root():
 
 # Import and include routers
 from routes import watchlist, data, feedback, auth, alerts, sentiment, guardian, portfolio, theses, profile
+
+# Mount MCP Server (Streamable HTTP for external AI agents)
+if _mcp_app is not None:
+    app.mount("/mcp", _mcp_app)
+    logger.info("MCP Server mounted at /mcp (Streamable HTTP)")
+
 app.include_router(watchlist.router)
 app.include_router(data.router)
 # app.include_router(feedback.router)
@@ -97,3 +187,4 @@ app.include_router(guardian.router)
 app.include_router(portfolio.router)
 app.include_router(theses.router)
 app.include_router(profile.router)
+
